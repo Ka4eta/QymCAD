@@ -347,6 +347,11 @@ fn occurrences(expr: &str, name: &str) -> Vec<usize> {
         let right_ok = j >= bytes.len() || !ident(bytes[j]);
         if left_ok && right_ok {
             out.push(i);
+            // The next place begins after this one. Places that overlap - `a+a` twice in `a+a+a`, a name only a
+            // project file can hold - would have a rename cut the text backwards, from the end of one to the start
+            // of the next. A name of letters, digits and `_` cannot overlap itself, so for those nothing changes.
+            from = j;
+            continue;
         }
         // The step advances by a whole character rather than by a byte. `from = i + 1` in the middle of a
         // multi-byte letter crashes the parse; the same fault lived in the earlier `mentions` and surfaced only
