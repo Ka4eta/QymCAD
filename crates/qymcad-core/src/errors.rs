@@ -204,6 +204,10 @@ pub enum ExprError {
     TrailingInput(String),
     /// the result is not a number, from a division by zero or similar
     NotANumber,
+    /// The formula nests deeper than `limit` levels - parentheses, function calls, signs or powers inside one
+    /// another. The parser goes down one call per level, and a stored formula nested a few thousand deep ran the
+    /// stack out and ended the program (`expr::MAX_FORMULA_DEPTH`).
+    TooDeep { limit: usize },
 }
 
 /// A kernel error: a fact rather than a phrase, with the words supplied by the application.
@@ -522,6 +526,7 @@ impl ExprError {
             UnexpectedEnd => "error-expr-unexpected-end",
             TrailingInput(_) => "error-expr-trailing-input",
             NotANumber => "error-expr-not-a-number",
+            TooDeep { .. } => "error-expr-too-deep",
         }
     }
 }
@@ -594,6 +599,7 @@ impl std::fmt::Display for ExprError {
             ExpectedParen => write!(f, "expected ')'"),
             ExpectedParenAfterArgs => write!(f, "expected ')' after arguments"),
             NotANumber => write!(f, "result is not a number"),
+            TooDeep { limit } => write!(f, "the formula nests deeper than {limit} levels"),
         }
     }
 }

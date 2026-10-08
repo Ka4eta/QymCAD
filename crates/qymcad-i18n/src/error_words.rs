@@ -99,6 +99,7 @@ pub fn error_text(e: &qymcad_core::errors::CoreError) -> String {
         // `name` translates known keys only.
         E::Kernel(msg) => args.set("message", crate::name(msg)),
         E::Expr(X::UnknownChar(w) | X::UnknownFn(w) | X::UnknownName(w) | X::NeedsOneArg(w) | X::NeedsTwoArgs(w) | X::UnexpectedToken(w) | X::TrailingInput(w)) => args.set("what", w.clone()),
+        E::Expr(X::TooDeep { limit }) => args.set("limit", *limit as i64),
         _ => {}
     }
     crate::tr_args(&e.key(), Some(&args))

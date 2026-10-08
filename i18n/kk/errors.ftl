@@ -206,6 +206,7 @@ error-expr-unexpected-token = Күтілмеген таңба { $what }
 error-expr-unexpected-end = өрнек тым ерте аяқталады: сан не атау күтілді
 error-expr-trailing-input = «{ $what }» жанында артық енгізу
 error-expr-not-a-number = Нәтиже сан емес (нөлге бөлу ме?)
+error-expr-too-deep = Формула { $limit } деңгейден тереңірек салынған — жақшалар, функциялар, таңбалар немесе дәрежелер бір-бірінің ішінде
 
 ## A message from the kernel itself — passed through untranslated: it is diagnostics, not prose.
 

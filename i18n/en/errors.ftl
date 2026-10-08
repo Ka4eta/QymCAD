@@ -206,6 +206,7 @@ error-expr-unexpected-token = Unexpected token { $what }
 error-expr-unexpected-end = the expression ends too early: a number or a name was expected
 error-expr-trailing-input = Trailing input at «{ $what }»
 error-expr-not-a-number = The result is not a number (division by zero?)
+error-expr-too-deep = The formula nests deeper than { $limit } levels — parentheses, functions, signs or powers inside one another
 
 ## A message from the kernel itself — passed through untranslated: it is diagnostics, not prose.
 
