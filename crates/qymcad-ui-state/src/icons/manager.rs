@@ -102,15 +102,41 @@ pub fn install_cad_icons(ctx: &egui::Context, stack: &[IconPack], palette: &qymc
     }
 }
 
+pub(crate) fn watcher_id() -> egui::Id {
+    egui::Id::new("cad_icon_watcher")
+}
+
+pub(crate) fn active_icon_stack_id() -> egui::Id {
+    egui::Id::new("cad_active_icon_stack")
+}
+
+pub(crate) fn active_palette_id() -> egui::Id {
+    egui::Id::new("cad_active_palette")
+}
+
+pub(crate) fn watcher_thread_running_id() -> egui::Id {
+    egui::Id::new("cad_icon_watcher_thread_running")
+}
+
+pub(crate) fn icon_polling_active_id() -> egui::Id {
+    egui::Id::new("cad_icon_polling_active")
+}
+
+pub(crate) fn icon_revision_id() -> egui::Id {
+    egui::Id::new("cad_icon_revision")
+}
+
+pub(crate) static ICON_STACK_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 /// Monotonically increasing revision counter stored in `egui::Context::data()`.
 pub fn get_icon_revision(ctx: &egui::Context) -> u64 {
-    ctx.data(|d| d.get_temp(egui::Id::new("cad_icon_revision")).unwrap_or(0))
+    ctx.data(|d| d.get_temp(icon_revision_id()).unwrap_or(0))
 }
 
 /// Bump the icon revision counter in `egui::Context::data()`.
 pub fn bump_icon_revision(ctx: &egui::Context) -> u64 {
     ctx.data_mut(|d| {
-        let id = egui::Id::new("cad_icon_revision");
+        let id = icon_revision_id();
         let rev = d.get_temp::<u64>(id).unwrap_or(0) + 1;
         d.insert_temp(id, rev);
         rev
@@ -119,10 +145,20 @@ pub fn bump_icon_revision(ctx: &egui::Context) -> u64 {
 
 /// Active icon stack container stored inside `egui::Context::data()`.
 #[derive(Clone, Default)]
-pub struct ActiveIconStack(pub Vec<IconPack>);
+pub struct ActiveIconStack {
+    pub packs: Vec<IconPack>,
+    pub generation: u64,
+}
+
+impl ActiveIconStack {
+    pub fn new(packs: Vec<IconPack>, generation: u64) -> Self {
+        Self { packs, generation }
+    }
+}
 
 /// Set the active icon stack on `egui::Context` and update icon textures.
 pub fn set_active_icon_stack(ctx: &egui::Context, mut stack: Vec<IconPack>, palette: &qymcad_scheme::Palette) {
+    let _lock = ICON_STACK_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     if !stack.iter().any(|p| p.manifest.id == DEFAULT_THEME_ID) {
         if let Some(def) = load_default_pack() {
             stack.push(def);
@@ -131,8 +167,8 @@ pub fn set_active_icon_stack(ctx: &egui::Context, mut stack: Vec<IconPack>, pale
     install_cad_icons(ctx, &stack, palette);
     bump_icon_revision(ctx);
     ctx.data_mut(|d| {
-        let watcher_id = egui::Id::new("cad_icon_watcher");
-        let mut watcher = d.get_temp::<IconWatcher>(watcher_id).unwrap_or_default();
+        let w_id = watcher_id();
+        let mut watcher = d.get_temp::<IconWatcher>(w_id).unwrap_or_default();
         for pack in &stack {
             if (watcher.dev_watch_enabled || watcher.watched_pack_ids.iter().any(|id| id == &pack.manifest.id)) && pack.is_directory() {
                 if let Some(snap) = pack.directory_snapshot() {
@@ -140,15 +176,22 @@ pub fn set_active_icon_stack(ctx: &egui::Context, mut stack: Vec<IconPack>, pale
                 }
             }
         }
-        d.insert_temp(watcher_id, watcher);
-        d.insert_temp(egui::Id::new("cad_active_icon_stack"), ActiveIconStack(stack));
-        d.insert_temp(egui::Id::new("cad_active_palette"), palette.clone());
+        let stack_id = active_icon_stack_id();
+        let next_gen = d.get_temp::<ActiveIconStack>(stack_id).map(|s| s.generation.wrapping_add(1)).unwrap_or(1);
+        d.insert_temp(w_id, watcher);
+        d.insert_temp(stack_id, ActiveIconStack::new(stack, next_gen));
+        d.insert_temp(active_palette_id(), palette.clone());
     });
 }
 
 /// Retrieve the active icon stack from `egui::Context`.
 pub fn get_active_icon_stack(ctx: &egui::Context) -> Vec<IconPack> {
-    ctx.data(|d| d.get_temp::<ActiveIconStack>(egui::Id::new("cad_active_icon_stack"))).map(|s| s.0).unwrap_or_else(|| load_default_pack().map(|p| vec![p]).unwrap_or_default())
+    ctx.data(|d| d.get_temp::<ActiveIconStack>(active_icon_stack_id())).map(|s| s.packs).unwrap_or_else(|| load_default_pack().map(|p| vec![p]).unwrap_or_default())
+}
+
+/// Retrieve the current generation of active icon stack from `egui::Context`.
+pub fn get_active_icon_stack_generation(ctx: &egui::Context) -> u64 {
+    ctx.data(|d| d.get_temp::<ActiveIconStack>(active_icon_stack_id()).map(|s| s.generation)).unwrap_or(0)
 }
 
 pub use super::watcher::*;
@@ -178,7 +221,7 @@ pub fn resolve_icon_tokens(data: &[u8], palette: &qymcad_scheme::Palette) -> Vec
         while let Some(pos) = lower[search_from..].find("currentcolor") {
             let abs_pos = search_from + pos;
             let after_idx = abs_pos + 12;
-            if is_color_context(&result, abs_pos, after_idx) {
+            if is_color_context(&result, abs_pos..after_idx) {
                 replaced.push_str(&result[search_from..abs_pos]);
                 replaced.push_str(&stroke_hex);
             } else {
@@ -193,11 +236,11 @@ pub fn resolve_icon_tokens(data: &[u8], palette: &qymcad_scheme::Palette) -> Vec
     result.into_bytes()
 }
 
-/// Check if the match of `currentColor` at `[start..end]` is in a valid SVG color attribute
+/// Check if the match of `currentColor` at `range` is in a valid SVG color attribute
 /// or CSS color property context, rather than in an element id, class, or text node.
-fn is_color_context(full_text: &str, start: usize, end: usize) -> bool {
-    let before_str = &full_text[..start];
-    let after_str = &full_text[end..];
+fn is_color_context(full_text: &str, range: std::ops::Range<usize>) -> bool {
+    let before_str = &full_text[..range.start];
+    let after_str = &full_text[range.end..];
 
     let next_char = after_str.chars().next();
     if !matches!(next_char, None | Some('"' | '\'' | ';' | ')' | '}' | '>' | '/' | '!' | ' ' | '\t' | '\r' | '\n')) {

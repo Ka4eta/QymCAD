@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
-use super::hygiene::{validate_icon_svg, validate_svg, validate_svg_structural};
+use super::hygiene::{validate_svg, validate_svg_structural};
 use super::id::{IconId, ALL_ICONS};
 use super::manifest::IconManifest;
 use super::pack::IconPack;
@@ -111,7 +111,6 @@ pub fn discover_packs_detailed(dir: &Path) -> DiscoveryReport {
         if file_type.is_dir() {
             let manifest_path = path.join("manifest.ron");
             if manifest_path.exists() {
-                super::hygiene::cleanup_residual_tmp_files(&path);
                 match IconPack::from_directory(&path) {
                     Ok(pack) => packs.push(pack),
                     Err(err) => errors.push(DiscoveryError { path, reason: err }),
@@ -138,7 +137,6 @@ pub fn discover_packs_in(dir: &Path) -> Vec<IconPack> {
 /// Checks all SVG viewports, identifies extraneous/unknown files, and lists included vs missing icons.
 pub fn inspect_pack_directory(source_dir: impl AsRef<Path>) -> Result<ValidationReport, String> {
     let source_dir = source_dir.as_ref();
-    super::hygiene::cleanup_residual_tmp_files(source_dir);
     let icons_dir = source_dir.join("icons");
     if !icons_dir.is_dir() {
         return Err(format!("missing icons/ directory in {}", source_dir.display()));
@@ -174,10 +172,13 @@ pub fn inspect_pack_directory(source_dir: impl AsRef<Path>) -> Result<Validation
                         rejected.push(RejectedArchive { path: fname.to_string(), reason: format!("localized documentation is not readable UTF-8: {err}") });
                     }
                 } else if fname == "preview.svg" {
-                    if let Ok(content) = std::fs::read(&p) {
-                        if let Err(err) = validate_svg_structural(&content, false) {
-                            rejected.push(RejectedArchive { path: fname.to_string(), reason: format!("preview.svg validation error: {err}") });
+                    match super::pack::read_file_with_limit(&p, super::pack::MAX_SINGLE_FILE_UNCOMPRESSED_SIZE) {
+                        Some(content) => {
+                            if let Err(err) = validate_svg_structural(&content, false) {
+                                rejected.push(RejectedArchive { path: fname.to_string(), reason: format!("preview.svg validation error: {err}") });
+                            }
                         }
+                        None => rejected.push(RejectedArchive { path: fname.to_string(), reason: "preview.svg exceeds the maximum file size or cannot be read".to_string() }),
                     }
                 } else if fname == "manifest.ron" {
                     if std::fs::metadata(&p).ok().is_some_and(|m| m.len() > super::pack::MAX_MANIFEST_SIZE) {
@@ -244,7 +245,7 @@ pub fn inspect_pack_directory(source_dir: impl AsRef<Path>) -> Result<Validation
                             rejected.push(RejectedArchive { path: rel_str, reason: format!("SVG exceeds {} byte limit", super::pack::MAX_ICON_SVG_SIZE) });
                             continue;
                         }
-                        match validate_icon_svg(&data) {
+                        match validate_svg(&data) {
                             Ok(()) => {
                                 if !included.contains(&id) {
                                     included.push(id);
