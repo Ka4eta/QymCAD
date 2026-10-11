@@ -12628,11 +12628,15 @@ pub fn begin_text_edit(project: &Project, tools: &mut Tools, prefs: &mut SketchT
 }
 
 pub fn text_obj_editor(ed: Editing, font_cache: &mut FontCache, tc: &mut TextCtx, ctx: &egui::Context, rect: Rect) {
+    // NO LABEL BEING EDITED, NOTHING TO END. This runs on every flat frame, and ending a text edit puts the tool in hand
+    // down: asked first whether the sketch was selected, it put down whatever was in hand whenever it was not.
+    // Reported behaviour: an extrusion opened for editing, "Pick contours" pressed - the view went flat with nothing to
+    // pick and no bar, the extrusion gone from the hand (its node, not its sketch, was selected).
+    let Some(ti) = tc.inline.text() else { return };
     let Sel::Sketch(si) = *ed.sel else {
         end_text_edit(tc);
         return;
     };
-    let Some(ti) = tc.inline.text() else { return };
     let Some((bx, _by, _, maxy)) = ed.project.sketch_text_bbox(si, ti) else {
         end_text_edit(tc);
         return;

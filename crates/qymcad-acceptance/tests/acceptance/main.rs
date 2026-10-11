@@ -10,6 +10,7 @@ mod completeness;
 mod contract;
 mod document_files;
 mod documents;
+mod extrusion_reopen;
 mod gestures;
 mod export_scope;
 mod gizmo_in_space;
