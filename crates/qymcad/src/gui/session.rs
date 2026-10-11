@@ -272,6 +272,9 @@ pub struct Solid {
     pub consumed: bool,
     /// A surface rather than a solid.
     pub sheet: bool,
+    /// How many vertices of its mesh carry the surface's own normal - what its smooth light is shaded by. None: a mesh
+    /// saved before the normals were kept, or one with no surface behind it.
+    pub lit_by_the_surface: usize,
 }
 
 /// WHAT AN EXACT BODY IS MADE OF, read on demand ([`Session::inspect`]): checking a large body takes time, so it is
@@ -1478,6 +1481,7 @@ impl Session {
                     max: bounds.as_ref().map(|bb| [bb.max.x, bb.max.y, bb.max.z]).unwrap_or([f64::NAN; 3]),
                     visible: b.visible,
                     consumed: consumed.contains(&b.id),
+                    lit_by_the_surface: m.norms.iter().filter(|&&n| n != 0).count(),
                     sheet: b.sheet,
                 }
             })

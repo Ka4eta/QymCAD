@@ -4559,6 +4559,17 @@ impl Project {
             feed(&self.face_colors, &mut h);
             feed(&self.tri_colors, &mut h);
         }
+        // THE GEOMETRY THE FILE KEEPS, by its size - what a body's mesh holds, not its points. The bodies are written by
+        // the program and stay out of what is rebuilt, but the file stores them: a rebuild that brought new meshes
+        // changes what would be saved. Reported behaviour: Rebuild everything mended the roundings of an old document
+        // (its meshes came with the surface's normals), the document was not marked changed, nothing asked to save it,
+        // and opened again its roundings were broken as before. Sizes only: opening a document and touching nothing
+        // rebuilds nothing, and counting is free where hashing millions of points on every frame is not.
+        if placement {
+            for b in &self.bodies {
+                (b.id, b.mesh.verts.len(), b.mesh.tris.len(), b.mesh.norms.len()).hash(&mut h);
+            }
+        }
         // Components: name, kind, parent, visibility, grounding and placement.
         for c in &self.components {
             // every field decided, as for the document above
