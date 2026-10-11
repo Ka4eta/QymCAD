@@ -40,7 +40,7 @@ fn gridded_cube(grid: usize, side: f64) -> Mesh {
             }
         }
     }
-    Mesh { verts, tris }
+    Mesh { verts, tris, ..Default::default() }
 }
 
 /// The corner `i`, `j` of the top net of `gridded_cube(grid, _)`: the top is the sixth net.
@@ -135,7 +135,7 @@ fn gridded_cylinder(r: f64, h: f64, around: usize, up: usize) -> Mesh {
         tris.push([bottom, at(0, i + 1), at(0, i)]);
         tris.push([top, at(up, i), at(up, i + 1)]);
     }
-    Mesh { verts, tris }
+    Mesh { verts, tris, ..Default::default() }
 }
 
 /// A NaN CORNER ON THE WALL OF A CYLINDER: the six triangles round it go. Kept, they were slivers beside a region turned

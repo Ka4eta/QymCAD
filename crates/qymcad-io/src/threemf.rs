@@ -137,7 +137,7 @@ fn parse_model(xml: &str, names: &std::collections::HashMap<String, String>) -> 
             }
             continue;
         }
-        let mut mesh = Mesh { verts: Vec::new(), tris: Vec::new() };
+        let mut mesh = Mesh { verts: Vec::new(), tris: Vec::new(), ..Default::default() };
         let mut per = Vec::new();
         place(id, &t, 0, &objects, &colours, &mut mesh, &mut per)?;
         if !mesh.tris.is_empty() {
@@ -194,7 +194,7 @@ impl Parts<'_> {
             }
             return Ok(());
         }
-        let mut mesh = Mesh { verts: Vec::new(), tris: Vec::new() };
+        let mut mesh = Mesh { verts: Vec::new(), tris: Vec::new(), ..Default::default() };
         let mut per = Vec::new();
         let in_mm = rest.map(|r| r.map(|v| v * self.to_mm));
         place(id, &row(&in_mm, [0.0; 3]), 1, self.objects, self.colours, &mut mesh, &mut per)?;

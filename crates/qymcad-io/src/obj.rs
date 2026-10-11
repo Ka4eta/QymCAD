@@ -124,7 +124,14 @@ fn parse(text: &str) -> Result<Parsed, String> {
             let renumber: HashMap<usize, u32> = used.iter().enumerate().map(|(k, i)| (*i, k as u32)).collect();
             let verts: Vec<Point3> = used.iter().map(|i| all[*i]).collect();
             let tris = faces.into_iter().map(|f| f.map(|i| renumber[&i])).collect();
-            NamedMesh { name: crate::authored(name), mesh: Mesh { verts, tris }, color: None, place: qymcad_core::feature::PLACE_IDENTITY, tri_colors: Vec::new(), within: Vec::new() }
+            NamedMesh {
+                name: crate::authored(name),
+                mesh: Mesh { verts, tris, ..Default::default() },
+                color: None,
+                place: qymcad_core::feature::PLACE_IDENTITY,
+                tri_colors: Vec::new(),
+                within: Vec::new(),
+            }
         })
         .collect();
     if meshes.is_empty() {

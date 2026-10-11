@@ -351,6 +351,7 @@ pub(crate) mod tests {
         let cube = |at: f64| qymcad_core::geom::Mesh {
             verts: [[0.0, 0.0, 0.0], [10.0, 0.0, 0.0], [0.0, 10.0, 0.0], [0.0, 0.0, 10.0]].iter().map(|p| qymcad_core::geom::Point3::new(p[0] + at, p[1], p[2])).collect(),
             tris: vec![[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]],
+            ..Default::default()
         };
         qymcad_io::export_obj(&[cube(0.0), cube(30.0)], &obj.to_string_lossy()).expect("the OBJ is written");
         let ply = dir.join("tetra.ply");
@@ -472,7 +473,11 @@ pub(crate) mod tests {
         std::fs::create_dir_all(&dir).expect("a folder for the check");
         let p = dir.join("bracket.3mf");
         let v = |x: f64, y: f64, z: f64| qymcad_core::geom::Point3::new(x, y, z);
-        let lifted = qymcad_core::geom::Mesh { verts: vec![v(0.0, 0.0, 50.0), v(10.0, 0.0, 50.0), v(0.0, 10.0, 50.0), v(0.0, 0.0, 60.0)], tris: vec![[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]] };
+        let lifted = qymcad_core::geom::Mesh {
+            verts: vec![v(0.0, 0.0, 50.0), v(10.0, 0.0, 50.0), v(0.0, 10.0, 50.0), v(0.0, 0.0, 60.0)],
+            tris: vec![[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]],
+            ..Default::default()
+        };
         qymcad_io::export_3mf(&[lifted], &p.to_string_lossy()).expect("written");
         let (mut app, ctx) = running();
         let before = app.project.bodies.len();
@@ -655,7 +660,11 @@ pub(crate) mod tests {
     fn a_file_with_its_unit_and_a_sensible_size_lands_without_asking() {
         let p = scale_file("ten.3mf");
         let v = |x: f64, y: f64, z: f64| qymcad_core::geom::Point3::new(x, y, z);
-        let tet = qymcad_core::geom::Mesh { verts: vec![v(0.0, 0.0, 0.0), v(10.0, 0.0, 0.0), v(0.0, 10.0, 0.0), v(0.0, 0.0, 10.0)], tris: vec![[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]] };
+        let tet = qymcad_core::geom::Mesh {
+            verts: vec![v(0.0, 0.0, 0.0), v(10.0, 0.0, 0.0), v(0.0, 10.0, 0.0), v(0.0, 0.0, 10.0)],
+            tris: vec![[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]],
+            ..Default::default()
+        };
         qymcad_io::export_3mf(&[tet], &p).expect("written");
         let (mut app, ctx) = running();
         let (before, steps) = (app.project.bodies.len(), app.disk.edits.undo.len());
@@ -704,7 +713,11 @@ pub(crate) mod tests {
     fn tet_3mf(name: &str, side: f64) -> String {
         let p = scale_file(name);
         let v = |x: f64, y: f64, z: f64| qymcad_core::geom::Point3::new(x * side, y * side, z * side);
-        let tet = qymcad_core::geom::Mesh { verts: vec![v(0.0, 0.0, 0.0), v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0), v(0.0, 0.0, 1.0)], tris: vec![[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]] };
+        let tet = qymcad_core::geom::Mesh {
+            verts: vec![v(0.0, 0.0, 0.0), v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0), v(0.0, 0.0, 1.0)],
+            tris: vec![[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]],
+            ..Default::default()
+        };
         qymcad_io::export_3mf(&[tet], &p).expect("written");
         p
     }

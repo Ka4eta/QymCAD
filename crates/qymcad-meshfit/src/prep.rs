@@ -176,7 +176,7 @@ pub fn prepare(mesh: &Mesh, weld: f64) -> Prepared {
     }
     let (neighbours, border, non_manifold) = adjacency(&tris);
     let normals = tris.iter().map(|t| unit(normal_of(&kept, *t))).collect();
-    Prepared { mesh: Mesh { verts: kept, tris }, neighbours, normals, holes: loops(&border), dropped, non_manifold, flipped, slivers, origin }
+    Prepared { mesh: Mesh { verts: kept, tris, ..Default::default() }, neighbours, normals, holes: loops(&border), dropped, non_manifold, flipped, slivers, origin }
 }
 
 /// Joins corners closer than `tol`. The space is cut into cubes of side `tol`, so a partner can only lie in the

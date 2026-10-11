@@ -220,10 +220,15 @@ fn s2l(c: vec3<f32>) -> vec3<f32> {
     return select(higher, lower, c <= vec3<f32>(0.04045));
 }
 
-// a signed byte out of the low 8 bits
-fn sbyte(v: u32) -> f32 {
-    let b = f32(v & 0xffu);
-    return select(b, b - 256.0, b > 127.0) / 127.0;
+// THE NORMAL OUT OF FOUR BYTES, the octahedral form `geom::pack_direction` writes: 16 bits a coordinate, from 1 up
+fn octa(p: u32) -> vec3<f32> {
+    let e = vec2<f32>(f32(p & 0xffffu) - 1.0, f32(p >> 16u) - 1.0) / 65534.0 * 2.0 - 1.0;
+    let z = 1.0 - abs(e.x) - abs(e.y);
+    var xy = e;
+    if (z < 0.0) {
+        xy = vec2<f32>((1.0 - abs(e.y)) * select(-1.0, 1.0, e.x >= 0.0), (1.0 - abs(e.x)) * select(-1.0, 1.0, e.y >= 0.0));
+    }
+    return normalize(vec3<f32>(xy, z));
 }
 
 @vertex
@@ -258,7 +263,7 @@ fn vs_mesh(@location(0) pos: vec3<f32>, @location(1) body: u32, @location(2) nrm
     out.wpos = pos;
     out.body = body;
     // zero means flat shading: then the fragment takes the face normal from the derivatives
-    out.nrm = select(vec3<f32>(0.0, 0.0, 0.0), vec3<f32>(sbyte(nrm_packed), sbyte(nrm_packed >> 8u), sbyte(nrm_packed >> 16u)), nrm_packed != 0u);
+    out.nrm = select(vec3<f32>(0.0, 0.0, 0.0), octa(nrm_packed), nrm_packed != 0u);
     return out;
 }
 

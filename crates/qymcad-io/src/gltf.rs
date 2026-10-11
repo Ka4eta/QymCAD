@@ -158,7 +158,7 @@ fn walk(scene: &Scene, at: usize, rest: &crate::rigid::Lin, within: &[qymcad_cor
         (within.to_vec(), place)
     };
     if let Some(mi) = node["mesh"].as_u64() {
-        let mut mesh = Mesh { verts: Vec::new(), tris: Vec::new() };
+        let mut mesh = Mesh { verts: Vec::new(), tris: Vec::new(), ..Default::default() };
         let mut per: Vec<Option<[u8; 3]>> = Vec::new(); // the colour of every triangle, by its primitive's material
         for prim in doc["meshes"][mi as usize]["primitives"].as_array().cloned().unwrap_or_default() {
             let before = mesh.tris.len();

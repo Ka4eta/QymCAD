@@ -4214,6 +4214,7 @@ mod ghost_highlight;
 mod look_at_a_document;
 mod gpu_shot;
 mod a_scene_lost_in_a_discarded_pass_is_sent_again;
+mod smooth_shading_look;
 mod card_matches_raster;
 mod drag_cost_look;
 mod release_build;

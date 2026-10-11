@@ -15257,7 +15257,7 @@ mod blend_outline {
     /// The top front edge of a 40 x 30 x 10 block: one triangle of the top face, one of the front face, sharing it.
     fn corner() -> Mesh {
         let p = |x, y, z| Point3::new(x, y, z);
-        Mesh { verts: vec![p(0.0, 0.0, 10.0), p(40.0, 0.0, 10.0), p(40.0, 30.0, 10.0), p(0.0, 0.0, 0.0)], tris: vec![[0, 1, 2], [1, 0, 3]] }
+        Mesh { verts: vec![p(0.0, 0.0, 10.0), p(40.0, 0.0, 10.0), p(40.0, 30.0, 10.0), p(0.0, 0.0, 0.0)], tris: vec![[0, 1, 2], [1, 0, 3]], ..Default::default() }
     }
 
     fn near(a: [f64; 3], b: [f64; 3]) -> bool {
@@ -15306,7 +15306,7 @@ mod blend_outline {
     #[test]
     fn a_draft_outline_leans_by_its_angle() {
         let p = |x, y, z| Point3::new(x, y, z);
-        let mesh = Mesh { verts: vec![p(0.0, 0.0, 0.0), p(40.0, 0.0, 0.0), p(40.0, 0.0, 10.0), p(0.0, 0.0, 10.0)], tris: vec![[0, 1, 2], [0, 2, 3]] };
+        let mesh = Mesh { verts: vec![p(0.0, 0.0, 0.0), p(40.0, 0.0, 0.0), p(40.0, 0.0, 10.0), p(0.0, 0.0, 10.0)], tris: vec![[0, 1, 2], [0, 2, 3]], ..Default::default() };
         let face = qymcad_core::geom::MeshFace { triangles: vec![0, 1], normal: [0.0, -1.0, 0.0], centroid: p(20.0, 0.0, 5.0), area: 400.0, id: 1 };
         for angle in [3.0f64, 6.0] {
             let out = super::draft_outline(&mesh, &face, [20.0, 15.0, 10.0], [0.0, 0.0, 1.0], angle);
@@ -15354,7 +15354,7 @@ mod blend_outline {
     #[test]
     fn a_fillet_in_an_inner_corner_lies_in_the_corner() {
         let p = |x, y, z| Point3::new(x, y, z);
-        let m = Mesh { verts: vec![p(0.0, 0.0, 0.0), p(40.0, 0.0, 0.0), p(40.0, 30.0, 0.0), p(0.0, 0.0, 10.0)], tris: vec![[0, 1, 2], [1, 0, 3]] };
+        let m = Mesh { verts: vec![p(0.0, 0.0, 0.0), p(40.0, 0.0, 0.0), p(40.0, 30.0, 0.0), p(0.0, 0.0, 10.0)], tris: vec![[0, 1, 2], [1, 0, 3]], ..Default::default() };
         let edge = [[0.0f32, 0.0, 0.0], [40.0, 0.0, 0.0]];
         let out = edge_blend_outline(&m, &edge, Blend::Round(2.0));
         assert_eq!(out.len(), 4, "{out:?}");

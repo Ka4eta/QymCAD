@@ -93,7 +93,7 @@ fn parse(xml: &str) -> Result<Vec<NamedMesh>, String> {
         }));
         let id = o.attr("id").unwrap_or("").to_string();
         let name = o.all("metadata").find(|m| m.attr("type") == Some("name")).map(|m| m.text.trim().to_string()).unwrap_or_default();
-        let mut mesh = Mesh { verts: Vec::new(), tris: Vec::new() };
+        let mut mesh = Mesh { verts: Vec::new(), tris: Vec::new(), ..Default::default() };
         for m in o.all("mesh") {
             let base = mesh.verts.len() as u32;
             let mut n = 0u32;
@@ -128,6 +128,7 @@ fn parse(xml: &str) -> Result<Vec<NamedMesh>, String> {
             })
             .collect(),
         tris: m.tris.clone(),
+        ..Default::default()
     };
     // constellations nobody else instances are the top; each instance under them is a body
     let used: std::collections::HashSet<&str> = constellations.iter().flat_map(|c| c.all("instance").filter_map(|i| i.attr("objectid"))).collect();

@@ -290,7 +290,7 @@ fn parse(bytes: &[u8]) -> Result<(Mesh, Vec<[u8; 3]>), String> {
             tri_rgb = tris.iter().map(|t| if c(t[1]) == c(t[2]) { c(t[1]) } else { c(t[0]) }).collect();
         }
     }
-    Ok((Mesh { verts, tris }, tri_rgb))
+    Ok((Mesh { verts, tris, ..Default::default() }, tri_rgb))
 }
 
 /// Write meshes into one binary PLY: the coordinates as doubles, so the file read back gives them to the last bit;
