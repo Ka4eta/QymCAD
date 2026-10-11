@@ -206,6 +206,12 @@ pub(crate) mod tests {
         let off = off_the_sphere(&v);
         eprintln!("sphere: {} vertices; worst normal off the surface's own: {:.2} deg; worst step of the light at one point: {:.2} deg", v.len(), off, worst_step(&v, 30.0));
         picture(&mut ball, "sphere");
+        // THE SOFTWARE PICTURE of the same frame: it takes the same normals and draws its own way
+        let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(900.0, 600.0));
+        let basis = ball.viewing.cam.basis();
+        if let Some(img) = qymcad_render::rasterize_3d(&ball.painting(), rect, &basis, 1.0, 1.0).and_then(|i| crate::gui::color_image_to_png(&i)) {
+            let _ = std::fs::write(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/look/sphere_raster.png"), img);
+        }
 
         let mut cup = cup();
         let v = shaded(&cup);
