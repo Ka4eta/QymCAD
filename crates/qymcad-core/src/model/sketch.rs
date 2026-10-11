@@ -4245,16 +4245,15 @@ impl Project {
         // Closed contours are the region faces of the planar arrangement (intersections give minimal faces), so
         // half-rings and other areas that are not whole loops become selectable. Open chains (sweep and loft
         // paths) come from the ordinary tessellation, the arrangement producing closed faces only.
-        let mut pairs: Vec<(Contour, Vec<Id>)> = arrangement_regions_prov(&pts, &ents);
+        // Splines are cut into the arrangement with the rest (`arrangement_faces`), so their closed regions are among these.
+        let mut pairs: Vec<(Contour, Vec<Id>)> = arrangement_regions_prov(&pts, &ents, &splines);
         pairs.extend(tessellate_sketch_multi(&pts, &ents).into_iter().filter(|c| !c.closed).map(|c| (c, Vec::new())));
-        // Spline contours (cubic Hermite with tangent handles, automatic Catmull-Rom by default).
-        for sp in &splines {
-            if sp.construction {
-                continue; // A construction spline never reaches a profile; it is drawn dashed.
-            }
+        // An open spline is an open chain too (cubic Hermite with tangent handles, automatic Catmull-Rom by default): a
+        // path for a sweep or a loft. A construction spline never reaches a profile; it is drawn dashed.
+        for sp in splines.iter().filter(|sp| !sp.closed && !sp.construction) {
             let cps: Vec<Point2> = sp.points.iter().filter_map(|id| pts.iter().find(|p| p.id == *id).map(|p| crate::geom::Point2::new(p.x, p.y))).collect();
             if cps.len() >= 2 {
-                pairs.push((tessellate_spline_hermite(&cps, &sp.tangents, sp.closed), Vec::new()));
+                pairs.push((tessellate_spline_hermite(&cps, &sp.tangents, false), Vec::new()));
             }
         }
         // Contours of parametric text (its baked glyphs); ordinary, non-construction text reaches the
@@ -5235,7 +5234,7 @@ impl Project {
     /// circles cut by a line, for instance. Used to pick an extrude profile.
     pub fn sketch_regions(&self, si: usize) -> Vec<crate::geom::Contour> {
         let Some(s) = self.sketches.get(si) else { return Vec::new() };
-        arrangement_regions(&s.points, &s.entities)
+        arrangement_regions(&s.points, &s.entities, &s.splines)
     }
     /// Like `feature_profile_encoded`, but the contours listed in `fill` are not subtracted as holes, having
     /// been explicitly selected as filled. Two concentric circles with both selected put the inner one in

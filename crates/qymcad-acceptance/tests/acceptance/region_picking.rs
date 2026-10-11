@@ -71,3 +71,56 @@ probe! {
         s.key(Key::Escape);
     }
 }
+
+/// The area between the spline the sketcher draws through three nodes and the chord of its ends: a Catmull-Rom curve,
+/// the tangent at a node half the step between its neighbours, one-sided at the ends - integrated in fine steps.
+fn cap_of_a_spline_through(n: [(f64, f64); 3]) -> f64 {
+    let half = |a: (f64, f64), b: (f64, f64)| ((b.0 - a.0) / 2.0, (b.1 - a.1) / 2.0);
+    let m = [half(n[0], n[1]), half(n[0], n[2]), half(n[1], n[2])];
+    let at = |s: usize, t: f64| {
+        let (t2, t3) = (t * t, t * t * t);
+        let h = [2.0 * t3 - 3.0 * t2 + 1.0, t3 - 2.0 * t2 + t, -2.0 * t3 + 3.0 * t2, t3 - t2];
+        (h[0] * n[s].0 + h[1] * m[s].0 + h[2] * n[s + 1].0 + h[3] * m[s + 1].0, h[0] * n[s].1 + h[1] * m[s].1 + h[2] * n[s + 1].1 + h[3] * m[s + 1].1)
+    };
+    let steps = 4000;
+    let mut line: Vec<(f64, f64)> = (0..2).flat_map(|s| (0..steps).map(move |k| (s, k as f64 / steps as f64))).map(|(s, t)| at(s, t)).collect();
+    line.push(n[2]);
+    let k = line.len();
+    ((0..k).map(|i| line[i].0 * line[(i + 1) % k].1 - line[(i + 1) % k].0 * line[i].1).sum::<f64>() / 2.0).abs()
+}
+
+probe! {
+    /// A REGION CLOSED BY A SPLINE AND TWO LINES IS EXTRUDED BY A CLICK INSIDE IT: the spline drawn through three nodes,
+    /// two lines from its ends to a point below, a circle beside them, the extrusion taken and the region clicked - the body holds the area the
+    /// curve and the lines bound, times the length.
+    fn a_region_closed_by_a_spline_is_picked_by_a_click_and_extruded() {
+        let mut s = Session::start();
+        build::into_the_first_part(&mut s);
+        let xy = s.word("plane-xy-table");
+        s.press_word(&xy);
+        let nodes = [(0.0, 0.0), (20.0, 24.0), (40.0, 0.0)];
+        let spline = s.word("tb-spline-hint");
+        s.press_hint(&spline);
+        s.click_on_sketch(nodes[0].0, nodes[0].1).click_on_sketch(nodes[1].0, nodes[1].1);
+        let end = s.on_sketch(nodes[2].0, nodes[2].1);
+        s.double_click(end);
+        s.key(Key::Escape);
+        build::line(&mut s, (40.0, 0.0), (20.0, -20.0));
+        build::line(&mut s, (20.0, -20.0), (0.0, 0.0));
+        // a circle beside it, so the sketch has more than one region and the picker waits for the click
+        build::circle(&mut s, (60.0, 0.0), (65.0, 0.0));
+        let finish = s.word("wb-finish");
+        s.press_word(&finish);
+        let extrude = s.word("tb-extrude-hint");
+        s.press_hint(&extrude);
+        let inside = s.on_sheet(20.0, 5.0);
+        s.click(inside);
+        s.key(Key::Enter);
+        let length = s.word("f-length");
+        s.fill(&length, "10").key(Key::Enter);
+        // the cap of the curve over its chord, and the triangle under the chord: 40 x 20 / 2
+        let want = (cap_of_a_spline_through(nodes) + 400.0) * 10.0;
+        let bodies: Vec<f64> = s.document().bodies.into_iter().filter(|b| !b.consumed && !b.sheet).map(|b| b.volume).collect();
+        assert!(bodies.len() == 1 && (bodies[0] - want).abs() < 0.01 * want, "the region of the spline and the two lines, 10 long, holds {want}; the bodies hold {bodies:?}; the program says {:?}", s.status());
+    }
+}
