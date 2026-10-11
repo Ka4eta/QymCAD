@@ -1431,14 +1431,49 @@ pub fn comp_gizmo_mode(pn: &Painting, comp: Id) -> CompGizmoMode {
 /// vertex, centre, midpoint or intersection gives Coincident; on an edge it gives point-on-circle or
 /// point-on-line). For the preview in ALL the tools: any click snapped to geometry will attach a
 /// coincidence through the shared point.
+///
+/// The glyph is the tie a click there lays (`tie_what_landed` in the sketcher): none while a drawing tool lays no ties.
 pub fn snap_infer_glyph(pn: &Painting) -> Option<(Gly, Point2)> {
     let (p, kind) = pn.snap_hint?;
+    if pn.armed.draw_kind() != 0 && !qymcad_ui_state::ties_laid(pn.tool, pn.set) {
+        return None;
+    }
     let g = match kind {
-        0 | 3 | 4 | 5 => Gly::Coincident, // a vertex, a midpoint, a centre or an intersection
-        6 => Gly::PointOnLine,            // on an edge
-        _ => return None,                 // the grid or an axis: not a constraint
+        0 | 3 | 4 => Gly::Coincident, // a vertex, a midpoint or a centre
+        // where two curves cross the point is tied to both; on one, at a line of the grid, it is a point on that curve
+        5 if curves_through(pn, p).total() >= 2 => Gly::Coincident,
+        5 | 6 if curves_through(pn, p).rims > 0 => Gly::PointOnCircle,
+        5 | 6 => Gly::PointOnLine,                        // on an edge
+        2 if p.x == 0.0 && p.y == 0.0 => Gly::Coincident, // the origin, where the two axes meet
+        2 => Gly::PointOnLine,                            // on an axis
+        _ => return None,                                 // the grid: not a constraint
     };
     Some((g, p))
+}
+
+/// HOW MANY CURVES OF THE SKETCH PASS A POINT a snap put on them: lines and the axes, and circles and arcs.
+struct Through {
+    lines: usize,
+    rims: usize,
+}
+
+impl Through {
+    fn total(&self) -> usize {
+        self.lines + self.rims
+    }
+}
+
+/// The curves of the sketch being edited that `p` lies on, as a snap puts it on them - exactly, within 1e-6 mm.
+fn curves_through(pn: &Painting, p: Point2) -> Through {
+    let Some(si) = qymcad_ui_state::edit_si(pn.project, &pn.sketch_ses) else { return Through { lines: 0, rims: 0 } };
+    let dc = DrawCtx { cam: &pn.cam, set: pn.set, scheme: pn.scheme, project: pn.project, active_path: pn.active_path };
+    let qymcad_ui_state::ActiveEdges { lines, circles } = qymcad_ui_state::active_edges(&dc, si);
+    let on_line = |(a, b): &(Point2, Point2)| qymcad_ui_state::project_on_seg(p, *a, *b).is_some_and(|q| (q.x - p.x).hypot(q.y - p.y) < 1e-6);
+    let axes = usize::from(p.x.abs() < 1e-6) + usize::from(p.y.abs() < 1e-6);
+    Through {
+        lines: lines.iter().filter(|l| on_line(l)).count() + axes,
+        rims: circles.iter().filter(|rim| ((p.x - rim.centre.x).hypot(p.y - rim.centre.y) - rim.radius).abs() < 1e-6 && rim.holds(p)).count(),
+    }
 }
 
 /// The contours of sketches that do NOT belong to the active context (its subtree) — they are hidden

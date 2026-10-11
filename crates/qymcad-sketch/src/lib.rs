@@ -556,7 +556,24 @@ pub fn sketch_hit(pick: &qymcad_ui_state::PickCtx, rect: Rect, pos: Pos2, si: us
             }
         }
     }
-    best_e.map(|(_, _, id)| (1u8, id))
+    if let Some((_, _, id)) = best_e {
+        return Some((1u8, id));
+    }
+    // 3) the nearest spline, by its curve: kept by its first node (`SEL_SPLINE`), as a spline has no id of its own
+    let mut best_sp: Option<(u8, f32, Id)> = None;
+    for (spi, sp) in s.splines.iter().enumerate() {
+        let Some(&first) = sp.points.first() else { continue };
+        let mut line: Vec<Pos2> = pick.project.spline_polyline(si, spi).into_iter().map(|p| sh.at(p)).collect();
+        if sp.closed {
+            line.extend(line.first().copied());
+        }
+        let d = line.windows(2).map(|w| qymcad_ui_state::screen_dist_seg(pos, w[0], w[1])).fold(f32::INFINITY, f32::min);
+        let tier = if sp.construction { 1u8 } else { 0u8 };
+        if d <= qymcad_ui_state::grab::grab(pick.set, Grab::Curve) && best_sp.is_none_or(|(bt, bd, _)| (tier, d) < (bt, bd)) {
+            best_sp = Some((tier, d, first));
+        }
+    }
+    best_sp.map(|(_, _, id)| (qymcad_ui_state::SEL_SPLINE, id))
 }
 
 /// THE ENTITIES A CONSTRAINT TOUCHES, derived from its points.
@@ -1328,6 +1345,90 @@ fn tie_the_clicked_points(project: &mut Project, view: qymcad_ui_state::View2d, 
     }
 }
 
+/// THE POINTS A DRAWING TOOL PUT DOWN, TIED TO WHAT THEY LANDED ON, whatever the tool. Of the points a click made
+/// (`made`), the one standing at each place clicked for the shape is tied as the snap there showed it: on a point of the
+/// sketch or on the origin - coincident; on a line - on it, or at its middle; on a circle or an arc - on it; on the X or
+/// Y axis - on the axis; where two of those cross - on both. A snap puts the point exactly on its target, so a point
+/// within half a pixel of a curve stands on it. Reported behaviour: the snap was shown and the point was put down where
+/// the pointer was, held by nothing - an end on a circle, a centre, the axes and the origin, for every tool but the line.
+fn tie_what_landed(project: &mut Project, view: qymcad_ui_state::View2d, si: usize, clicks: &[Point2], made: &std::collections::HashSet<Id>) {
+    use qymcad_core::model::{Constraint, EntityKind};
+    let reach = 0.5 / f64::from(view.scale);
+    for at in clicks {
+        let Some(s) = project.sketches.get(si) else { return };
+        let near = |q: Point2| (q.x - at.x).hypot(q.y - at.y) <= reach;
+        let Some(point) = s.points.iter().find(|q| made.contains(&q.id) && (q.x - at.x).hypot(q.y - at.y) < 1e-9).map(|q| q.id) else {
+            // A SHAPE THAT PUT NO POINT THERE - a circle through three points runs through its clicks: a point of the
+            // sketch clicked is held on the new circle
+            let standing = s.points.iter().find(|q| !made.contains(&q.id) && near(Point2::new(q.x, q.y))).map(|q| q.id);
+            let rim = s.entities.iter().find_map(|e| match e.kind {
+                EntityKind::Circle { center, r } if made.contains(&center) => s.points.iter().find(|q| q.id == center).filter(|c| ((at.x - c.x).hypot(at.y - c.y) - r).abs() <= reach).map(|_| center),
+                _ => None,
+            });
+            if let Some(c) = rim {
+                let p = match standing {
+                    Some(p) => Some(p),
+                    None if near(Point2::new(0.0, 0.0)) => Some(project.ensure_origin(si)),
+                    None => None,
+                };
+                if let Some(p) = p {
+                    project.add_constraint_if_independent(si, Constraint::PointOnCircle { p, c });
+                }
+            }
+            continue;
+        };
+        // a point standing there: the origin before any other, and never a guide of the frame
+        let guides: Vec<Id> = s.axis_pts.iter().copied().chain([s.frame]).filter(|g| *g != 0).collect();
+        let standing = s.points.iter().filter(|q| !made.contains(&q.id) && !guides.contains(&q.id) && near(Point2::new(q.x, q.y))).min_by_key(|q| q.id != s.origin).map(|q| q.id);
+        let other = match standing {
+            Some(other) => Some(other),
+            None if near(Point2::new(0.0, 0.0)) => Some(project.ensure_origin(si)),
+            None => None,
+        };
+        if let Some(other) = other {
+            project.add_constraint_if_independent(si, Constraint::Coincident { a: other, b: point });
+            continue;
+        }
+        // the curves passing there, not those the shape itself is made of
+        let s = &project.sketches[si];
+        let pt = |id: Id| s.points.iter().find(|q| q.id == id).map(|q| Point2::new(q.x, q.y));
+        let mut ties: Vec<Constraint> = Vec::new();
+        for e in s.entities.iter().filter(|e| !qymcad_core::model::entity_points(e).iter().any(|id| made.contains(id))) {
+            match e.kind {
+                EntityKind::Line { a, b } => {
+                    let (Some(pa), Some(pb)) = (pt(a), pt(b)) else { continue };
+                    if qymcad_ui_state::project_on_seg(*at, pa, pb).is_some_and(near) {
+                        let middle = near(Point2::new((pa.x + pb.x) / 2.0, (pa.y + pb.y) / 2.0));
+                        ties.push(if middle { Constraint::Midpoint { p: point, a, b } } else { Constraint::PointOnLine { p: point, a, b } });
+                    }
+                }
+                EntityKind::Circle { center, r } => {
+                    if pt(center).is_some_and(|c| ((at.x - c.x).hypot(at.y - c.y) - r).abs() <= reach) {
+                        ties.push(Constraint::PointOnCircle { p: point, c: center });
+                    }
+                }
+                EntityKind::Arc { center, a, b, ccw } => {
+                    let (Some(c), Some(pa), Some(pb)) = (pt(center), pt(a), pt(b)) else { continue };
+                    let rim = qymcad_ui_state::Rim { centre: c, radius: (pa.x - c.x).hypot(pa.y - c.y), arc: Some(qymcad_ui_state::RimArc { from: pa, to: pb, ccw }) };
+                    if ((at.x - c.x).hypot(at.y - c.y) - rim.radius).abs() <= reach && rim.holds(*at) {
+                        ties.push(Constraint::PointOnCircle { p: point, c: center });
+                    }
+                }
+                EntityKind::Ellipse { .. } => {}
+            }
+        }
+        for (axis, off) in [(0, at.y), (1, at.x)] {
+            if off.abs() <= reach {
+                let (o, guide) = project.ensure_axis(si, axis);
+                ties.push(Constraint::PointOnLine { p: point, a: o, b: guide });
+            }
+        }
+        for tie in ties.into_iter().take(2) {
+            project.add_constraint_if_independent(si, tie);
+        }
+    }
+}
+
 /// Automatic constraints while drawing the segment prev-p1-p2: horizontal or vertical, perpendicular to
 /// the previous segment, and a point-on-edge for the new end. Every constraint is added ONLY if it is
 /// independent (does not over-define the sketch), so no redundant ones appear.
@@ -1533,13 +1634,25 @@ pub fn open_shape_size(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, pos: Pos
 /// through THE SAME code rather than a copy of its own. Esc cancels a spline - that is a different
 /// action, and substituting it for finishing would mean checking the wrong thing.
 pub fn finish_spline(sk: &mut qymcad_ui_state::SketchCtx) {
+    lay_the_spline(sk, qymcad_core::feature::Ends::Open);
+}
+
+/// THE SPLINE DRAWN SO FAR PUT INTO THE SKETCH, open or closed, its nodes tied to what they were clicked on
+/// (`tie_what_landed`): the nodes enter the document here, not at their clicks, so the ties are laid here too.
+fn lay_the_spline(sk: &mut qymcad_ui_state::SketchCtx, ends: qymcad_core::feature::Ends) {
     if let qymcad_ui_state::Sel::Sketch(si) = *sk.sel {
         if sk.tool.pts.len() >= 2 {
             // THE BOUNDARY OF AN OPERATION: the spline enters the document here, not at its clicks, so this is the
             // step of undo named after it.
             qymcad_ui_state::begin_edit(&mut *sk.edits, &*sk.project, qymcad_i18n::tr("sk-spline"));
             let pts = std::mem::take(&mut sk.tool.pts);
-            sk.project.add_spline(si, pts, qymcad_core::feature::Ends::Open, qymcad_core::feature::Purpose::of(sk.tool.construction));
+            let before: std::collections::HashSet<Id> = sk.project.sketches.get(si).map(|s| s.points.iter().map(|q| q.id).collect()).unwrap_or_default();
+            sk.project.add_spline(si, pts.clone(), ends, qymcad_core::feature::Purpose::of(sk.tool.construction));
+            if tied(sk) {
+                let made: std::collections::HashSet<Id> = sk.project.sketches.get(si).map(|s| s.points.iter().map(|q| q.id).filter(|id| !before.contains(id)).collect()).unwrap_or_default();
+                tie_what_landed(&mut *sk.project, *sk.view, si, &pts, &made);
+                sk.project.solve_sketch(si);
+            }
             qymcad_ui_state::invalidate(&mut *sk.regen);
             sk.view.initialized = false;
             qymcad_ui_state::commit_edit(&mut sk.rebuild());
@@ -2034,6 +2147,11 @@ pub fn sketch_sel_points(project: &Project, sel_sk: &qymcad_ui_state::SketchSele
         match k {
             0 => {
                 ids.insert(*id);
+            }
+            &qymcad_ui_state::SEL_SPLINE => {
+                if let Some(sp) = s.splines.iter().find(|sp| sp.points.first() == Some(id)) {
+                    ids.extend(sp.points.iter().copied());
+                }
             }
             1 => {
                 if let Some(e) = s.entities.iter().find(|e| e.id == *id) {
@@ -3747,7 +3865,21 @@ pub fn sketch_tool_click(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, pos: P
         _ => &qymcad_i18n::tr("sk-drawing"),
     };
     qymcad_ui_state::begin_edit(&mut *sk.edits, &*sk.project, name);
+    // the places clicked for the shape, this one with them, and the points standing before it: what the click puts down
+    // is tied to what it landed on (`tie_what_landed`)
+    let here = snap_world(sk, rect, pos);
+    let clicks: Vec<Point2> = sk.tool.pts.iter().copied().chain([here]).collect();
+    let si = qymcad_ui_state::edit_si(&*sk.project, &*sk.sketch_ses);
+    let before: std::collections::HashSet<Id> = si.and_then(|si| sk.project.sketches.get(si)).map(|s| s.points.iter().map(|q| q.id).collect()).unwrap_or_default();
     sketch_tool_click_inner(sk, rect, pos);
+    if let Some(si) = si.filter(|_| tied(sk)) {
+        let made: std::collections::HashSet<Id> = sk.project.sketches.get(si).map(|s| s.points.iter().map(|q| q.id).filter(|id| !before.contains(id)).collect()).unwrap_or_default();
+        if !made.is_empty() {
+            tie_what_landed(&mut *sk.project, *sk.view, si, &clicks, &made);
+            sk.project.solve_sketch(si);
+            qymcad_ui_state::invalidate(&mut *sk.regen);
+        }
+    }
     qymcad_ui_state::commit_edit_if_changed(&mut sk.rebuild());
 }
 
@@ -4041,7 +4173,11 @@ pub fn sketch_tool_click_inner(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, 
         9 => {
             // a spline: a set of nodes (a double click or Esc finishes it). The second click of the double click
             // lands on the node just put down and adds nothing.
-            if !sk.tool.pts.last().is_some_and(|last| same_place(sk, *last, w)) {
+            // A CLICK ON THE FIRST NODE CLOSES IT: the spline becomes a loop through its nodes, not a curve ending on its
+            // own start with a node lying over another - a loop dragged by a node stays closed.
+            if sk.tool.pts.len() >= 3 && sk.tool.pts.first().is_some_and(|first| same_place(sk, *first, w)) {
+                lay_the_spline(sk, qymcad_core::feature::Ends::Closed);
+            } else if !sk.tool.pts.last().is_some_and(|last| same_place(sk, *last, w)) {
                 sk.tool.pts.push(w);
             }
         }
@@ -4209,7 +4345,7 @@ pub fn sketch_drag_start(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Contex
             if let (qymcad_ui_state::Sel::Sketch(si), Some(pp)) = (*sk.sel, pp) {
                 if qymcad_ui_state::edit_si(&*sk.project, &*sk.sketch_ses) == Some(si) {
                     let mut best: Option<(f32, usize, usize)> = None;
-                    for spi in 0..sk.project.sketches[si].splines.len() {
+                    for spi in qymcad_ui_state::splines_with_handles(&*sk.project, &*sk.sel_sk, si) {
                         for (ki, (_knot, hend)) in sk.project.spline_handles(si, spi).into_iter().enumerate() {
                             let d = sh.at(hend).distance(pp);
                             if d <= qymcad_ui_state::grab::grab(sk.set, Grab::Point) && best.is_none_or(|(bd, _, _)| d < bd) {
@@ -5289,13 +5425,26 @@ pub fn snap_world(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, screen: Pos2)
                 // NOR TO THE CURVE IT DRAGS ALONG: a spline drawn through a dragged node runs under the cursor, and
                 // the points it is cut into caught the node - the middle node of a spline led to (20, 25) stopped at
                 // (18.7, 24.8). The true corners of such a contour are points of the sketch, snapped above.
-                if sk.project.contours[ci].points.iter().any(|p| own(*p)) {
+                let c = &sk.project.contours[ci];
+                if c.points.iter().any(|p| own(*p)) {
                     continue;
                 }
-                for p in sk.project.contours[ci].points.iter() {
-                    let d = sd(*p, &*sk.view);
+                // WHERE TWO CURVES MEET ON A LOOP, and nowhere else along it: the end of an edge whose neighbour comes
+                // from another curve - a crossing, the ends of the curves being points of the sketch, snapped above. The
+                // points a circle or a spline is cut into were snapped as vertices, a glyph of a coincidence was shown
+                // on a rim and the click was tied to nothing there.
+                let n = c.edges.len();
+                for k in (0..n).filter(|k| c.closed || k + 1 < n) {
+                    if c.edge_src.get(k) == c.edge_src.get((k + 1) % n) {
+                        continue;
+                    }
+                    let p = match c.edges[k] {
+                        qymcad_core::geom::ProfEdge::Line { b, .. } | qymcad_core::geom::ProfEdge::Arc { b, .. } => b,
+                        qymcad_core::geom::ProfEdge::Circle { .. } => continue,
+                    };
+                    let d = sd(p, &*sk.view);
                     if best.is_none_or(|(bd, _, _)| d < bd) {
-                        best = Some((d, *p, 0));
+                        best = Some((d, p, 5));
                     }
                 }
             }
@@ -5619,7 +5768,17 @@ fn delete_selected_in(sk: &mut qymcad_ui_state::SketchCtx, si: usize) {
     // system points (the origin and the axes) and DRIVEN ones (projections of a body) are not deleted one
     // by one
     let sys: std::collections::HashSet<Id> = sk.project.sketches[si].immovable_points();
-    let pids: Vec<Id> = sk.sel_sk.items.iter().filter(|(k, id)| *k == 0 && !sys.contains(id)).map(|(_, id)| *id).collect();
+    let mut pids: Vec<Id> = sk.sel_sk.items.iter().filter(|(k, id)| *k == 0 && !sys.contains(id)).map(|(_, id)| *id).collect();
+    // a spline picked by its curve goes with its nodes, as a line goes with its ends
+    let s = &sk.project.sketches[si];
+    pids.extend(
+        sk.sel_sk
+            .items
+            .iter()
+            .filter(|(k, _)| *k == qymcad_ui_state::SEL_SPLINE)
+            .filter_map(|(_, id)| s.splines.iter().find(|sp| sp.points.first() == Some(id)))
+            .flat_map(|sp| sp.points.iter().copied()),
+    );
     if eids.is_empty() && pids.is_empty() {
         return;
     }

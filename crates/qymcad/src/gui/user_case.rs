@@ -1972,6 +1972,25 @@ mod tests {
                 qymcad_ui_state::set_click_op(&mut qymcad_ui_state::tools_of!(app), &mut app.viewing.mode_3d, 0);
                 check_all(&mut app, "sketch: the mirror adds with Shift and reflects about a point", &mut problems);
 
+                // THE SNAP SHOWN IS THE TIE LAID: a level line on a place of its own, then a circle whose centre is clicked
+                // on the line, off its middle. The centre is held on the line, not only put there.
+                {
+                    let mut hand = Hand::new(&mut app);
+                    hand.sk_tool(1).look2d((520.0, -40.0)).click2d(500.0, -40.0).double_click2d(540.0, -40.0);
+                    hand.key(egui::Key::Escape).sk_tool(3).look2d((520.0, -40.0)).click2d(510.0, -40.0).click2d(514.0, -40.0).key(egui::Key::Escape);
+                    hand.sk_tool(0);
+                    let sk = &app.project.sketches[si];
+                    let centre = sk.entities.iter().rev().find_map(|e| match e.kind {
+                        qymcad_core::model::EntityKind::Circle { center, .. } => Some(center),
+                        _ => None,
+                    });
+                    let held = centre.is_some_and(|c| sk.constraints.iter().any(|k| matches!(k, qymcad_core::model::Constraint::PointOnLine { p, .. } if *p == c)));
+                    if !held {
+                        problems.push(format!("sketch: a circle centred on a line is not held on it (centre {centre:?}); status: {}", app.status));
+                    }
+                }
+                check_all(&mut app, "sketch: a circle centred on a line is held on it", &mut problems);
+
                 // A RECTANGLE IS ONE SHAPE: drawn on a place of its own, picked by one side with Rotate and turned 30 deg
                 // about its centre, it turns as a whole and stays square.
                 {
@@ -2028,9 +2047,10 @@ mod tests {
             }
 
             // DIMENSIONS: linear, angular, radial. A dimension is not a caption but A CONSTRAINT: it must take
-            // away a degree of freedom, otherwise the sketch stays rubbery while it looks set.
+            // away a degree of freedom, otherwise the sketch stays rubbery while it looks set. The angle has a free
+            // point among its three: the points on the X axis are held on it, and an angle of them alone is a reference.
             {
-                let dims: [Drawing; 3] = [drawing(1, "linear", &[(30.0, 0.0), (50.0, 15.0)]), drawing(3, "radial", &[(70.0, 10.0)]), drawing(2, "angular", &[(0.0, 0.0), (20.0, 0.0), (30.0, 0.0)])];
+                let dims: [Drawing; 3] = [drawing(1, "linear", &[(30.0, 0.0), (50.0, 15.0)]), drawing(3, "radial", &[(70.0, 10.0)]), drawing(2, "angular", &[(0.0, 0.0), (30.0, 0.0), (50.0, 15.0)])];
                 for Drawing { tool: kind, name, clicks: picks } in dims {
                     // ONLY DIMENSION CONSTRAINTS ARE COUNTED. Any constraint used to count, and the fixed ones
                     // from the neighbouring block got into the tally - the check blamed a dimension for
@@ -2052,7 +2072,13 @@ mod tests {
                         problems.push(format!("sketch: the {name} dimension was not created and SAID NOTHING about why"));
                     }
                     if after > before && app.project.sketch_dof(si) >= dof_before {
-                        problems.push(format!("sketch: the {name} dimension took, but took away no degree of freedom"));
+                        let laid: Vec<&Constraint> = app.project.sketches[si]
+                            .constraints
+                            .iter()
+                            .filter(|c| matches!(c, Constraint::Distance { .. } | Constraint::Diameter { .. } | Constraint::Angle { .. }))
+                            .skip(before)
+                            .collect();
+                        problems.push(format!("sketch: the {name} dimension took, but took away no degree of freedom: {laid:?}, freedom {dof_before:?} -> {:?}", app.project.sketch_dof(si)));
                     }
                     check_all(&mut app, &format!("sketch: the {name} dimension"), &mut problems);
                 }

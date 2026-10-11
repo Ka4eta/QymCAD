@@ -2673,15 +2673,40 @@ pub fn draw_sketch_dims(pn: &Painting, painter: &egui::Painter, rect: Rect, si: 
     };
     // construction geometry is dashed
     let aux_col = pn.scheme.pal.sketch_construction();
-    // the tangent handles of the splines: a line from the knot to the handle + a grabbable point at its end
-    let hcol = pn.scheme.pal.dim_helper();
-    for spi in 0..s.splines.len() {
-        for (knot, hend) in pn.project.spline_handles(si, spi) {
-            let (sk, sh) = (sh.at(knot), sh.at(hend));
-            painter.line_segment([sk, sh], Stroke::new(1.0, hcol));
-            painter.circle_filled(sh, 3.5, hcol);
-            painter.circle_stroke(sh, 3.5, Stroke::new(1.0, pn.scheme.pal.dim_helper_ring()));
+    // A SPLINE PICKED OR UNDER THE POINTER IS LIT along its curve, as a picked or hovered line is
+    for (spi, sp) in s.splines.iter().enumerate() {
+        let key = sp.points.first().map(|&id| (qymcad_ui_state::SEL_SPLINE, id));
+        let (sel, hov) = (key.is_some_and(|k| pn.sel_sk.items.contains(&k)), key.is_some() && pn.hover.sketch == key);
+        if !sel && !hov {
+            continue;
         }
+        let hl = if sel { Stroke::new(2.5, pn.scheme.pal.emphasis()) } else { Stroke::new(2.0, pn.scheme.pal.preview()) };
+        let mut line: Vec<Pos2> = pn.project.spline_polyline(si, spi).iter().map(|p| sh.at(*p)).collect();
+        if sp.closed {
+            line.extend(line.first().copied());
+        }
+        painter.add(egui::Shape::line(line, hl));
+    }
+    // THE TANGENT HANDLES of the splines picked (`splines_with_handles`): a line from the knot to the handle and a point
+    // at its end to take it by. The one under the pointer is lit in the colour of what a click takes, and the one held by
+    // the pressed button in the colour of what is being moved - the handle follows the pointer, so the one under it is
+    // the one held.
+    let hcol = pn.scheme.pal.dim_helper();
+    let grab = qymcad_ui_state::grab::grab(pn.set, qymcad_ui_state::grab::Grab::Point);
+    let pointer = painter.ctx().input(|i| i.pointer.hover_pos().map(|p| (p, i.pointer.primary_down())));
+    let handles: Vec<(Point2, Point2)> = qymcad_ui_state::splines_with_handles(pn.project, pn.sel_sk, si).into_iter().flat_map(|spi| pn.project.spline_handles(si, spi)).collect();
+    let under = pointer.and_then(|(p, _)| handles.iter().map(|(_, h)| sh.at(*h).distance(p)).enumerate().filter(|(_, d)| *d <= grab).min_by(|a, b| a.1.total_cmp(&b.1)).map(|(k, _)| k));
+    let held = pointer.is_some_and(|(_, down)| down);
+    for (k, (knot, hend)) in handles.into_iter().enumerate() {
+        let (sk, sh) = (sh.at(knot), sh.at(hend));
+        let (col, r) = match under == Some(k) {
+            true if held => (pn.scheme.pal.active(), 5.0),
+            true => (pn.scheme.pal.preview(), 5.0),
+            false => (hcol, 3.5),
+        };
+        painter.line_segment([sk, sh], Stroke::new(1.0, col));
+        painter.circle_filled(sh, r, col);
+        painter.circle_stroke(sh, r, Stroke::new(1.0, pn.scheme.pal.dim_helper_ring()));
     }
     // construction splines are dashed (they do not go into a profile)
     for spi in 0..s.splines.len() {

@@ -6,8 +6,8 @@
 use std::process::ExitCode;
 
 pub use gui::session::{
-    pos2, vec2, Chooser, Datum, Document, FaceKinds, Feature, Gizmo, Inspection, JointInfo, Key, Kept, Kind, Machine, Modifiers, Parameter, Part, Picture, PointerButton, Pos2, Rect, Session,
-    SketchInfo, SketchPick, Solid, Vec2, Widget,
+    pos2, vec2, Badge, Chooser, Datum, Document, FaceKinds, Feature, Gizmo, Inspection, JointInfo, Key, Kept, Kind, Machine, Modifiers, Parameter, Part, Picture, PointerButton, Pos2, Rect, Session,
+    SketchInfo, SketchPick, SnapGlyph, Solid, Vec2, Widget,
 };
 
 /// START THE PROGRAM: open the window and run it until it closes; a start that fails is told to the person.

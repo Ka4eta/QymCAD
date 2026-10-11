@@ -344,6 +344,33 @@ impl Picture {
         img.write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Png).expect("a picture in memory writes");
         out
     }
+
+    /// The colour of the picture at a point of the screen.
+    pub fn colour_at(&self, at: Pos2) -> [u8; 3] {
+        let (x, y) = (at.x.round() as usize, at.y.round() as usize);
+        let o = (y * self.width + x) * 4;
+        [self.rgba[o], self.rgba[o + 1], self.rgba[o + 2]]
+    }
+
+    /// How far apart two colours are, the largest of the three channels.
+    pub fn apart(a: [u8; 3], b: [u8; 3]) -> i32 {
+        (0..3).map(|k| (a[k] as i32 - b[k] as i32).abs()).max().unwrap_or(0)
+    }
+}
+
+/// THE GLYPH OF A SNAP drawn at the pointer while a sketch tool is in hand: the tie a click there is to lay (its name, as
+/// the glyph is named), and where on the sketch it stands.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SnapGlyph {
+    pub glyph: String,
+    pub at: (f64, f64),
+}
+
+/// A BADGE OF A CONSTRAINT drawn on the sketch: its glyph, as the glyph is named, and where on the screen it stands.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Badge {
+    pub glyph: String,
+    pub at: Pos2,
 }
 
 /// WHAT A CLICK ON THE SKETCH WOULD TAKE, in the coordinates of the sketch.
@@ -1115,6 +1142,20 @@ impl Session {
         let canvas = self.app.viewing.view_rect;
         assert!(canvas.contains(a) && canvas.contains(b), "{from:?} and {to:?} do not fit on the canvas at once ({a:?}, {b:?} on {canvas:?}): zoom out first");
         self.drag(a, b, PointerButton::Primary, Modifiers::default())
+    }
+
+    /// THE GLYPH OF THE SNAP SHOWN AT THE POINTER, as the frame draws it - none where the pointer snaps to nothing a
+    /// click would be tied to.
+    pub fn snap_glyph(&mut self) -> Option<SnapGlyph> {
+        self.settle();
+        qymcad_pick::snap_infer_glyph(&self.app.painting()).map(|(g, p)| SnapGlyph { glyph: format!("{g:?}"), at: (p.x, p.y) })
+    }
+
+    /// THE BADGES OF THE CONSTRAINTS DRAWN ON THE OPEN SKETCH, as the frame draws them; none outside a sketch.
+    pub fn badges(&mut self) -> Vec<Badge> {
+        self.settle();
+        let Some(si) = qymcad_ui_state::edit_si(&self.app.project, &self.app.sketch_ses) else { return Vec::new() };
+        qymcad_pick::visible_constraint_glyphs(&self.app.painting(), self.app.viewing.view_rect, si).into_iter().map(|(_, at, g)| Badge { glyph: format!("{g:?}"), at }).collect()
     }
 
     /// WHAT A CLICK AT (x, y) OF THE OPEN SKETCH WOULD TAKE, brought into view as [`Session::on_sketch`] does.

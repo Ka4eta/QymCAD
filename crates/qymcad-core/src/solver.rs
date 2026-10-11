@@ -1432,17 +1432,33 @@ fn con_jac(c: &Constraint, x: &[f64], x0: &[f64], idx: &HashMap<Id, usize>, ridx
             let ((lax, lay), (lbx, lby)) = (g(la), g(lb));
             let (dx, dy) = (lbx - lax, lby - lay);
             let (mx, my) = (0.5 * (ax + bx), 0.5 * (ay + by));
+            // both residuals divided by the length of the axis, L (`con_rows`): r = f / L, so dr = df / L - f d.dd / L^3,
+            // the axis's own ends carrying the second term
+            let l = dx.hypot(dy).max(1e-9);
+            let (f1, f2) = (dx * (my - lay) - dy * (mx - lax), (bx - ax) * dx + (by - ay) * dy);
+            let along = |f: f64| (f * dx / (l * l * l), f * dy / (l * l * l));
+            let (g1x, g1y) = along(f1);
             out.push(vec![
-                (vx(a), -dy * 0.5),
-                (vy(a), dx * 0.5),
-                (vx(b), -dy * 0.5),
-                (vy(b), dx * 0.5),
-                (vx(la), -(my - lay) + dy),
-                (vy(la), (mx - lax) - dx),
-                (vx(lb), my - lay),
-                (vy(lb), -(mx - lax)),
+                (vx(a), -dy * 0.5 / l),
+                (vy(a), dx * 0.5 / l),
+                (vx(b), -dy * 0.5 / l),
+                (vy(b), dx * 0.5 / l),
+                (vx(la), (-(my - lay) + dy) / l + g1x),
+                (vy(la), ((mx - lax) - dx) / l + g1y),
+                (vx(lb), (my - lay) / l - g1x),
+                (vy(lb), -(mx - lax) / l - g1y),
             ]);
-            out.push(vec![(vx(a), -dx), (vy(a), -dy), (vx(b), dx), (vy(b), dy), (vx(la), -(bx - ax)), (vy(la), -(by - ay)), (vx(lb), bx - ax), (vy(lb), by - ay)]);
+            let (g2x, g2y) = along(f2);
+            out.push(vec![
+                (vx(a), -dx / l),
+                (vy(a), -dy / l),
+                (vx(b), dx / l),
+                (vy(b), dy / l),
+                (vx(la), -(bx - ax) / l + g2x),
+                (vy(la), -(by - ay) / l + g2y),
+                (vx(lb), (bx - ax) / l - g2x),
+                (vy(lb), (by - ay) / l - g2y),
+            ]);
         }
         Constraint::Angle { a, b, c: cc, .. } => {
             let ((ax, ay), (bx, by), (cx, cy)) = (g(a), g(b), g(cc));
@@ -1678,8 +1694,13 @@ fn con_rows(c: &Constraint, x: &[f64], x0: &[f64], idx: &HashMap<Id, usize>, rid
                 let (lbx, lby) = g(lb);
                 let (dx, dy) = (lbx - lax, lby - lay);
                 let (mx, my) = (0.5 * (ax + bx), 0.5 * (ay + by));
-                r.push(dx * (my - lay) - dy * (mx - lax));
-                r.push((bx - ax) * dx + (by - ay) * dy);
+                // DIVIDED BY THE LENGTH OF THE AXIS: the distance of the middle from the axis, and the run of the pair
+                // along it. Times the length, as they were, both vanish on an axis of no length, and the solve met the
+                // symmetry by shrinking its axis to a point - an axis line held on the Y axis by one end collapsed to
+                // (0, 0) under a pair at (10, 5) and (30, 25), and the constraint was refused.
+                let l = dx.hypot(dy).max(1e-9);
+                r.push((dx * (my - lay) - dy * (mx - lax)) / l);
+                r.push(((bx - ax) * dx + (by - ay) * dy) / l);
             }
             Constraint::Angle { a, b, c, deg, .. } => {
                 let (ax, ay) = g(a);

@@ -745,11 +745,23 @@ impl Sketch {
             })
             .collect();
         let cut = |x: Id, y: Id| self.entities.iter().any(|e| matches!(e.kind, EntityKind::Line { a, b } if (a == x && b == y) || (a == y && b == x)));
+        let at = |id: Id| self.points.iter().find(|q| q.id == id).map(|q| (q.x, q.y));
+        // whether `p` lies on the line through `a` and `b` beyond its ends, by more than a millionth of its length
+        let past_the_ends = |p: Id, a: Id, b: Id| match (at(p), at(a), at(b)) {
+            (Some(p), Some(a), Some(b)) => {
+                let (dx, dy) = (b.0 - a.0, b.1 - a.1);
+                let t = ((p.0 - a.0) * dx + (p.1 - a.1) * dy) / (dx * dx + dy * dy).max(1e-18);
+                !(-1e-6..=1.0 + 1e-6).contains(&t)
+            }
+            _ => false,
+        };
         self.constraints
             .iter()
             .enumerate()
             .filter(|(_, c)| match **c {
-                Constraint::PointOnLine { p, .. } => !drawn.contains(&p) && !self.system_ids().contains(&p),
+                // the sharp stands past the end of a side cut back from it; a point put on a line or on an axis - the centre
+                // of a rectangle, a point of its own - stands on it, and its badge says it is held there
+                Constraint::PointOnLine { p, a, b } => !drawn.contains(&p) && !self.system_ids().contains(&p) && cut(a, b) && past_the_ends(p, a, b),
                 Constraint::Equal { a, b, c, d } => a == c && !drawn.contains(&a) && cut(b, d),
                 Constraint::Tangent { a, b, c, .. } => {
                     self.entities.iter().any(|e| matches!(e.kind, EntityKind::Arc { center, a: x, b: y, .. } if center == c && [x, y].iter().any(|q| *q == a || *q == b)))

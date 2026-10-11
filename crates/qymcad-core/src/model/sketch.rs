@@ -1441,9 +1441,55 @@ impl Project {
     /// origin stayed - and stayed GREEN. Reopen the project and the circle is back at the centre." That was
     /// repaired at the call site in the interface, which left the method itself lying to the next caller;
     /// the rule lives here now.
+    /// THE TIES OF WHAT GOES TO WHAT STAYS ARE LIFTED by Move and Rotate: a relation between a point of `going` - every
+    /// point of the shapes chosen, the held ones with them, so a shape keeps its own ties - and one
+    /// not among them - the origin, an axis, a shape left where it was - is taken out, and what goes keeps the ties among
+    /// its own points and every dimension. A shape drawn on the origin is held on it, and moved by the tool it leaves
+    /// it, as it would with the relations not kept; dragged by the mouse it stays held. Reported behaviour: a circle drawn
+    /// at zero could not be moved away from the origin.
+    fn lift_ties_to_what_stays(&mut self, si: usize, going: &[Id]) {
+        let Some(s) = self.sketches.get_mut(si) else { return };
+        s.constraints.retain(|c| {
+            let tie = matches!(
+                c,
+                Constraint::Coincident { .. }
+                    | Constraint::PointOnLine { .. }
+                    | Constraint::Midpoint { .. }
+                    | Constraint::PointOnCircle { .. }
+                    | Constraint::Concentric { .. }
+                    | Constraint::Tangent { .. }
+                    | Constraint::CircleTangent { .. }
+                    | Constraint::Symmetric { .. }
+                    | Constraint::Collinear { .. }
+                    | Constraint::Parallel { .. }
+                    | Constraint::Perpendicular { .. }
+                    | Constraint::Equal { .. }
+                    | Constraint::EqualRadius { .. }
+                    | Constraint::Horizontal { .. }
+                    | Constraint::Vertical { .. }
+            );
+            let pts = c.points();
+            !(tie && pts.iter().any(|p| going.contains(p)) && pts.iter().any(|p| !going.contains(p)))
+        });
+    }
+    /// THE TIES THAT PUT `end` WHERE IT STANDS ARE LIFTED when Extend takes it elsewhere: on a point, on a line, at a
+    /// middle, on a circle. Kept, they held the end where it was - a line ending on the Y axis did not reach the line
+    /// it was extended to.
+    fn lift_the_place_of(&mut self, si: usize, end: Id) {
+        let Some(s) = self.sketches.get_mut(si) else { return };
+        let ends_a_curve: std::collections::HashSet<Id> = s.entities.iter().flat_map(entity_points).collect();
+        s.constraints.retain(|c| match *c {
+            // a coincidence with the end of another curve is a corner, and stays
+            Constraint::Coincident { a, b } => !((a == end && !ends_a_curve.contains(&b)) || (b == end && !ends_a_curve.contains(&a))),
+            Constraint::PointOnLine { p, .. } | Constraint::Midpoint { p, .. } | Constraint::PointOnCircle { p, .. } => p != end,
+            _ => true,
+        });
+    }
     /// Move the selected entities by a vector.
     pub fn move_entities(&mut self, si: usize, eids: &[Id], dx: f64, dy: f64) {
         let pts = self.movable_of(si, eids);
+        let chosen: Vec<Id> = pts.iter().copied().chain(self.entity_point_ids(si, eids)).collect();
+        self.lift_ties_to_what_stays(si, &chosen);
         if let Some(s) = self.sketches.get_mut(si) {
             for p in s.points.iter_mut() {
                 if pts.contains(&p.id) {
@@ -1467,6 +1513,8 @@ impl Project {
     pub fn rotate_entities(&mut self, si: usize, eids: &[Id], cx: f64, cy: f64, deg: f64) {
         let (sn, cs) = (deg.to_radians().sin(), deg.to_radians().cos());
         let pts = self.movable_of(si, eids);
+        let chosen: Vec<Id> = pts.iter().copied().chain(self.entity_point_ids(si, eids)).collect();
+        self.lift_ties_to_what_stays(si, &chosen);
         // THE ROTATE TOOL TURNS A RECTANGLE: the turn it holds itself by goes round with it. Kept, it pulled the
         // rectangle back to where it stood. It is the turn of every side whose two points go round - on the corners, or
         // on the points of touching a rounded corner carried it to, where a turn kept at 0 deg pulled a rectangle 45 x 35
@@ -2003,7 +2051,9 @@ impl Project {
 
     /// WHETHER END `p` OF LINE `eid` IS HELD BY SOMETHING BUT THE DIRECTION OF THE LINE: another curve ends there, or a
     /// constraint other than one that turns the line (horizontal, vertical, an angle, parallel, perpendicular,
-    /// collinear) holds the point - a coincidence, a point on a curve, a midpoint, an anchor, a dimension.
+    /// collinear) or puts the end where it stands holds the point - an anchor, a dimension. A tie that only puts the end
+    /// there - a coincidence with a point no curve ends at, a point on a line, an axis or a circle, a middle - is lifted
+    /// by the extension (`lift_the_place_of`): a line drawn from the origin, held on it, was not extended at all.
     pub(crate) fn end_held(&self, si: usize, eid: Id, p: Id) -> bool {
         let Some(s) = self.sketches.get(si) else { return false };
         if s.entities.iter().any(|e| e.id != eid && entity_points(e).contains(&p)) {
@@ -2020,7 +2070,14 @@ impl Project {
                     | Constraint::Collinear { .. }
                     | Constraint::AngleLines { .. }
             );
-            !turns_the_line && c.points().contains(&p)
+            // a coincidence with the end of another curve joins a corner, and holds
+            let a_curve_ends_at = |q: Id| s.entities.iter().any(|e| entity_points(e).contains(&q));
+            let places_the_end = match *c {
+                Constraint::Coincident { a, b } => (a == p && !a_curve_ends_at(b)) || (b == p && !a_curve_ends_at(a)),
+                Constraint::PointOnLine { p: q, .. } | Constraint::Midpoint { p: q, .. } | Constraint::PointOnCircle { p: q, .. } => q == p,
+                _ => false,
+            };
+            !turns_the_line && !places_the_end && c.points().contains(&p)
         })
     }
 
@@ -2060,6 +2117,7 @@ impl Project {
         let mut moved = false;
         for (pid, t) in [(a, ext.a), (b, ext.b)] {
             let Some(t) = t else { continue };
+            self.lift_the_place_of(si, pid);
             if let Some(p) = self.sketches[si].points.iter_mut().find(|q| q.id == pid) {
                 (p.x, p.y) = (pax + (pbx - pax) * t, pay + (pby - pay) * t);
                 moved = true;
@@ -2112,6 +2170,7 @@ impl Project {
         let (nx, ny) = (cx + r * new_ang.cos(), cy + r * new_ang.sin());
         let pid = if extend_b { b } else { a };
         let _ = center;
+        self.lift_the_place_of(si, pid);
         if let Some(p) = self.sketches[si].points.iter_mut().find(|q| q.id == pid) {
             p.x = nx;
             p.y = ny;

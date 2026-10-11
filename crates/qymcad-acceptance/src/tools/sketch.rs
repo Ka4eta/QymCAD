@@ -738,8 +738,8 @@ const fn rect_of_width(w: f64) -> Outcome {
         texts: 0,
         notes: 0,
         // the four turns of its sides, its centre on the middle, the dimension
-        constraints: Some(6),
-        dof: Some(3),
+        constraints: Some(7),
+        dof: Some(1),
         box_of: None,
         // a dimension sets the size; where the line stands is for the solver, which moves both of its free ends
         size_of: Some([w, 30.0]),
@@ -866,7 +866,7 @@ pub static DIM_RADIUS: Tool = Tool {
 
 /// The two lines of the fixture with the angle between them set: the lines stay, the angle is one more constraint.
 const fn angle_of(_deg: f64) -> Outcome {
-    Outcome::Sketch { points: 3, lines: 2, arcs: 0, circles: 0, ellipses: 0, splines: 0, texts: 0, notes: 0, constraints: Some(3), dof: Some(3), box_of: None, size_of: None, under: &[] }
+    Outcome::Sketch { points: 3, lines: 2, arcs: 0, circles: 0, ellipses: 0, splines: 0, texts: 0, notes: 0, constraints: Some(4), dof: Some(1), box_of: None, size_of: None, under: &[] }
 }
 
 /// AN ANGULAR DIMENSION: two lines clicked, the dimension placed with a third click, the number typed into it.
@@ -989,8 +989,8 @@ pub static BREAK: Tool = Tool {
         texts: 0,
         notes: 0,
         // a horizontal for each half; the circle, drawn with no size typed, carries none and its radius is free
-        constraints: Some(2),
-        dof: Some(7),
+        constraints: Some(4),
+        dof: Some(4),
         box_of: Some(([-20.0, -10.0], [20.0, 10.0])),
         size_of: None,
         under: &[(17.0, 0.0, Under::Line), (-17.0, 0.0, Under::Line)],
@@ -1054,7 +1054,7 @@ pub static EXTEND: Tool = Tool {
 
 /// The circle of radius 10 and its copy `d` away: outwards for a positive distance, inwards for a negative one. The
 /// copy follows the circle it was made from, as an offset does in the professional systems: the two stand concentric
-/// at their distance, so between them they keep the two degrees of freedom of the one centre.
+/// at their distance. The circle is drawn about the origin and held on it, so what is left free is its radius.
 fn offset_ring(d: f64) -> Outcome {
     let across = 20.0 + 2.0 * d.max(0.0);
     Outcome::Sketch {
@@ -1067,8 +1067,8 @@ fn offset_ring(d: f64) -> Outcome {
         texts: 0,
         notes: 0,
         constraints: None,
-        // the centre, and the radius of the circle drawn with no size typed: the copy keeps its distance from it
-        dof: Some(3),
+        // the radius of the circle drawn with no size typed: the copy keeps its distance from it
+        dof: Some(1),
         box_of: None,
         size_of: Some([across, across]),
         under: &[],
@@ -1114,7 +1114,7 @@ pub static OFFSET: Tool = Tool {
         notes: 0,
         constraints: None,
         // the centre, and the radius of the circle drawn with no size typed: the copy keeps its distance from it
-        dof: Some(3),
+        dof: Some(1),
         box_of: None,
         size_of: Some([26.0, 26.0]),
         under: &[],
@@ -1568,9 +1568,9 @@ pub static MIRROR: Tool = Tool {
         notes: 0,
         constraints: None,
         dof: None,
-        box_of: Some(([-30.0, -20.0], [30.0, 20.0])),
+        box_of: Some(([-30.0, -20.0], [30.0, 25.0])),
         size_of: None,
-        under: &[(-20.0, 10.0, Under::Line), (20.0, 10.0, Under::Line)],
+        under: &[(-20.0, 15.0, Under::Line), (20.0, 15.0, Under::Line)],
     },
     node: "Sketch",
     undo: "tool-mirror",
@@ -1627,7 +1627,7 @@ pub static CON_HORIZONTAL: Tool = Tool {
     words: &[],
     fields: &[],
     modes: &[],
-    result: Outcome::Sketch { points: 3, lines: 2, arcs: 0, circles: 0, ellipses: 0, splines: 0, texts: 0, notes: 0, constraints: Some(3), dof: Some(3), box_of: None, size_of: None, under: &[] },
+    result: Outcome::Sketch { points: 3, lines: 2, arcs: 0, circles: 0, ellipses: 0, splines: 0, texts: 0, notes: 0, constraints: Some(4), dof: Some(1), box_of: None, size_of: None, under: &[] },
     node: "Sketch",
     // one step of undo named by the kind of edit, "Constraint", as the other constraints name theirs
     undo: "sk-constraint",
@@ -1657,7 +1657,7 @@ pub static CON_VERTICAL: Tool = Tool {
     words: &[],
     fields: &[],
     modes: &[],
-    result: Outcome::Sketch { points: 3, lines: 2, arcs: 0, circles: 0, ellipses: 0, splines: 0, texts: 0, notes: 0, constraints: Some(3), dof: Some(3), box_of: None, size_of: None, under: &[] },
+    result: Outcome::Sketch { points: 3, lines: 2, arcs: 0, circles: 0, ellipses: 0, splines: 0, texts: 0, notes: 0, constraints: Some(4), dof: Some(1), box_of: None, size_of: None, under: &[] },
     node: "Sketch",
     // one step of undo named by the kind of edit, "Constraint", as the other constraints name theirs
     undo: "sk-constraint",
@@ -1687,7 +1687,7 @@ pub static CON_PARALLEL: Tool = Tool {
     words: &[],
     fields: &[],
     modes: &[],
-    result: Outcome::Sketch { points: 3, lines: 2, arcs: 0, circles: 0, ellipses: 0, splines: 0, texts: 0, notes: 0, constraints: Some(3), dof: Some(3), box_of: None, size_of: None, under: &[] },
+    result: Outcome::Sketch { points: 3, lines: 2, arcs: 0, circles: 0, ellipses: 0, splines: 0, texts: 0, notes: 0, constraints: Some(4), dof: Some(1), box_of: None, size_of: None, under: &[] },
     node: "Sketch",
     // one step of undo named by the kind of edit, "Constraint", as the other constraints name theirs
     undo: "sk-constraint",
@@ -1717,7 +1717,7 @@ pub static CON_PERPENDICULAR: Tool = Tool {
     words: &[],
     fields: &[],
     modes: &[],
-    result: Outcome::Sketch { points: 3, lines: 2, arcs: 0, circles: 0, ellipses: 0, splines: 0, texts: 0, notes: 0, constraints: Some(3), dof: Some(3), box_of: None, size_of: None, under: &[] },
+    result: Outcome::Sketch { points: 3, lines: 2, arcs: 0, circles: 0, ellipses: 0, splines: 0, texts: 0, notes: 0, constraints: Some(4), dof: Some(1), box_of: None, size_of: None, under: &[] },
     node: "Sketch",
     // one step of undo named by the kind of edit, "Constraint", as the other constraints name theirs
     undo: "sk-constraint",
@@ -1749,7 +1749,7 @@ pub static CON_EQUAL: Tool = Tool {
     fields: &[],
     modes: &[],
     // four corners and the centre of the rectangle
-    result: Outcome::Sketch { points: 5, lines: 4, arcs: 0, circles: 0, ellipses: 0, splines: 0, texts: 0, notes: 0, constraints: None, dof: Some(3), box_of: None, size_of: None, under: &[] },
+    result: Outcome::Sketch { points: 5, lines: 4, arcs: 0, circles: 0, ellipses: 0, splines: 0, texts: 0, notes: 0, constraints: None, dof: Some(1), box_of: None, size_of: None, under: &[] },
     node: "Sketch",
     // one step of undo named by the kind of edit, "Constraint", as the other constraints name theirs
     undo: "sk-constraint",
@@ -1779,7 +1779,7 @@ pub static CON_COLLINEAR: Tool = Tool {
     words: &[],
     fields: &[],
     modes: &[],
-    result: Outcome::Sketch { points: 3, lines: 2, arcs: 0, circles: 0, ellipses: 0, splines: 0, texts: 0, notes: 0, constraints: Some(3), dof: Some(3), box_of: None, size_of: None, under: &[] },
+    result: Outcome::Sketch { points: 3, lines: 2, arcs: 0, circles: 0, ellipses: 0, splines: 0, texts: 0, notes: 0, constraints: Some(4), dof: Some(1), box_of: None, size_of: None, under: &[] },
     node: "Sketch",
     // one step of undo named by the kind of edit, "Constraint", as the other constraints name theirs
     undo: "sk-constraint",
@@ -1810,7 +1810,7 @@ pub static CON_CONCENTRIC: Tool = Tool {
     fields: &[],
     modes: &[],
     // the concentric alone: the circles drawn with no size typed carry none, and the centre and both radii are free
-    result: Outcome::Sketch { points: 2, lines: 0, arcs: 0, circles: 2, ellipses: 0, splines: 0, texts: 0, notes: 0, constraints: Some(1), dof: Some(4), box_of: None, size_of: None, under: &[] },
+    result: Outcome::Sketch { points: 2, lines: 0, arcs: 0, circles: 2, ellipses: 0, splines: 0, texts: 0, notes: 0, constraints: Some(3), dof: Some(2), box_of: None, size_of: None, under: &[] },
     node: "Sketch",
     // one step of undo named by the kind of edit, "Constraint", as the other constraints name theirs
     undo: "sk-constraint",
@@ -1841,7 +1841,7 @@ pub static CON_TANGENT: Tool = Tool {
     fields: &[],
     modes: &[],
     // the horizontal of the line and the tangent; the circle drawn with no size typed carries none
-    result: Outcome::Sketch { points: 3, lines: 1, arcs: 0, circles: 1, ellipses: 0, splines: 0, texts: 0, notes: 0, constraints: Some(2), dof: Some(5), box_of: None, size_of: None, under: &[] },
+    result: Outcome::Sketch { points: 3, lines: 1, arcs: 0, circles: 1, ellipses: 0, splines: 0, texts: 0, notes: 0, constraints: Some(4), dof: Some(2), box_of: None, size_of: None, under: &[] },
     node: "Sketch",
     // one step of undo named by the kind of edit, "Constraint", as the other constraints name theirs
     undo: "sk-constraint",
@@ -1874,7 +1874,7 @@ pub static CON_MIDPOINT: Tool = Tool {
     words: &[],
     fields: &[],
     modes: &[],
-    result: Outcome::Sketch { points: 3, lines: 2, arcs: 0, circles: 0, ellipses: 0, splines: 0, texts: 0, notes: 0, constraints: Some(2), dof: Some(3), box_of: None, size_of: None, under: &[] },
+    result: Outcome::Sketch { points: 3, lines: 2, arcs: 0, circles: 0, ellipses: 0, splines: 0, texts: 0, notes: 0, constraints: Some(3), dof: Some(1), box_of: None, size_of: None, under: &[] },
     node: "Sketch",
     // one step of undo named by the kind of edit, "Constraint", as the other constraints name theirs
     undo: "sk-constraint",
@@ -1906,7 +1906,7 @@ pub static CON_COINCIDENT: Tool = Tool {
     words: &[],
     fields: &[],
     modes: &[],
-    result: Outcome::Sketch { points: 3, lines: 2, arcs: 0, circles: 0, ellipses: 0, splines: 0, texts: 0, notes: 0, constraints: Some(3), dof: Some(3), box_of: None, size_of: None, under: &[] },
+    result: Outcome::Sketch { points: 3, lines: 2, arcs: 0, circles: 0, ellipses: 0, splines: 0, texts: 0, notes: 0, constraints: Some(4), dof: Some(1), box_of: None, size_of: None, under: &[] },
     node: "Sketch",
     // one step of undo named by the kind of edit, "Constraint", as the other constraints name theirs
     undo: "sk-constraint",
@@ -1936,7 +1936,7 @@ pub static CON_FIX: Tool = Tool {
     words: &[],
     fields: &[],
     modes: &[],
-    result: Outcome::Sketch { points: 3, lines: 2, arcs: 0, circles: 0, ellipses: 0, splines: 0, texts: 0, notes: 0, constraints: Some(3), dof: Some(2), box_of: None, size_of: None, under: &[] },
+    result: Outcome::Sketch { points: 3, lines: 2, arcs: 0, circles: 0, ellipses: 0, splines: 0, texts: 0, notes: 0, constraints: Some(4), dof: Some(1), box_of: None, size_of: None, under: &[] },
     node: "Sketch",
     // one step of undo named by the kind of edit, "Constraint", as the other constraints name theirs
     undo: "sk-constraint",
@@ -1977,9 +1977,9 @@ pub static MOVE: Tool = Tool {
         notes: 0,
         constraints: None,
         dof: None,
-        box_of: Some(([0.0, -30.0], [30.0, 20.0])),
+        box_of: Some(([0.0, -25.0], [30.0, 20.0])),
         size_of: None,
-        under: &[(20.0, -20.0, Under::Line), (20.0, 10.0, Under::Nothing)],
+        under: &[(20.0, -15.0, Under::Line), (20.0, 15.0, Under::Nothing)],
     },
     node: "Sketch",
     undo: "tool-move",
@@ -2029,9 +2029,9 @@ pub static COPY: Tool = Tool {
         notes: 0,
         constraints: None,
         dof: None,
-        box_of: Some(([0.0, -30.0], [30.0, 20.0])),
+        box_of: Some(([0.0, -25.0], [30.0, 25.0])),
         size_of: None,
-        under: &[(20.0, -20.0, Under::Line), (20.0, 10.0, Under::Line)],
+        under: &[(20.0, -15.0, Under::Line), (20.0, 15.0, Under::Line)],
     },
     node: "Sketch",
     undo: "tool-copy",
@@ -2056,12 +2056,12 @@ pub static COPY: Tool = Tool {
     ],
 };
 
-/// The picked line from (10, 0) to (30, 20) turned by `deg` about the origin, the upright line from (0, -20) to (0, 20)
+/// The picked line from (10, 5) to (30, 25) turned by `deg` about the origin, the upright line from (0, -20) to (0, 20)
 /// beside it: the box of the two, and the middle of the turned line where the line lies.
 fn turned_line(deg: f64) -> Outcome {
     let (c, sn) = (deg.to_radians().cos(), deg.to_radians().sin());
     let turn = |x: f64, y: f64| (x * c - y * sn, x * sn + y * c);
-    let (a, b, m) = (turn(10.0, 0.0), turn(30.0, 20.0), turn(20.0, 10.0));
+    let (a, b, m) = (turn(10.0, 5.0), turn(30.0, 25.0), turn(20.0, 15.0));
     let xs = [a.0, b.0, 0.0];
     let ys = [a.1, b.1, -20.0, 20.0];
     let lo = [xs.iter().copied().fold(f64::MAX, f64::min), ys.iter().copied().fold(f64::MAX, f64::min)];
@@ -2107,9 +2107,9 @@ pub static ROTATE: Tool = Tool {
         notes: 0,
         constraints: None,
         dof: None,
-        box_of: Some(([-20.0, -20.0], [0.0, 30.0])),
+        box_of: Some(([-25.0, -20.0], [0.0, 30.0])),
         size_of: None,
-        under: &[(-10.0, 20.0, Under::Line), (20.0, 10.0, Under::Nothing)],
+        under: &[(-15.0, 20.0, Under::Line), (20.0, 15.0, Under::Nothing)],
     },
     node: "Sketch",
     undo: "tool-rotate",
@@ -2171,9 +2171,9 @@ pub static LINEAR_PATTERN: Tool = Tool {
         notes: 0,
         constraints: None,
         dof: None,
-        box_of: Some(([0.0, -20.0], [70.0, 20.0])),
+        box_of: Some(([0.0, -20.0], [70.0, 25.0])),
         size_of: None,
-        under: &[(40.0, 10.0, Under::Line), (60.0, 10.0, Under::Line)],
+        under: &[(40.0, 15.0, Under::Line), (60.0, 15.0, Under::Line)],
     },
     node: "", // the pattern adds to the sketch open, it lays no node of the timeline
     undo: "g-sketch-array",
@@ -2224,7 +2224,7 @@ pub static CIRCULAR_PATTERN: Tool = Tool {
         notes: 0,
         constraints: None,
         dof: None,
-        box_of: Some(([-32.320508, -35.980762], [30.0, 20.0])),
+        box_of: Some(([-36.650635, -38.480762], [30.0, 25.0])),
         size_of: None,
         under: &[],
     },
@@ -2391,13 +2391,13 @@ pub static CON_SYMMETRY: Tool = Tool {
     entries: &[Entry::Button("con-symmetric-hint")],
     other: (Entry::Button("tb-line-hint"), "tool-line"),
     fixture: Fixture::LineAndAxisPicked,
-    picks: &[Pick::Sketch(10.0, 0.0), Pick::Sketch(30.0, 20.0), Pick::Sketch(0.0, 10.0)],
+    picks: &[Pick::Sketch(10.0, 5.0), Pick::Sketch(30.0, 25.0), Pick::Sketch(0.0, 10.0)],
     pick_trial: &[],
     wrong_picks: &[],
     words: &[],
     fields: &[],
     modes: &[],
-    result: Outcome::Sketch { points: 4, lines: 2, arcs: 0, circles: 0, ellipses: 0, splines: 0, texts: 0, notes: 0, constraints: Some(2), dof: Some(5), box_of: None, size_of: None, under: &[] },
+    result: Outcome::Sketch { points: 4, lines: 2, arcs: 0, circles: 0, ellipses: 0, splines: 0, texts: 0, notes: 0, constraints: Some(3), dof: Some(4), box_of: None, size_of: None, under: &[] },
     node: "Sketch",
     // one step of undo named by the kind of edit, "Constraint", as the other constraints name theirs
     undo: "sk-constraint",
