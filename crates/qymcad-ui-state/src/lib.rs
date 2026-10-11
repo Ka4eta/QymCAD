@@ -3846,6 +3846,19 @@ pub struct DeferredUi {
     /// with a spinner so that the program would not seem silent. And silent it was: on Save the interface went
     /// into a blocking `wait_bg` and no frame was drawn at all.
     pub nav_after_save: bool,
+    /// THE ROWS OF THE TREE PICKED TOGETHER when the delete was asked, by their ids: the question names them all, and
+    /// a yes deletes each. Empty when one thing is asked.
+    pub delete_group: Vec<Id>,
+    /// What a group delete has still to delete, one node a frame (`next_of_a_group_delete`).
+    pub delete_queue: DeleteQueue,
+}
+
+/// THE NODES A GROUP DELETE HAS STILL TO DELETE, by their ids, and whether what stands on them goes too. One a frame,
+/// each found again by its id: deleting one moves the places of the rest in their lists.
+#[derive(Clone, Default)]
+pub struct DeleteQueue {
+    pub ids: Vec<Id>,
+    pub dependents: bool,
 }
 
 /// THE RENAME INPUT: what is being renamed and what has been typed.
@@ -11768,6 +11781,129 @@ pub fn sel_point_ids(sel_sk: &SketchSelection) -> Vec<Id> {
 /// things are deleted.
 pub fn ask_delete(deferred: &mut DeferredUi, sel: Sel) {
     deferred.delete = Some(sel);
+    deferred.delete_group.clear();
+}
+
+/// ASK TO DELETE WHAT IS CHOSEN, AND THE ROWS OF THE TREE PICKED WITH IT: several rows picked with Shift or Ctrl, the one
+/// chosen among them, are asked about and deleted together. Reported behaviour: several parts picked in the tree with
+/// Shift, Delete removed the lowest of them alone.
+pub fn ask_delete_chosen(deferred: &mut DeferredUi, project: &Project, sel: Sel, tree_sel: &TreeSelection) {
+    deferred.delete = Some(sel);
+    let in_group = tree_sel.multi.len() > 1 && node_of_sel(project, sel).is_some_and(|id| tree_sel.multi.contains(&id));
+    deferred.delete_group = if in_group { tree_sel.multi.clone() } else { Vec::new() };
+}
+
+/// THE DELETE KEY OUTSIDE A SKETCH: a node of the tree chosen - a feature, a body, a sketch, a datum, a mate, a
+/// component - and the rows picked with it, asked about. Answers whether the key is for the sketch being edited.
+pub fn delete_key(ctx: &egui::Context, sketch_ses: &SketchSession, chosen: &Chosen, project: &Project, deferred: &mut DeferredUi) -> bool {
+    if ctx.egui_wants_keyboard_input() || !ctx.input(|i| i.key_pressed(egui::Key::Delete) || i.key_pressed(egui::Key::Backspace)) {
+        return false;
+    }
+    if sketch_ses.editing.is_some() {
+        return true;
+    }
+    // any structural node of the tree brings up the yes-or-no question; DEL used to do nothing for datums and sketches
+    if matches!(chosen.sel, Sel::Feature(_) | Sel::Mesh(_) | Sel::Sketch(_) | Sel::Plane(_) | Sel::DatumPoint(_) | Sel::DatumAxis(_) | Sel::Joint(_) | Sel::Component(_)) {
+        ask_delete_chosen(deferred, project, chosen.sel, &chosen.tree_sel);
+    }
+    false
+}
+
+/// THE ID OF THE ROW OF THE TREE A SELECTION IS: a component's, or the timeline node's of a feature, a sketch or a datum.
+pub fn node_of_sel(project: &Project, sel: Sel) -> Option<Id> {
+    use qymcad_core::feature::FeatureKind as FK;
+    let node = |hit: &dyn Fn(&FK) -> bool| project.timeline.iter().find(|n| hit(&n.kind)).map(|n| n.id);
+    match sel {
+        Sel::Component(ci) => project.components.get(ci).map(|c| c.id),
+        Sel::Feature(ti) => project.timeline.get(ti).map(|n| n.id),
+        Sel::Sketch(si) => project.sketches.get(si).map(|s| s.id).and_then(|sid| node(&|k| matches!(k, FK::Sketch { sketch } if *sketch == sid))),
+        Sel::Plane(i) => project.planes.get(i).map(|p| p.id).and_then(|pid| node(&|k| matches!(k, FK::Plane { plane } if *plane == pid))),
+        Sel::DatumPoint(i) => project.datum_points.get(i).map(|p| p.id).and_then(|pid| node(&|k| matches!(k, FK::DatumPoint { point } if *point == pid))),
+        Sel::DatumAxis(i) => project.datum_axes.get(i).map(|a| a.id).and_then(|aid| node(&|k| matches!(k, FK::DatumAxis { axis } if *axis == aid))),
+        _ => None,
+    }
+}
+
+/// THE SELECTION A ROW OF THE TREE STANDS FOR, by its id: a component, or a timeline node as the tree selects it - a
+/// sketch, a datum, or a feature. None once it is gone.
+pub fn sel_of_node(project: &Project, id: Id) -> Option<Sel> {
+    use qymcad_core::feature::FeatureKind as FK;
+    if let Some(ci) = project.components.iter().position(|c| c.id == id) {
+        return Some(Sel::Component(ci));
+    }
+    let ti = project.timeline.iter().position(|n| n.id == id)?;
+    Some(match project.timeline[ti].kind {
+        FK::Sketch { sketch } => Sel::Sketch(project.sketch_index(sketch)?),
+        FK::Plane { plane } => Sel::Plane(project.planes.iter().position(|p| p.id == plane)?),
+        FK::DatumPoint { point } => Sel::DatumPoint(project.datum_points.iter().position(|p| p.id == point)?),
+        FK::DatumAxis { axis } => Sel::DatumAxis(project.datum_axes.iter().position(|a| a.id == axis)?),
+        _ => Sel::Feature(ti),
+    })
+}
+
+/// THE NEXT NODE OF A GROUP DELETE, asked when nothing else is: one a frame, found again by its id; a node a delete
+/// before it took along is passed over.
+pub fn next_of_a_group_delete(deferred: &mut DeferredUi, project: &Project) -> Option<(Sel, bool)> {
+    while deferred.delete.is_none() && !deferred.delete_queue.ids.is_empty() {
+        let id = deferred.delete_queue.ids.remove(0);
+        if let Some(sel) = sel_of_node(project, id) {
+            return Some((sel, deferred.delete_queue.dependents));
+        }
+    }
+    None
+}
+
+/// HOW A ROW OF THE TREE WAS CLICKED: alone, with Ctrl (Cmd on a Mac) to add it or take it away, with Shift for the run
+/// of rows from the one clicked before.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum TreeClick {
+    Alone,
+    Toggle,
+    Run,
+}
+
+impl TreeClick {
+    pub fn of(m: &egui::Modifiers) -> Self {
+        if m.shift {
+            TreeClick::Run
+        } else if m.ctrl || m.command {
+            TreeClick::Toggle
+        } else {
+            TreeClick::Alone
+        }
+    }
+}
+
+/// PICK THE ROW `id` OF THE TREE among `order`, the rows it stands among, as `click` says: alone, added or taken away,
+/// or the run of rows from the anchor to it.
+pub fn tree_pick(tree_sel: &mut TreeSelection, order: &[Id], id: Id, click: TreeClick) {
+    match click {
+        TreeClick::Run => match (tree_sel.anchor.and_then(|a| order.iter().position(|&x| x == a)), order.iter().position(|&x| x == id)) {
+            (Some(ia), Some(ib)) => tree_sel.multi = order[ia.min(ib)..=ia.max(ib)].to_vec(),
+            _ => {
+                tree_sel.multi = vec![id];
+                tree_sel.anchor = Some(id);
+            }
+        },
+        TreeClick::Toggle => {
+            match tree_sel.multi.iter().position(|&x| x == id) {
+                Some(p) => {
+                    tree_sel.multi.remove(p);
+                }
+                None => tree_sel.multi.push(id),
+            }
+            tree_sel.anchor = Some(id);
+        }
+        TreeClick::Alone => {
+            tree_sel.multi = vec![id];
+            tree_sel.anchor = Some(id);
+        }
+    }
+}
+
+/// Whether the row `id` is lit as one of several picked in the tree.
+pub fn in_tree_group(tree_sel: &TreeSelection, id: Id) -> bool {
+    tree_sel.multi.len() > 1 && tree_sel.multi.contains(&id)
 }
 
 /// The centre of the selected object (for the gizmo), in the part's XY coordinates.
