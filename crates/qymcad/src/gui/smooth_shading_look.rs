@@ -122,6 +122,23 @@ pub(crate) mod tests {
         app
     }
 
+    /// A CUP: a cylinder R30 x 20 with its bottom edge rounded R5, shelled 3 mm with the top face open - a rounding
+    /// inside and out, as in a turned or moulded part.
+    pub(crate) fn cup() -> App {
+        let mut app = part();
+        let body = app.project.add_cylinder(30.0, 20.0);
+        qymcad_ui_state::regenerate_now(&mut app.rebuild_ctx());
+        let edges = app.project.regen_edges.get(&body).cloned().unwrap_or_default();
+        let bottom = edges.iter().filter(|e| e.dir[2].abs() < 0.5).min_by(|a, b| a.mid[2].total_cmp(&b.mid[2])).map(|e| e.id).expect("setup: the bottom edge");
+        let rounded = app.project.add_fillet(body, 5.0, vec![bottom]);
+        qymcad_ui_state::regenerate_now(&mut app.rebuild_ctx());
+        let solid = app.project.timeline.iter().rev().find_map(|n| n.kind.body()).unwrap_or(rounded);
+        let top = app.project.bodies.iter().find(|b| b.id == solid).and_then(|b| b.faces.iter().max_by(|a, b| a.centroid.z.total_cmp(&b.centroid.z)).map(|f| f.id)).expect("setup: the top face");
+        app.project.add_shell_mode(solid, 3.0, vec![top], qymcad_core::feature::ShellSide::Inward);
+        qymcad_ui_state::regenerate_now(&mut app.rebuild_ctx());
+        app
+    }
+
     /// A sphere: one closed face with a seam.
     pub(crate) fn sphere(r: f64) -> App {
         let mut app = part();
@@ -155,6 +172,26 @@ pub(crate) mod tests {
         }
     }
 
+    /// THE BOTTOM OF THE MODEL CLOSE UP: the camera on the lowest front point, `times` nearer than the whole.
+    fn close_up(app: &mut App, name: &str, times: f32) {
+        picture(app, name);
+        let pts: Vec<[f64; 3]> = shaded(app).into_iter().map(|(p, _)| p).collect();
+        let low = pts.iter().map(|p| p[2]).fold(f64::MAX, f64::min);
+        let fwd = app.viewing.cam.basis().2;
+        let near = pts.iter().filter(|p| p[2] < low + 1.0).max_by(|a, b| (-(a[0] * fwd[0] + a[1] * fwd[1])).total_cmp(&-(b[0] * fwd[0] + b[1] * fwd[1]))).copied();
+        if let Some(p) = near {
+            app.viewing.cam.target = p;
+            app.viewing.cam.scale *= times;
+            let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(900.0, 600.0));
+            if let Some(img) = crate::gui::gpu_shot::eyes::shot(&app.painting(), rect) {
+                let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/look");
+                if let Some(png) = crate::gui::color_image_to_png(&img) {
+                    let _ = std::fs::write(dir.join(format!("{name}_close.png")), png);
+                }
+            }
+        }
+    }
+
     /// THE NUMBERS AND THE PICTURES, for the eyes: what the light is made of on a rounded box and on a sphere.
     #[test]
     #[ignore = "a measure for the eyes, run by hand: cargo test -p qymcad --lib smooth_shading_measure -- --ignored --nocapture"]
@@ -169,5 +206,35 @@ pub(crate) mod tests {
         let off = off_the_sphere(&v);
         eprintln!("sphere: {} vertices; worst normal off the surface's own: {:.2} deg; worst step of the light at one point: {:.2} deg", v.len(), off, worst_step(&v, 30.0));
         picture(&mut ball, "sphere");
+
+        let mut cup = cup();
+        let v = shaded(&cup);
+        eprintln!("cup: {} vertices; worst step of the light where it is smooth: {:.2} deg", v.len(), worst_step(&v, 30.0));
+        picture(&mut cup, "cup");
+        cup.side.section.plane = Some(([0.0; 3], [0.0, 1.0, 0.0]));
+        picture(&mut cup, "cup_section");
+
+        // A FILE BROUGHT IN (`QYM_LOOK_IMPORT`) through File -> Import, as a person brings it: its light, and its picture
+        if let Ok(path) = std::env::var("QYM_LOOK_IMPORT") {
+            let (mut doc, ctx) = crate::gui::import_door::tests::running();
+            doc.set.shading = qymcad_ui_state::Shading::Smooth;
+            crate::gui::import_door::tests::answer(&mut doc, &ctx, qymcad_ui_state::Want::Anything, &path);
+            crate::gui::import_door::tests::settle(&mut doc, &ctx);
+            for b in &doc.project.bodies {
+                eprintln!("  body {}: {} vertices, {} surface normals", b.id, b.mesh.verts.len(), b.mesh.norms.len());
+            }
+            let v = shaded(&doc);
+            eprintln!("import: worst step of the light where it is smooth: {:.2} deg", worst_step(&v, 20.0));
+            close_up(&mut doc, "import", 4.0);
+        }
+        // THE SAME PART AS SAVED BEFORE (`QYM_LOOK_DOC`): its meshes carry no normals of the surface, the light is the
+        // old average - the "before" of the same frame
+        if let Ok(path) = std::env::var("QYM_LOOK_DOC") {
+            let project = qymcad_io::load_project(&path).expect("the document opens");
+            let mut doc = App::default();
+            doc.set.shading = qymcad_ui_state::Shading::Smooth;
+            doc.finish_project_load(path.clone(), project, Vec::new());
+            close_up(&mut doc, "as_saved", 4.0);
+        }
     }
 }
