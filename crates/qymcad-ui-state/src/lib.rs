@@ -8916,11 +8916,10 @@ pub fn tangent_radius_to_edge(dc: &DrawCtx, si: usize, eref: EdgeRef, p: Point2)
 /// datum (unlike `resolve_mirror_plane`). For a face, the local centroid and normal are taken into
 /// world space through the body's display transform.
 pub fn mirror_plane_world(dc: &DrawCtx, sp: &qymcad_core::feature::SketchPlane) -> Option<([f64; 3], [f64; 3])> {
-    use qymcad_core::feature::{apply12, BasePlane, SketchPlane};
+    use qymcad_core::feature::{apply12, SketchPlane};
     match sp {
-        SketchPlane::World(BasePlane::XY) => Some(([0.0, 0.0, 0.0], [0.0, 0.0, 1.0])),
-        SketchPlane::World(BasePlane::XZ) => Some(([0.0, 0.0, 0.0], [0.0, 1.0, 0.0])),
-        SketchPlane::World(BasePlane::YZ) => Some(([0.0, 0.0, 0.0], [1.0, 0.0, 0.0])),
+        // the side a plane offset from it goes to, as the plane made goes (`BasePlane::offset_direction`)
+        SketchPlane::World(b) => Some(([0.0, 0.0, 0.0], b.offset_direction())),
         SketchPlane::Datum(id) => dc.project.planes.iter().find(|p| p.id == *id).map(|p| (p.origin, p.normal)),
         SketchPlane::Face(body, key) => {
             let ctx = current_ctx_id(dc.active_path, dc.project);

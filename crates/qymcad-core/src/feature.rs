@@ -258,6 +258,16 @@ impl BasePlane {
             BasePlane::YZ => PlaneFrame { origin: [0.0; 3], x: [0.0, 1.0, 0.0], y: [0.0, 0.0, 1.0] },
         }
     }
+    /// THE SIDE A PLANE OFFSET FROM THIS ONE GOES TO: the positive axis across it - +Z from XY, +Y from XZ, +X from YZ.
+    /// Not the normal of `frame`, which for XZ is X x Z = -Y: offset along it, a plane 100 from XZ was previewed at
+    /// +100 and made at -100. The preview and the plane made both take it from here.
+    pub fn offset_direction(self) -> [f64; 3] {
+        match self {
+            BasePlane::XY => [0.0, 0.0, 1.0],
+            BasePlane::XZ => [0.0, 1.0, 0.0],
+            BasePlane::YZ => [1.0, 0.0, 0.0],
+        }
+    }
 }
 
 impl SketchPlane {

@@ -2832,3 +2832,22 @@ fn marking_everything_stale_touches_every_node() {
     assert!(p.timeline.iter().all(|n| n.dirty), "every node must be stale again");
     let _ = base;
 }
+
+/// A PLANE OFFSET FROM A BASE PLANE GOES TO THE SIDE ITS PREVIEW SHOWS: along the positive axis across it - +Z from XY,
+/// +Y from XZ, +X from YZ - the side `BasePlane::offset_direction` gives the preview as well. Reported behaviour: an offset
+/// of 100 from XZ was previewed on one side, and Enter put the plane on the other.
+#[test]
+fn a_plane_offset_from_a_base_plane_goes_along_its_positive_axis() {
+    use qymcad_core::feature::BasePlane;
+    let mut failed = Vec::new();
+    for (base, axis) in [(BasePlane::XY, 2usize), (BasePlane::XZ, 1), (BasePlane::YZ, 0)] {
+        let mut p = qymcad_core::model::Project::default();
+        let id = p.add_offset_plane(base, 100.0);
+        p.regenerate(&MockKernel::default());
+        let o = p.planes.iter().find(|pl| pl.id == id).map(|pl| pl.origin).expect("the plane is made");
+        if (o[axis] - 100.0).abs() > 1e-9 || base.offset_direction()[axis] != 1.0 {
+            failed.push(format!("{base:?}: the plane stands at {o:?}, the preview's direction is {:?}", base.offset_direction()));
+        }
+    }
+    assert!(failed.is_empty(), "planes offset by 100 not on the positive side:\n{}", failed.join("\n"));
+}

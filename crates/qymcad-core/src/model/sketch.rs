@@ -5655,9 +5655,10 @@ impl Project {
             PlaneDef::OffsetBase { base, dist } => {
                 let dist = eval_dim(dim, "dist", dist, vars);
                 let f = base.frame();
-                let n = f.normal();
-                self.planes[pi].normal = n;
-                self.planes[pi].origin = [f.origin[0] + n[0] * dist, f.origin[1] + n[1] * dist, f.origin[2] + n[2] * dist];
+                // the side the preview shows (`offset_direction`); the normal stays the frame's, as sketches on it lie
+                let d = base.offset_direction();
+                self.planes[pi].normal = f.normal();
+                self.planes[pi].origin = [f.origin[0] + d[0] * dist, f.origin[1] + d[1] * dist, f.origin[2] + d[2] * dist];
             }
             PlaneDef::OffsetFace { body, face, dist } => {
                 let dist = eval_dim(dim, "dist", dist, vars);
