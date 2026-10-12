@@ -1018,7 +1018,7 @@ impl App {
             draft: self.params.draft,
             chamfer: self.params.chamfer,
             edges: &self.edges,
-            face_arrow_drag: self.dragged.face_arrow_drag,
+            handle_drag: self.dragged.handle_drag,
             feat: self.feat,
             gpu_ok: self.gpu_ok,
             gsel: &self.tools.gsel,
@@ -2276,19 +2276,6 @@ impl App {
                 false
             }
         }
-    }
-
-    /// Dragging the face arrow: the offset grows along the face's NORMAL, just as it does for a body gizmo's axis.
-    pub(super) fn face_arrow_drag_to(&mut self, d: egui::Vec2, rect: Rect, basis: &([f64; 3], [f64; 3], [f64; 3])) {
-        let arrows = qymcad_ui_state::handle_arrows(&self.painting());
-        qymcad_ui_state::drag_handle_arrow(
-            &mut self.tools.cmd,
-            &mut self.regen,
-            &arrows,
-            self.dragged.face_arrow_drag,
-            &qymcad_ui_state::Screen { cam: &self.viewing.cam, set: &self.set, rect, basis },
-            d,
-        );
     }
 
     /// Finish a body gizmo drag: apply the accumulated transform as a PARAMETRIC Move feature.
