@@ -1417,6 +1417,28 @@ pub fn cmd_ready(pc: &mut qymcad_ui_state::PartCtx) -> bool {
     }
 }
 
+/// HOW FAR BESIDE ITS ARROW THE FIELDS OF A COMMAND STAND, on the screen: clear of the arrow and of the ball at its tip
+/// (5 px), near enough to be read as the arrow's.
+const ARROW_CLEARANCE: f32 = 40.0;
+
+/// WHERE THE FIELDS OF A COMMAND WITH AN ARROW STAND: beside the tip of the arrow from `base` to `tip`, across it on the
+/// screen - on its right where the box fits in `rect`, on its left where it does not (`clamp_popup` keeps 200 px for the
+/// box and pushed it back against the arrow). Reported behaviour: the length field of an extrusion stood against the tip
+/// of its arrow, and the arrow could hardly be seen or taken.
+fn beside_the_arrow(base: Pos2, tip: Pos2, rect: Rect) -> Pos2 {
+    const BOX_WIDTH: f32 = 200.0; // as `clamp_popup` keeps for it
+    let d = tip - base;
+    let across = if d.length() < 1.0 { egui::vec2(1.0, 0.0) } else { egui::vec2(-d.y, d.x).normalized() };
+    let right = if across.x < 0.0 { -across } else { across };
+    let on_right = tip + right * ARROW_CLEARANCE;
+    if on_right.x + BOX_WIDTH <= rect.right() - 4.0 {
+        on_right
+    } else {
+        // the box's left edge so far left that its right edge stands clear of the arrow
+        tip - right * ARROW_CLEARANCE - egui::vec2(BOX_WIDTH, 0.0)
+    }
+}
+
 pub fn cmd_anchor_screen(pc: &mut qymcad_ui_state::PartCtx, rect: Rect) -> Option<Pos2> {
     let basis = pc.cam.basis();
     let scr = qymcad_ui_state::Screen { cam: pc.cam, set: pc.set, rect, basis: &basis };
@@ -1424,8 +1446,11 @@ pub fn cmd_anchor_screen(pc: &mut qymcad_ui_state::PartCtx, rect: Rect) -> Optio
         1 | 3 => {
             let (base, dir, h) = qymcad_ui_state::feat_cmd_axis(pc.cmd, pc.gsel, pc.project)?;
             let dir = if pc.armed.cmd_kind() == 1 && pc.feat.flip { [-dir[0], -dir[1], -dir[2]] } else { dir };
-            let p = if pc.armed.cmd_kind() == 3 { base } else { [base[0] + dir[0] * h, base[1] + dir[1] * h, base[2] + dir[2] * h] };
-            Some(scr.at(p).0)
+            if pc.armed.cmd_kind() == 3 {
+                return Some(scr.at(base).0);
+            }
+            let tip = [base[0] + dir[0] * h, base[1] + dir[1] * h, base[2] + dir[2] * h];
+            Some(beside_the_arrow(scr.at(base).0, scr.at(tip).0, rect))
         }
         // EVERYTHING AIMED BY CLICKING A BODY KEEPS ITS POPUP BESIDE THE BODY.
         //
