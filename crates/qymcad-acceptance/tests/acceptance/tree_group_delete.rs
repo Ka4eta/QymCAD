@@ -1,5 +1,5 @@
 //! SEVERAL ROWS PICKED IN THE TREE ARE DELETED TOGETHER: parts of an assembly and sketches of a part, picked with Shift
-//! from the first to the last, Delete and yes - every one of them goes.
+//! from the first to the last, Delete and yes - every one of them goes, and one undo brings them all back.
 //!
 //! Reported behaviour: several parts picked in the tree with Shift, Delete removed the lowest of them alone; sketches could
 //! not be picked several at once at all.
@@ -62,5 +62,9 @@ probe! {
         delete_the_run(&mut s, &named[0], &named[2]);
         let left: Vec<String> = s.document().sketches.iter().map(|k| k.name.clone()).collect();
         assert!(left.is_empty(), "the sketches picked from {} to {} were not all deleted: {left:?} left", named[0], named[2]);
+        // one undo brings the whole group back
+        s.chord(Modifiers::COMMAND, Key::Z);
+        let back: Vec<String> = s.document().sketches.iter().map(|k| k.name.clone()).collect();
+        assert_eq!(back, named, "one undo after the group delete gave back {back:?}, not the three sketches");
     }
 }

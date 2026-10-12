@@ -3859,6 +3859,9 @@ pub struct DeferredUi {
 pub struct DeleteQueue {
     pub ids: Vec<Id>,
     pub dependents: bool,
+    /// THE ONE STEP OF UNDO the whole group is, open from the yes until the last node is deleted: each delete opens a
+    /// step of its own inside it, and a nested step only counts down (`commit_edit`). Its name while open.
+    pub step: Option<String>,
 }
 
 /// THE RENAME INPUT: what is being renamed and what has been typed.
