@@ -1285,7 +1285,10 @@ pub(crate) fn build_tree(tc: &mut qymcad_ui_state::TreeCtx, ui: &mut egui::Ui) {
             }
 
             let after_tick = toggle_all.rect.max.x + ui.spacing().item_spacing.x * 0.5;
-            let heading_text = egui::RichText::new(format!("{} {}", ph::STACK, crate::i18n::tr("tree-components"))).text_style(egui::TextStyle::Button);
+            // in the colour of the other branches' headings (a widget's text), not the plainer colour of a label: the
+            // heading of the components stood greyer than Origin beside it
+            let heading_text =
+                egui::RichText::new(format!("{} {}", ph::STACK, crate::i18n::tr("tree-components"))).text_style(egui::TextStyle::Button).color(ui.visuals().widgets.inactive.text_color());
             ui.add(egui::Label::new(heading_text).selectable(false));
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
