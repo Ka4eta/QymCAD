@@ -154,12 +154,9 @@ impl App {
         if resp.drag_started() {
             // THE HANDLE AT A FACE (push, thicken): grabbing the arrow outranks the orbit, otherwise a
             // face could not be dragged with the mouse and only typing a number would be left.
-            if let Some(key) = qymcad_ui_state::face_arrow_key(&self.tools.armed) {
-                if let Some(pp) = resp.interact_pointer_pos() {
-                    if self.face_arrow_hit(rect, pp, basis3) {
-                        self.dragged.face_arrow_drag = Some(qymcad_ui_state::take_arrow_value(&resp.ctx, &self.tools.cmd, key));
-                    }
-                }
+            if let Some(pp) = resp.interact_pointer_pos() {
+                let scr = qymcad_ui_state::Screen { cam: &self.viewing.cam, set: &self.set, rect, basis: basis3 };
+                self.dragged.face_arrow_drag = qymcad_ui_state::grab_handle_arrow(&resp.ctx, &self.painting(), &scr, pp).or(self.dragged.face_arrow_drag);
             }
             // priority goes to the ACTIVE command's arrow (extrude, cut, ...) when a profile is picked
             if self.tools.armed.commanding() && !self.tools.gsel.profiles.is_empty() {

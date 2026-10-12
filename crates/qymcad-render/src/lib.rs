@@ -3936,16 +3936,17 @@ pub fn draw_fillet_vertices(pn: &Painting, painter: &egui::Painter, rect: Rect) 
 /// the face is selected - even at a zero value. Otherwise there would be nothing to drag: the arrow
 /// would appear only after the number had been typed in, that is, exactly when it is no longer needed.
 ///
-/// One handle for every command of the "pick a face, set a distance along its normal" kind (push, thicken):
-/// what it actually drags is decided by `face_arrow_key`.
+/// One drawing for every handle arrow of a command (`handle_arrows`): the value along a direction of a face pushed,
+/// thickened or shelled, a split or a datum plane's offset, and the three arrows of a datum point's or axis's position.
 pub fn draw_face_arrow(pn: &Painting, painter: &egui::Painter, rect: Rect, basis: &([f64; 3], [f64; 3], [f64; 3])) {
-    let Some((o, tip, _)) = qymcad_ui_state::face_arrow_geometry(pn) else { return };
     let scr = qymcad_ui_state::Screen { cam: &pn.cam, set: pn.set, rect, basis };
-    let (a, b) = (scr.at(o).0, scr.at(tip).0);
-    let hot = pn.face_arrow_drag.is_some();
-    let col = if hot { pn.scheme.pal.highlight() } else { pn.scheme.pal.handle_face() };
-    painter.add(egui::Shape::line_segment([a, b], Stroke::new(if hot { 3.5 } else { 2.5 }, col)));
-    painter.circle_filled(b, if hot { 6.0 } else { 5.0 }, col);
+    for arrow in qymcad_ui_state::handle_arrows(pn) {
+        let (a, b) = (scr.at(arrow.base).0, scr.at(arrow.tip()).0);
+        let hot = pn.face_arrow_drag == Some(arrow.key);
+        let col = if hot { pn.scheme.pal.highlight() } else { pn.scheme.pal.handle_face() };
+        painter.add(egui::Shape::line_segment([a, b], Stroke::new(if hot { 3.5 } else { 2.5 }, col)));
+        painter.circle_filled(b, if hot { 6.0 } else { 5.0 }, col);
+    }
 }
 
 /// THE FACES THE COMMAND WILL ADD, as its trial built them, in the "will be added" colour over the part - the surface of

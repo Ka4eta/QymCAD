@@ -5350,7 +5350,7 @@ pub struct Painting<'a> {
     /// the chamfer in hand: its mode and its reference face, which the preview lays the legs by
     pub chamfer: ChamferParams,
     pub edges: &'a EdgeCache,
-    pub face_arrow_drag: Option<f64>,
+    pub face_arrow_drag: Option<&'static str>,
     pub feat: FeatTarget,
     pub gpu_ok: bool,
     pub gsel: &'a GeomSelection,
@@ -7290,8 +7290,8 @@ pub struct Dragged {
     pub body_giz: BodyGizmo,
     /// Dragging the rollback bar along the timeline.
     pub rollback: RollbackDrag,
-    /// The arrow on a face being dragged: how far it has travelled.
-    pub face_arrow_drag: Option<f64>,
+    /// THE HANDLE ARROW OF THE COMMAND BEING DRAGGED, by the field it drives (`handle_arrows`).
+    pub face_arrow_drag: Option<&'static str>,
     /// Pulling a part by a degree of freedom: which one, from where, in which direction.
     pub part_pull: Option<(Id, [f64; 3], [f64; 3])>,
 }
@@ -9484,7 +9484,7 @@ pub fn mesh_center(project: &qymcad_core::model::Project, mi: usize) -> [f64; 3]
 /// direction the operation does not have — that is, it would lie.
 pub fn face_arrow_key(armed: &Armed) -> Option<&'static str> {
     match armed.cmd_kind() {
-        25 => Some("dist"),
+        20 | 25 => Some("dist"),
         6 | 28 => Some("thickness"),
         27 => Some("offset"),
         _ => None,
@@ -9564,8 +9564,67 @@ pub fn cmd_arrow_ref(pn: &Painting) -> Option<([f64; 3], [f64; 3])> {
             Some(([f.centroid.x, f.centroid.y, f.centroid.z], f.normal))
         }
         27 => pn.split.plane.as_ref().and_then(|sp| mirror_plane_world(&DrawCtx { cam: &pn.cam, set: pn.set, scheme: pn.scheme, project: pn.project, active_path: pn.active_path }, sp)),
+        // a datum plane: from the reference picked, along the side its offset goes to (`BasePlane::offset_direction`)
+        20 => pn.datum.plane_pick.as_ref().and_then(|sp| mirror_plane_world(&DrawCtx { cam: &pn.cam, set: pn.set, scheme: pn.scheme, project: pn.project, active_path: pn.active_path }, sp)),
         _ => None,
     }
+}
+
+/// HOW LONG THE ARROWS OF A POSITION ARE ON THE SCREEN, in pixels: a point or the origin of an axis is moved along X, Y and
+/// Z by arrows of this length whatever the zoom.
+const POSITION_ARROW_PX: f64 = 60.0;
+
+/// THE HANDLE ARROWS OF THE COMMAND IN HAND, as they are drawn and as they are grabbed: the arrow of a value along a
+/// direction (a face pushed, thickened, shelled, a split, a datum plane's offset - `face_arrow_geometry`), or the three
+/// arrows of a position along X, Y and Z (a datum point by its coordinates, a datum axis by its origin). Reported
+/// behaviour: the datum tools had no arrow to drag, their values were typed only.
+pub fn handle_arrows(pn: &Painting) -> Vec<CmdArrow> {
+    if let (Some(key), Some((o, tip, n))) = (face_arrow_key(pn.armed), face_arrow_geometry(pn)) {
+        let len = (tip[0] - o[0]) * n[0] + (tip[1] - o[1]) * n[1] + (tip[2] - o[2]) * n[2];
+        return vec![CmdArrow { base: o, dir: n, len, key }];
+    }
+    let keys: Option<[&'static str; 3]> = match pn.armed.cmd_kind() {
+        21 if pn.datum.pt_mode == 0 => Some(["x", "y", "z"]),
+        22 if pn.datum.axis_mode == 1 => Some(["ox", "oy", "oz"]),
+        _ => None,
+    };
+    let Some(keys) = keys else { return Vec::new() };
+    let base = keys.map(|k| cmd_val(pn.cmd, k));
+    let len = POSITION_ARROW_PX / f64::from(pn.cam.scale).max(1e-9);
+    let axes = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
+    keys.iter().zip(axes).map(|(&key, dir)| CmdArrow { base, dir, len, key }).collect()
+}
+
+/// THE HANDLE ARROW UNDER THE POINTER, by the field it drives: the nearest whose line passes within 9 px of `pos`. A press
+/// on it takes the value as it stands, and the field lets go of the keyboard (`take_arrow_value`).
+pub fn grab_handle_arrow(ctx: &egui::Context, pn: &Painting, scr: &Screen, pos: Pos2) -> Option<&'static str> {
+    let hit = handle_arrow_at(pn, scr, pos)?;
+    take_arrow_value(ctx, pn.cmd, hit);
+    Some(hit)
+}
+
+/// The handle arrow whose line passes within 9 px of `pos`, the nearest; none elsewhere.
+pub fn handle_arrow_at(pn: &Painting, scr: &Screen, pos: Pos2) -> Option<&'static str> {
+    handle_arrows(pn).into_iter().map(|a| (a.key, screen_dist_seg(pos, scr.at(a.base).0, scr.at(a.tip()).0))).filter(|(_, d)| *d <= 9.0).min_by(|x, y| x.1.total_cmp(&y.1)).map(|(k, _)| k)
+}
+
+/// THE ARROW `held` DRAGGED BY `d` ON THE SCREEN: the pointer's travel along the arrow's line, in the units of the world,
+/// added to its field - the field and the arrow are one value. `arrows` are the command's (`handle_arrows`).
+pub fn drag_handle_arrow(cmd: &mut FeatCommand, regen: &mut Rebuilding, arrows: &[CmdArrow], held: Option<&'static str>, scr: &Screen, d: egui::Vec2) {
+    let Some(a) = arrows.iter().find(|a| Some(a.key) == held) else { return };
+    let l = POSITION_ARROW_PX / f64::from(scr.cam.scale).max(1e-9);
+    let (s0, s1) = (scr.at(a.base).0, scr.at([a.base[0] + a.dir[0] * l, a.base[1] + a.dir[1] * l, a.base[2] + a.dir[2] * l]).0);
+    let pd = s1 - s0;
+    let denom = f64::from(pd.x * pd.x + pd.y * pd.y);
+    if denom < 1e-6 {
+        return;
+    }
+    let cur = cmd_val(cmd, a.key) + f64::from(d.x * pd.x + d.y * pd.y) * l / denom;
+    if let Some(p) = cmd.params.iter_mut().find(|p| p.key == a.key) {
+        p.val = cur;
+        p.txt = format!("{cur:.2}"); // the field and the arrow are one value, not two independent ones
+    }
+    invalidate(regen);
 }
 
 /// The DOF gizmo handles of a joint in the frame of the context: (the origin, [(slot, whether it is a

@@ -1439,6 +1439,12 @@ fn beside_the_arrow(base: Pos2, tip: Pos2, rect: Rect) -> Pos2 {
     }
 }
 
+/// WHERE THE FIELDS OF A POSITION STAND: left of the point its arrows run out of, the box's right edge `ARROW_CLEARANCE`
+/// clear of it (the box is about 220 px wide, the popup laid 10 px right of its anchor).
+fn left_of_the_arrows(at: Pos2) -> Pos2 {
+    at - egui::vec2(ARROW_CLEARANCE + 230.0, 0.0)
+}
+
 pub fn cmd_anchor_screen(pc: &mut qymcad_ui_state::PartCtx, rect: Rect) -> Option<Pos2> {
     let basis = pc.cam.basis();
     let scr = qymcad_ui_state::Screen { cam: pc.cam, set: pc.set, rect, basis: &basis };
@@ -1470,23 +1476,30 @@ pub fn cmd_anchor_screen(pc: &mut qymcad_ui_state::PartCtx, rect: Rect) -> Optio
         // datum plane (20): at the origin of the picked reference; point (21): at (x,y,z); axis (22): at
         // the origin of the reference or of the hand-typed one
         20 => {
-            let p = pc
-                .datum
-                .plane_pick
-                .as_ref()
-                .and_then(|sp| qymcad_ui_state::mirror_plane_world(&qymcad_ui_state::DrawCtx { cam: pc.cam, set: pc.set, scheme: pc.scheme, project: pc.project, active_path: pc.active_path }, sp))
-                .map(|(o, _)| o)
-                .unwrap_or([0.0, 0.0, 0.0]);
-            Some(scr.at(p).0)
+            // nothing picked yet: at the origin, clear of the bodies a face is to be picked on
+            let Some((o, n)) =
+                pc.datum.plane_pick.as_ref().and_then(|sp| {
+                    qymcad_ui_state::mirror_plane_world(&qymcad_ui_state::DrawCtx { cam: pc.cam, set: pc.set, scheme: pc.scheme, project: pc.project, active_path: pc.active_path }, sp)
+                })
+            else {
+                return Some(scr.at([0.0, 0.0, 0.0]).0);
+            };
+            // beside the arrow of the offset, from the reference to where the plane will stand, as an extrusion's fields
+            // stand beside its arrow
+            let d = qymcad_ui_state::cmd_val(pc.cmd, "dist");
+            let tip = [o[0] + n[0] * d, o[1] + n[1] * d, o[2] + n[2] * d];
+            Some(beside_the_arrow(scr.at(o).0, scr.at(tip).0, rect))
         }
-        21 => Some(scr.at([qymcad_ui_state::cmd_val(pc.cmd, "x"), qymcad_ui_state::cmd_val(pc.cmd, "y"), qymcad_ui_state::cmd_val(pc.cmd, "z")]).0),
+        // A POINT AND THE ORIGIN OF AN AXIS BY HAND are moved by three arrows out of them: the fields stand on their left,
+        // clear of the arrows - over them they took the arrow along X
+        21 => Some(left_of_the_arrows(scr.at([qymcad_ui_state::cmd_val(pc.cmd, "x"), qymcad_ui_state::cmd_val(pc.cmd, "y"), qymcad_ui_state::cmd_val(pc.cmd, "z")]).0)),
         22 => {
             let p = if pc.datum.axis_mode == 1 {
                 [qymcad_ui_state::cmd_val(pc.cmd, "ox"), qymcad_ui_state::cmd_val(pc.cmd, "oy"), qymcad_ui_state::cmd_val(pc.cmd, "oz")]
             } else {
                 pc.datum.axis_ref.map(|(o, _)| o).unwrap_or([0.0, 0.0, 0.0])
             };
-            Some(scr.at(p).0)
+            Some(if pc.datum.axis_mode == 1 { left_of_the_arrows(scr.at(p).0) } else { scr.at(p).0 })
         }
         // primitives: the popup goes BESIDE - from the body while editing (like the chamfer), from the
         // placement point while creating (it used to sit at the centre of the primitive and covered it).

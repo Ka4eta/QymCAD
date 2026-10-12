@@ -233,3 +233,71 @@ probe! {
         assert!(d.dir.iter().any(|v| v.abs() > 1e-6), "the axis made by hand has no direction at all: {:?}", d.dir);
     }
 }
+
+/// The value of the text field nearest to `at` on the screen.
+fn field_near(s: &mut Session, at: qymcad::Pos2) -> f64 {
+    let f = s.widgets().into_iter().filter(|w| w.kind == qymcad::Kind::TextField).min_by(|a, b| a.rect.center().distance(at).total_cmp(&b.rect.center().distance(at))).expect("a field");
+    f.value.trim().parse().unwrap_or(f64::NAN)
+}
+
+probe! {
+    /// THE OFFSET OF A DATUM PLANE IS DRAGGED BY ITS ARROW: a plane taken from the table, offset 20, its arrow from the
+    /// origin to (0, 0, 20) pulled 40 px up - the offset grows, and Enter puts the plane where the field says. Reported
+    /// behaviour: the datum tools had no arrow, their values were typed only.
+    fn the_offset_of_a_datum_plane_is_dragged_by_its_arrow() {
+        let mut s = Session::start();
+        build::into_the_first_part(&mut s);
+        take(&mut s, "g-datum-plane-hint");
+        let at = s.in_space([0.0, 0.0, 0.0]);
+        s.click(at);
+        let field = s.widgets().into_iter().filter(|w| w.kind == qymcad::Kind::TextField).min_by(|a, b| a.rect.center().distance(at).total_cmp(&b.rect.center().distance(at))).expect("the field of the offset");
+        s.click(field.rect.center()).chord(qymcad::Modifiers::COMMAND, Key::A).type_text("20");
+        let tip = s.projected([0.0, 0.0, 20.0]);
+        s.drag(tip, tip + qymcad::vec2(0.0, -40.0), qymcad::PointerButton::Primary, qymcad::Modifiers::NONE);
+        let pulled = field_near(&mut s, tip);
+        assert!(pulled > 20.5, "the arrow pulled up 40 px left the offset at {pulled}");
+        s.key(Key::Enter);
+        let d = last(&mut s, "plane");
+        assert!((d.at[2] - pulled).abs() < 1e-3, "the plane stands at {:?}, the field said {pulled}", d.at);
+    }
+}
+
+probe! {
+    /// A DATUM POINT IS DRAGGED BY ITS ARROWS: a point by its coordinates, X 10, the arrow along X pulled 40 px along
+    /// itself - X grows, Y and Z stay; Enter puts the point there.
+    fn a_datum_point_is_dragged_by_its_arrows() {
+        let mut s = Session::start();
+        build::into_the_first_part(&mut s);
+        take(&mut s, "g-datum-point-hint");
+        bar_word(&mut s, "cmd-coordinates");
+        field(&mut s, "X", "10");
+        // the arrow along X on the screen: from the point, the way +X runs there
+        let (from, along) = (s.projected([10.0, 0.0, 0.0]), s.projected([11.0, 0.0, 0.0]));
+        let way = (along - from).normalized();
+        // the middle of the arrow: the fields of the point must not stand over it
+        let grab = from + way * 30.0;
+        s.drag(grab, grab + way * 40.0, qymcad::PointerButton::Primary, qymcad::Modifiers::NONE);
+        s.key(Key::Enter);
+        let d = last(&mut s, "point");
+        assert!(d.at[0] > 10.5 && d.at[1].abs() < 1e-6 && d.at[2].abs() < 1e-6, "the point pulled along X stands at {:?}", d.at);
+    }
+}
+
+probe! {
+    /// THE ORIGIN OF AN AXIS BY HAND IS DRAGGED BY ITS ARROWS: an axis set by hand, its origin X 10, the arrow along X
+    /// pulled 40 px along itself - the origin's X grows; the modes that take an edge or a face are as they were.
+    fn the_origin_of_an_axis_by_hand_is_dragged_by_its_arrows() {
+        let mut s = Session::start();
+        build::into_the_first_part(&mut s);
+        take(&mut s, "g-datum-axis-hint");
+        bar_word(&mut s, "cmd-manual");
+        field(&mut s, "O.x", "10");
+        let (from, along) = (s.projected([10.0, 0.0, 0.0]), s.projected([11.0, 0.0, 0.0]));
+        let way = (along - from).normalized();
+        let grab = from + way * 30.0;
+        s.drag(grab, grab + way * 40.0, qymcad::PointerButton::Primary, qymcad::Modifiers::NONE);
+        s.key(Key::Enter);
+        let d = last(&mut s, "axis");
+        assert!(d.at[0] > 10.5, "the origin of the axis pulled along X stands at {:?}", d.at);
+    }
+}

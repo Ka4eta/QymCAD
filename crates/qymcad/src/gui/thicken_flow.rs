@@ -223,13 +223,19 @@ mod tests {
         app.viewing.cam.target = [10.0, 10.0, 5.0];
         let basis = app.viewing.cam.basis();
 
-        let (_, tip, _) = app.face_arrow_geometry().expect("the selected face must have a handle");
+        let (_, tip, _) = qymcad_ui_state::face_arrow_geometry(&app.painting()).expect("the selected face must have a handle");
         let at = qymcad_ui_state::Screen { cam: &app.viewing.cam, set: &app.set, rect, basis: &basis }.at(tip).0;
-        assert!(app.face_arrow_hit(rect, at, &basis), "a cursor at the tip of the arrow must grab it");
-        assert!(!app.face_arrow_hit(rect, at + egui::vec2(200.0, 200.0), &basis), "far from the arrow there must be no grab");
+        assert!(
+            qymcad_ui_state::handle_arrow_at(&app.painting(), &qymcad_ui_state::Screen { cam: &app.viewing.cam, set: &app.set, rect, basis: &basis }, at).is_some(),
+            "a cursor at the tip of the arrow must grab it"
+        );
+        assert!(
+            qymcad_ui_state::handle_arrow_at(&app.painting(), &qymcad_ui_state::Screen { cam: &app.viewing.cam, set: &app.set, rect, basis: &basis }, at + egui::vec2(200.0, 200.0)).is_none(),
+            "far from the arrow there must be no grab"
+        );
 
         let before = qymcad_ui_state::cmd_val(&app.tools.cmd, "thickness");
-        app.dragged.face_arrow_drag = Some(before);
+        app.dragged.face_arrow_drag = Some("thickness");
         app.face_arrow_drag_to(egui::vec2(0.0, -40.0), rect, &basis);
         let after = qymcad_ui_state::cmd_val(&app.tools.cmd, "thickness");
         assert!((after - before).abs() > 0.1, "dragging the handle must change THE THICKNESS: it was {before:.2}, it became {after:.2}");
