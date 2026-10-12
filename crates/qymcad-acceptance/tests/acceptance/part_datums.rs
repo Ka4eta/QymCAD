@@ -301,3 +301,30 @@ probe! {
         assert!(d.at[0] > 10.5, "the origin of the axis pulled along X stands at {:?}", d.at);
     }
 }
+
+probe! {
+    /// A FACE BEHIND A BASE PLANE IS PICKED, NOT THE PLANE: a block from y 20 to 50, 10 high, the plane XZ (y 0) between
+    /// it and the eye, the datum plane taken and the front face of the block clicked near the origin - the plane is made
+    /// from that face, offset from y 20 outward, not from XZ. Reported behaviour: the square of a base plane at the origin took the
+    /// pointer over the faces behind it, a sketch or a datum could not be put on them.
+    fn a_face_behind_a_base_plane_is_picked_before_the_plane() {
+        let mut s = Session::start();
+        build::into_the_first_part(&mut s);
+        let xy = s.word("plane-xy-table");
+        s.press_word(&xy);
+        let rect = s.word("tb-rect-hint");
+        s.press_hint(&rect).click_on_sketch(0.0, 20.0).click_on_sketch(40.0, 50.0);
+        let finish = s.word("wb-finish");
+        s.press_word(&finish);
+        let extrude = s.word("tb-extrude-hint");
+        s.press_hint(&extrude);
+        s.key(Key::Enter);
+        s.key(Key::Enter);
+        take(&mut s, "g-datum-plane-hint");
+        let at = s.projected([8.0, 20.0, 5.0]);
+        s.click(at);
+        s.key(Key::Enter);
+        let d = last(&mut s, "plane");
+        assert!(points_along(d.dir, [0.0, 1.0, 0.0]) && d.at[1] < 19.0, "the plane picked on the front face at y 20 stands at {:?} looking {:?} - taken from a base plane, not from the face", d.at, d.dir);
+    }
+}

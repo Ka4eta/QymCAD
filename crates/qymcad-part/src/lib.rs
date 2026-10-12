@@ -1476,13 +1476,14 @@ pub fn cmd_anchor_screen(pc: &mut qymcad_ui_state::PartCtx, rect: Rect) -> Optio
         // datum plane (20): at the origin of the picked reference; point (21): at (x,y,z); axis (22): at
         // the origin of the reference or of the hand-typed one
         20 => {
-            // nothing picked yet: at the origin, clear of the bodies a face is to be picked on
+            // NOTHING PICKED YET: in the corner of the view, clear of everything a plane or a face is to be picked on - at
+            // the origin it stood over the faces of a part drawn there
             let Some((o, n)) =
                 pc.datum.plane_pick.as_ref().and_then(|sp| {
                     qymcad_ui_state::mirror_plane_world(&qymcad_ui_state::DrawCtx { cam: pc.cam, set: pc.set, scheme: pc.scheme, project: pc.project, active_path: pc.active_path }, sp)
                 })
             else {
-                return Some(scr.at([0.0, 0.0, 0.0]).0);
+                return Some(rect.min + egui::vec2(16.0, 48.0));
             };
             // beside the arrow of the offset, from the reference to where the plane will stand, as an extrusion's fields
             // stand beside its arrow
