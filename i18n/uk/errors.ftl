@@ -312,6 +312,8 @@ io-stl-too-many-triangles = STL: забагато трикутників
 io-stl-write-failed = STL: запис не вдався: { $v }
 io-stl-not-finite-line = STL: значення в рядку { $v } не є скінченним числом ({ $w })
 io-stl-not-finite-triangle = STL: координата трикутника { $v } (байт { $w }) не є скінченним числом ({ $x })
+io-body-corner-not-finite = Тіло { $v }: вершина { $w } не є скінченним числом ({ $x }); файл не відкрито
+io-body-face-not-finite = Тіло { $v }: грань { $w } не є скінченним числом ({ $x }); файл не відкрито
 
 io-svg-empty-sketch = SVG: порожній ескіз
 io-svg-too-deep = SVG: малюнок вкладено глибше ніж на { $v } рівнів, і він не читається

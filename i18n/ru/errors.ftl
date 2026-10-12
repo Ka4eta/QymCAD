@@ -312,6 +312,8 @@ io-stl-too-many-triangles = STL: слишком много треугольни�
 io-stl-write-failed = STL: запись не удалась: { $v }
 io-stl-not-finite-line = STL: значение в строке { $v } не является конечным числом ({ $w })
 io-stl-not-finite-triangle = STL: координата треугольника { $v } (байт { $w }) не является конечным числом ({ $x })
+io-body-corner-not-finite = Тело { $v }: вершина { $w } не является конечным числом ({ $x }); файл не открыт
+io-body-face-not-finite = Тело { $v }: грань { $w } не является конечным числом ({ $x }); файл не открыт
 
 io-svg-empty-sketch = SVG: пустой эскиз
 io-svg-too-deep = SVG: рисунок вложен глубже { $v } уровней и не читается

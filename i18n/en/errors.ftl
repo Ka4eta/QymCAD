@@ -312,6 +312,8 @@ io-stl-too-many-triangles = STL: too many triangles
 io-stl-write-failed = STL: writing failed: { $v }
 io-stl-not-finite-line = STL: the value on line { $v } is not a finite number ({ $w })
 io-stl-not-finite-triangle = STL: a coordinate of triangle { $v } (byte { $w }) is not a finite number ({ $x })
+io-body-corner-not-finite = Body { $v }: corner { $w } is not a finite number ({ $x }); the file is not opened
+io-body-face-not-finite = Body { $v }: face { $w } is not a finite number ({ $x }); the file is not opened
 
 io-svg-empty-sketch = SVG: the sketch is empty
 io-svg-too-deep = SVG: the drawing is nested deeper than { $v } levels and is not read
