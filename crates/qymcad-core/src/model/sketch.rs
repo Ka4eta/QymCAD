@@ -3955,6 +3955,10 @@ impl Project {
         out
     }
     pub(super) fn solve_sketch_inner(&mut self, si: usize, drag: Option<(Id, f64, f64)>, budget: crate::solver::Budget, rebuild: Rebuild) -> f64 {
+        // THE TIME OF A SOLVE COUNTS FROM HERE: the work before the solver is inside it, and each call of the solver gets
+        // what is left - a held rectangle's second call no longer starts a clock of its own
+        let started = std::time::Instant::now();
+        let left = |b: crate::solver::Budget| crate::solver::Budget { time: b.time.map(|t| t.saturating_sub(started.elapsed())), ..b };
         // The radius variables and the implicit arc constraints are computed before the mutable borrow.
         let mut radii = self.entity_radii(si);
         let intrinsics = self.entity_intrinsics(si);
@@ -4044,11 +4048,11 @@ impl Project {
         let anchors: Vec<Constraint> =
             s.rects.iter().filter_map(|r| held_for_size(r, dragged, centre_of(r))).filter(|p| s.points.iter().any(|q| q.id == *p)).map(|p| Constraint::Fixed { p }).collect();
         let outcome = if anchors.is_empty() {
-            crate::solver::solve_within(&mut s.points, &mut radii, &active, drag, budget)
+            crate::solver::solve_within(&mut s.points, &mut radii, &active, drag, left(budget))
         } else {
             let (mut held_points, mut held_radii) = (s.points.clone(), radii.clone());
             let held: Vec<Constraint> = active.iter().cloned().chain(anchors).collect();
-            let with_hold = crate::solver::solve_within(&mut held_points, &mut held_radii, &held, drag, budget);
+            let with_hold = crate::solver::solve_within(&mut held_points, &mut held_radii, &held, drag, left(budget));
             // SOLVED IS TOLD BY THE SKETCH'S OWN CONSTRAINTS, not by the hold, a soft pull of which a little is always left
             // under a corner dragged away from it. Solved means to the precision the polish reaches (1e-12): a side held
             // 0.0009 short of a collinear line by its anchor left 1e-7 and passed at 1e-6. A DRAG FRAME KEEPS THE HOLD
@@ -4062,7 +4066,7 @@ impl Project {
                 (s.points, radii) = (held_points, held_radii);
                 crate::solver::Outcome { residual: r, left: with_hold.left }
             } else {
-                crate::solver::solve_within(&mut s.points, &mut radii, &active, drag, budget)
+                crate::solver::solve_within(&mut s.points, &mut radii, &active, drag, left(budget))
             }
         };
         // NOT SOLVED TO THE END: the parts the time ran out before, said beside the degrees of freedom of the sketch
@@ -5796,7 +5800,7 @@ impl Project {
         // set directly, changing a feature height during an ordinary build.
         for si in 0..self.sketches.len() {
             let before: Vec<(Id, f64, f64)> = self.sketches[si].points.iter().map(|p| (p.id, p.x, p.y)).collect();
-            self.solve_sketch_inner(si, None, crate::solver::Budget::FULL, Rebuild::Whole);
+            self.solve_sketch_inner(si, None, crate::solver::Budget::WHOLE, Rebuild::Whole);
             let moved = self.sketches[si].points.iter().zip(before.iter()).any(|(p, (id, x, y))| p.id != *id || (p.x - x).abs() > 1e-9 || (p.y - y).abs() > 1e-9);
             if moved {
                 self.regen_sketch(si); // The points moved, so the contours are rebuilt; otherwise the profile
