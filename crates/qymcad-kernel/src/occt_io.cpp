@@ -17,7 +17,7 @@
 // worst possible defect, which is why there is a test of its own for it.
 //
 // Blob format: "QYMB" | ver:u32 | nf:u32 | ne:u32 | fids[nf] | fsplit_of[nf] | fsplit_idx[nf] |
-//              eids[ne] | the BRep body
+//              eids[ne] | ebeside[ne] (version 3) | the BRep body
 extern "C" unsigned char* qym_shape_to_brep(const QymShape* q, size_t* out_len) {
     try {
         if (!q || q->shape.IsNull() || !out_len) return nullptr;
@@ -33,8 +33,8 @@ extern "C" unsigned char* qym_shape_to_brep(const QymShape* q, size_t* out_len) 
         const uint32_t nf = static_cast<uint32_t>(fm.Extent());
         const uint32_t ne = static_cast<uint32_t>(em.Extent());
         std::vector<uint32_t> head;
-        head.reserve(4 + 3 * nf + ne);
-        head.push_back(2u); // version 2: binary BRep without triangulation
+        head.reserve(4 + 3 * nf + 2 * ne);
+        head.push_back(3u); // version 3: binary BRep without triangulation, the faces beside the free edges of a sheet
         head.push_back(nf);
         head.push_back(ne);
         auto put = [&](const TopTools_DataMapOfShapeInteger& m, const TopTools_IndexedMapOfShape& idx, uint32_t n) {
@@ -47,6 +47,7 @@ extern "C" unsigned char* qym_shape_to_brep(const QymShape* q, size_t* out_len) 
         put(q->fsplit_of, fm, nf);
         put(q->fsplit_idx, fm, nf);
         put(q->eids, em, ne);
+        put(q->ebeside, em, ne);
         const size_t magic = 4;
         const size_t total = magic + head.size() * 4 + brep.size();
         unsigned char* out = static_cast<unsigned char*>(malloc(total));
@@ -68,9 +69,11 @@ extern "C" QymShape* qym_shape_from_brep(const unsigned char* data, size_t len) 
         if (!data || len < magic + 12 || memcmp(data, "QYMB", magic) != 0) return nullptr;
         uint32_t head3[3];
         memcpy(head3, data + magic, 12);
-        if (head3[0] != 2u) return nullptr; // a foreign version; do not guess silently
+        // a foreign version is not guessed at; version 2 is version 3 with no face beside any edge
+        if (head3[0] != 2u && head3[0] != 3u) return nullptr;
         const uint32_t nf = head3[1], ne = head3[2];
-        const size_t table = static_cast<size_t>(3) * nf + ne;
+        const size_t beside = head3[0] == 3u ? ne : 0;
+        const size_t table = static_cast<size_t>(3) * nf + ne + beside;
         const size_t off = magic + 12 + table * 4;
         if (len < off) return nullptr;
         std::vector<uint32_t> ids(table);
@@ -98,6 +101,7 @@ extern "C" QymShape* qym_shape_from_brep(const unsigned char* data, size_t len) 
             }
             for (uint32_t i = 1; i <= ne; ++i) {
                 if (ids[3 * nf + i - 1]) q->eids.Bind(em(i), static_cast<int>(ids[3 * nf + i - 1]));
+                if (beside && ids[3 * nf + ne + i - 1]) q->ebeside.Bind(em(i), static_cast<int>(ids[3 * nf + ne + i - 1]));
             }
         }
         return q.release();
@@ -2244,6 +2248,29 @@ extern "C" QymShape* qym_shape_trim(const QymShape* s, const QymShape* tool, con
         carry_ids(algo, s->shape, TopAbs_EDGE, s->eids, q->eids, ne);
         fill_unnamed(shell, TopAbs_FACE, q->fids, nf);
         fill_unnamed(shell, TopAbs_EDGE, q->eids, ne);
+        // THE FACE BESIDE EACH FREE EDGE of the piece kept: a piece of an edge of the sheet keeps the face its whole
+        // stood beside; an edge of the cut lies on the tool, and the face of the tool it lies on is beside it. Measured:
+        // a face copy trimmed across held 2 of its 4 edges on positional numbers without it.
+        TopTools_IndexedMapOfShape kept_edges;
+        TopExp::MapShapes(shell, TopAbs_EDGE, kept_edges);
+        for (TopTools_DataMapIteratorOfDataMapOfShapeInteger it(s->ebeside); it.More(); it.Next()) {
+            const TopTools_ListOfShape& pieces = algo.Modified(it.Key());
+            if (pieces.IsEmpty() && kept_edges.Contains(it.Key())) q->ebeside.Bind(it.Key(), it.Value());
+            for (TopTools_ListIteratorOfListOfShape pc(pieces); pc.More(); pc.Next())
+                if (kept_edges.Contains(pc.Value())) q->ebeside.Bind(pc.Value(), it.Value());
+        }
+        for (int i = 1; i <= kept_edges.Extent(); ++i) {
+            const TopoDS_Shape& e = kept_edges(i);
+            if (q->ebeside.IsBound(e)) continue;
+            for (TopExp_Explorer fx(tool->shape, TopAbs_FACE); fx.More(); fx.Next()) {
+                if (!tool->fids.IsBound(fx.Current())) continue;
+                BRepExtrema_DistShapeShape d(e, fx.Current());
+                if (d.IsDone() && d.NbSolution() > 0 && d.Value() < 1.0e-6) {
+                    q->ebeside.Bind(e, tool->fids.Find(fx.Current()));
+                    break;
+                }
+            }
+        }
         return q;
     } QYM_WHY_CATCH("edge operation")
     return nullptr;

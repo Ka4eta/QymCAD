@@ -3177,21 +3177,64 @@ extern "C" size_t qym_shape_edge_face_pairs(const QymShape* s, unsigned* out, si
         for (int i = 1; i <= m.Extent(); ++i) {
             const TopoDS_Shape& e = m.FindKey(i);
             const TopTools_ListOfShape& fs = m.FindFromIndex(i);
-            if (fs.Extent() != 2 || !s->eids.IsBound(e)) continue;
+            if (!s->eids.IsBound(e)) continue;
+            // a free edge of a sheet pairs its one face with the face that stood beside it in the body it came from
+            const bool free_edge = fs.Extent() == 1 && s->ebeside.IsBound(e);
+            if (fs.Extent() != 2 && !free_edge) continue;
             TopTools_ListIteratorOfListOfShape it(fs);
             const TopoDS_Shape& f1 = it.Value();
-            it.Next();
-            const TopoDS_Shape& f2 = it.Value();
-            if (!s->fids.IsBound(f1) || !s->fids.IsBound(f2)) continue;
+            if (!s->fids.IsBound(f1)) continue;
+            int second = 0;
+            if (free_edge) {
+                second = s->ebeside.Find(e);
+            } else {
+                it.Next();
+                if (!s->fids.IsBound(it.Value())) continue;
+                second = s->fids.Find(it.Value());
+            }
             if (out && (n + 1) * 3 <= cap) {
                 out[n * 3 + 0] = (unsigned)s->eids.Find(e);
                 out[n * 3 + 1] = (unsigned)s->fids.Find(f1);
-                out[n * 3 + 2] = (unsigned)s->fids.Find(f2);
+                out[n * 3 + 2] = (unsigned)second;
             }
             ++n;
         }
         return n;
     } QYM_WHY_CATCH("shape_edge_face_pairs")
+    return 0;
+}
+
+// WHERE EACH NAMED FACE LIES: the point of its surface at the middle of its parametric bounds and the normal there,
+// six numbers a face after its id. From the B-rep, not from the triangles: the centre of a curved face taken from its
+// mesh moves with the deflection, and a name made from it would move when the quality of the drawing is changed. Not
+// the centre of mass either: integrated exactly over a fitted wall it took 1.4 s of an 11.6 s node for 162 faces,
+// and a body brought in from a file asks it of every face. Calling with null outputs returns the count.
+extern "C" size_t qym_shape_face_places(const QymShape* s, unsigned* ids, double* out, size_t cap) {
+    try {
+        if (!s || s->shape.IsNull()) return 0;
+        size_t n = 0;
+        TopTools_MapOfShape seen;
+        for (TopExp_Explorer ex(s->shape, TopAbs_FACE); ex.More(); ex.Next()) {
+            if (!seen.Add(ex.Current()) || !s->fids.IsBound(ex.Current())) continue;
+            if (ids && out && n < cap) {
+                const TopoDS_Face& f = TopoDS::Face(ex.Current());
+                double u0, u1, v0, v1;
+                BRepTools::UVBounds(f, u0, u1, v0, v1);
+                BRepAdaptor_Surface a(f);
+                gp_Pnt c;
+                gp_Vec du, dv;
+                a.D1(0.5 * (u0 + u1), 0.5 * (v0 + v1), c, du, dv);
+                gp_Vec nrm = du.Crossed(dv);
+                if (nrm.Magnitude() > 1e-12) nrm.Normalize();
+                if (f.Orientation() == TopAbs_REVERSED) nrm.Reverse();
+                ids[n] = (unsigned)s->fids.Find(f);
+                const double six[6] = {c.X(), c.Y(), c.Z(), nrm.X(), nrm.Y(), nrm.Z()};
+                std::copy(six, six + 6, out + 6 * n);
+            }
+            ++n;
+        }
+        return n;
+    } QYM_WHY_CATCH("shape_face_places")
     return 0;
 }
 

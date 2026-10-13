@@ -1075,6 +1075,39 @@ extern "C" QymShape* qym_shape_stitch(const QymShape* const* parts, size_t n, do
 // (`BRepOffsetAPI_MakeFilling`). An open boundary is not a refusal by construction: the kernel will stretch a
 // surface over an open chain too, and that is meaningful (a piece of a dome over three edges). The result is
 // judged by the common `finish` barrier, not by guesswork here.
+// THE FACE BESIDE EACH EDGE OF A PATCH. The filling makes its edges anew and keeps no history of them, so an edge of the
+// patch is matched to the boundary edge of the body it lies along, by place: the middle of the patch edge on that edge,
+// to 1e-4 mm. The face beside it is the largest named face of the body at the boundary edge - the face the shape is
+// continued from, the one a tangent patch takes for its support - a choice that does not move from rebuild to rebuild.
+static void note_beside_boundary(const QymShape* s, const std::vector<TopoDS_Edge>& boundary, const TopoDS_Shape& patch, TopTools_DataMapOfShapeInteger& ebeside) {
+    TopTools_IndexedDataMapOfShapeListOfShape e2f;
+    TopExp::MapShapesAndAncestors(s->shape, TopAbs_EDGE, TopAbs_FACE, e2f);
+    for (TopExp_Explorer ex(patch, TopAbs_EDGE); ex.More(); ex.Next()) {
+        BRepAdaptor_Curve c(TopoDS::Edge(ex.Current()));
+        const gp_Pnt mid = c.Value(0.5 * (c.FirstParameter() + c.LastParameter()));
+        const TopoDS_Vertex at = BRepBuilderAPI_MakeVertex(mid);
+        for (const TopoDS_Edge& b : boundary) {
+            BRepExtrema_DistShapeShape d(at, b);
+            if (!d.IsDone() || d.Value() > 1e-4) continue;
+            const int i = e2f.FindIndex(b);
+            if (i < 1) break;
+            double best = -1.0;
+            int name = 0;
+            for (TopTools_ListIteratorOfListOfShape it(e2f.FindFromIndex(i)); it.More(); it.Next()) {
+                if (!s->fids.IsBound(it.Value())) continue;
+                GProp_GProps g;
+                BRepGProp::SurfaceProperties(it.Value(), g);
+                if (g.Mass() > best) {
+                    best = g.Mass();
+                    name = s->fids.Find(it.Value());
+                }
+            }
+            if (name != 0) ebeside.Bind(ex.Current(), name);
+            break;
+        }
+    }
+}
+
 extern "C" QymShape* qym_shape_patch(const QymShape* s, const uint32_t* idx, size_t n, int tangent, unsigned name) {
     if (!s) return why("patch/asked", "there is no body to patch"), nullptr;
     if (n == 0) return why("patch/asked", "not one edge was named as the boundary of the patch"), nullptr;
@@ -1089,6 +1122,7 @@ extern "C" QymShape* qym_shape_patch(const QymShape* s, const uint32_t* idx, siz
         // THE TRAVERSAL YIELDS AN EDGE ONCE PER FACE IT BELONGS TO. Without filtering, a boundary of four
         // edges arrives as eight, and the kernel honestly refuses to stretch a surface over that.
         TopTools_MapOfShape seen;
+        std::vector<TopoDS_Edge> boundary; // the edges of the body the patch is spanned across
         for (TopExp_Explorer ex(s->shape, TopAbs_EDGE); ex.More(); ex.Next()) {
             if (!seen.Add(ex.Current())) continue;
             if (!s->eids.IsBound(ex.Current())) continue;
@@ -1121,6 +1155,7 @@ extern "C" QymShape* qym_shape_patch(const QymShape* s, const uint32_t* idx, siz
             }
             ++added;
             last = TopoDS::Edge(ex.Current());
+            boundary.push_back(last);
         }
         // one edge does not define a boundary - unless it is closed: the rim of a hole is a whole circle
         const bool ring = added == 1 && BRep_Tool::IsClosed(last);
@@ -1146,9 +1181,29 @@ extern "C" QymShape* qym_shape_patch(const QymShape* s, const uint32_t* idx, siz
         if (name != 0) q->fids.Bind(q->shape, (int)name);
         else seed_ids(q->shape, TopAbs_FACE, q->fids);
         seed_ids(q->shape, TopAbs_EDGE, q->eids);
+        note_beside_boundary(s, boundary, q->shape, q->ebeside);
         return q;
     } QYM_WHY_CATCH("patch")
     return nullptr;
+}
+
+// THE FACE ACROSS EACH EDGE: `source` is a face of `s`, `taken` its copy or its offset with the edges in the same order.
+void note_beside(const QymShape* s, const TopoDS_Shape& source, const TopoDS_Shape& taken, TopTools_DataMapOfShapeInteger& ebeside) {
+    TopTools_IndexedDataMapOfShapeListOfShape e2f;
+    TopExp::MapShapesAndAncestors(s->shape, TopAbs_EDGE, TopAbs_FACE, e2f);
+    std::vector<TopoDS_Shape> from, to;
+    for (TopExp_Explorer ex(source, TopAbs_EDGE); ex.More(); ex.Next()) from.push_back(ex.Current());
+    for (TopExp_Explorer ex(taken, TopAbs_EDGE); ex.More(); ex.Next()) to.push_back(ex.Current());
+    if (from.size() != to.size()) return;
+    for (size_t k = 0; k < from.size(); ++k) {
+        const int i = e2f.FindIndex(from[k]);
+        if (i < 1) continue;
+        for (TopTools_ListIteratorOfListOfShape it(e2f.FindFromIndex(i)); it.More(); it.Next()) {
+            if (it.Value().IsSame(source) || !s->fids.IsBound(it.Value())) continue;
+            ebeside.Bind(to[k], s->fids.Find(it.Value()));
+            break;
+        }
+    }
 }
 
 // A COPY OF FACES AS A SURFACE OF ITS OWN. The bridge from the parametric side into the design layer: a
@@ -1175,6 +1230,7 @@ extern "C" QymShape* qym_shape_copy_faces(const QymShape* s, const uint32_t* idx
                 if (cp.IsNull()) break;
                 bb.Add(shell, cp);
                 q->fids.Bind(cp, static_cast<int>(names[k]));
+                note_beside(s, ex.Current(), cp, q->ebeside);
                 ++added;
                 break;
             }
@@ -1182,7 +1238,7 @@ extern "C" QymShape* qym_shape_copy_faces(const QymShape* s, const uint32_t* idx
         if (added == 0) { delete q; return nullptr; }
         q->shape = shell;
         int ne = 1;
-        fill_unnamed(shell, TopAbs_EDGE, q->eids, ne); // the sheet's edges are positional: they have no recipe
+        fill_unnamed(shell, TopAbs_EDGE, q->eids, ne); // numbered here, named after the faces beside them (`ebeside`)
         return q;
     } catch (...) { return nullptr; }
 }
@@ -1240,6 +1296,7 @@ extern "C" QymShape* qym_shape_offset_faces(const QymShape* s, const uint32_t* i
         TopoDS_Shell shell;
         bb.MakeShell(shell);
         std::vector<std::pair<TopoDS_Shape, uint32_t>> taken;
+        std::vector<TopoDS_Shape> sources; // the faces of `s` the sheet is taken from, in the order of `taken`
         for (TopExp_Explorer ex(s->shape, TopAbs_FACE); ex.More(); ex.Next()) {
             if (!s->fids.IsBound(ex.Current())) continue;
             uint32_t id = static_cast<uint32_t>(s->fids.Find(ex.Current()));
@@ -1249,6 +1306,7 @@ extern "C" QymShape* qym_shape_offset_faces(const QymShape* s, const uint32_t* i
                 if (cp.IsNull()) break;
                 bb.Add(shell, cp);
                 taken.emplace_back(cp, names[k]);
+                sources.push_back(ex.Current());
                 break;
             }
         }
@@ -1285,8 +1343,14 @@ extern "C" QymShape* qym_shape_offset_faces(const QymShape* s, const uint32_t* i
         BRepCheck_Analyzer check(out);
         if (!check.IsValid()) { delete q; return nullptr; }
         q->shape = out;
+        // the faces of the sheet come one for one with those taken, in their order (`name_moved` held it), and the
+        // simple offset keeps the edges of a face as they were
+        std::vector<TopoDS_Shape> moved;
+        for (TopExp_Explorer ex(out, TopAbs_FACE); ex.More(); ex.Next()) moved.push_back(ex.Current());
+        if (moved.size() == sources.size())
+            for (size_t k = 0; k < moved.size(); ++k) note_beside(s, sources[k], moved[k], q->ebeside);
         int ne = 1;
-        fill_unnamed(out, TopAbs_EDGE, q->eids, ne); // the sheet's edges are positional: they have no recipe
+        fill_unnamed(out, TopAbs_EDGE, q->eids, ne); // numbered here, named after the faces beside them (`ebeside`)
         return q;
     } catch (...) { return nullptr; }
 }

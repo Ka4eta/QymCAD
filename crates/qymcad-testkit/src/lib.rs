@@ -51,36 +51,7 @@ pub fn regenerate_with_shapes(project: &mut Project, shapes: HashMap<Id, qymcad_
 /// In a real assembly nearly every part is imported, so a headless check without this step measures a different
 /// document from the one on screen.
 pub fn restore_import_shapes(project: &Project) -> HashMap<Id, qymcad_kernel::Shape> {
-    use qymcad_core::feature::FeatureKind;
-    let mut by_src: HashMap<Id, Vec<(Id, u32)>> = HashMap::new();
-    for n in &project.timeline {
-        if let FeatureKind::Import { body, source, solid, .. } = n.kind {
-            by_src.entry(source).or_default().push((body, solid));
-        }
-    }
-    let mut out = HashMap::new();
-    for (src, items) in by_src {
-        let Some(sf) = project.sources.iter().find(|s| s.id == src) else { continue };
-        if sf.data.is_empty() {
-            continue;
-        }
-        let ext = if sf.ext.is_empty() { "step" } else { sf.ext.as_str() };
-        let tmp = std::env::temp_dir().join(format!("qym_repro_import_{src}.{ext}"));
-        if std::fs::write(&tmp, &sf.data).is_err() {
-            continue;
-        }
-        // a shape does not clone: each solid is taken by index exactly once
-        // read by what the source is, the same way the application does
-        let format = qymcad_kernel::ExactFormat::of_extension(ext);
-        let mut shapes: Vec<Option<qymcad_kernel::Shape>> = qymcad_kernel::exact_solids(format, tmp.to_string_lossy().as_ref()).unwrap_or_default().into_iter().map(Some).collect();
-        let _ = std::fs::remove_file(&tmp);
-        for (body, solid) in items {
-            if let Some(s) = shapes.get_mut(solid as usize).and_then(|o| o.take()) {
-                out.insert(body, s);
-            }
-        }
-    }
-    out
+    qymcad_kernel::imports::raise_imports(project).into_iter().collect()
 }
 
 /// Open a document exactly as it is seen on screen: with the bodies of imports restored and a full rebuild. It

@@ -7,6 +7,7 @@
 /// The name of the C++ runtime to link, chosen by target - shared with `build.rs`.
 pub mod cxx_runtime;
 pub mod guard;
+pub mod imports;
 pub mod kernel;
 pub mod recognise;
 pub use recognise::{recognise, Recognised};
@@ -123,6 +124,7 @@ extern "C" {
     fn qym_shape_absorbed(s: *const QymShape, out: *mut u32, max_pairs: usize) -> usize;
     fn qym_shape_rename_faces(s: *mut QymShape, from: *const u32, to: *const u32, n: usize);
     fn qym_shape_edge_face_pairs(s: *const QymShape, out: *mut u32, cap: usize) -> usize;
+    fn qym_shape_face_places(s: *const QymShape, ids: *mut u32, out: *mut f64, cap: usize) -> usize;
     fn qym_shape_edge_end_faces(s: *const QymShape, out: *mut u32, cap: usize) -> usize;
     fn qym_shape_rename_edges(s: *mut QymShape, from: *const u32, to: *const u32, n: usize);
     fn qym_shape_hole_stepped(
@@ -1491,6 +1493,20 @@ impl Shape {
             let got = qym_shape_edge_face_pairs(self.ptr, buf.as_mut_ptr(), buf.len());
             buf.truncate(got.min(n) * 3);
             buf.as_chunks::<3>().0.iter().map(|c| (c[0], c[1], c[2])).collect()
+        }
+    }
+
+    /// Where every named face lies: the point of its surface at the middle of its parametric bounds, and the normal there.
+    pub fn face_places(&self) -> Vec<qymcad_core::feature::FacePlace> {
+        unsafe {
+            let n = qym_shape_face_places(self.ptr, std::ptr::null_mut(), std::ptr::null_mut(), 0);
+            if n == 0 {
+                return Vec::new();
+            }
+            let mut ids = vec![0u32; n];
+            let mut six = vec![0f64; n * 6];
+            let got = qym_shape_face_places(self.ptr, ids.as_mut_ptr(), six.as_mut_ptr(), n).min(n);
+            (0..got).map(|k| qymcad_core::feature::FacePlace { id: ids[k], at: [six[6 * k], six[6 * k + 1], six[6 * k + 2]], normal: [six[6 * k + 3], six[6 * k + 4], six[6 * k + 5]] }).collect()
         }
     }
 

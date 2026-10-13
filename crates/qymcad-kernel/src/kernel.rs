@@ -309,6 +309,9 @@ impl qymcad_core::feature::Kernel for OcctKernel {
     fn edge_face_pairs(&self, body: Id) -> Vec<(u32, u32, u32)> {
         self.shapes.borrow().get(&body).map(|s| s.edge_face_pairs()).unwrap_or_default()
     }
+    fn face_places(&self, body: Id) -> Vec<qymcad_core::feature::FacePlace> {
+        self.shapes.borrow().get(&body).map(|s| s.face_places()).unwrap_or_default()
+    }
     fn rename_edges(&self, body: Id, pairs: &[(u32, u32)]) {
         if let Some(s) = self.shapes.borrow().get(&body) {
             s.rename_edges(pairs);

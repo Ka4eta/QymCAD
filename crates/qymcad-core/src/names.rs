@@ -92,6 +92,9 @@ pub enum Role {
     /// and `split` the instance number. Without this every copy carried the names of the original, and a
     /// reference to a face of the second copy silently resolved to the first.
     Instance,
+    /// A face named by where it lies, when its history is silent and no named face is beside it: a face of a body
+    /// brought in from a file or made of a mesh. `src` is the key of its place (`place_key`).
+    Placed,
 }
 
 impl Role {
@@ -121,6 +124,7 @@ impl Role {
             Role::ThickenWall => "thicken_wall",
             Role::Instance => "instance",
             Role::Seam => "seam",
+            Role::Placed => "placed",
         }
     }
 }
@@ -424,6 +428,13 @@ impl NameTable {
         let whole = |d: u32| -> u32 { self.absorbed_face(d).unwrap_or(d) };
         let (a, b) = (whole(e.faces[0]), whole(e.faces[1]));
         Some(([a.min(b), a.max(b)], e.index))
+    }
+
+    /// IS THIS A NAME OF THIS DOCUMENT: a structural descriptor the table holds. The mark alone says a descriptor was
+    /// minted as a name, not by whom: one minted against another table points past this one, or at a name of some
+    /// other face of it.
+    pub fn knows(&self, desc: u32) -> bool {
+        self.get(desc).is_some() || self.edge(desc).is_some() || self.vertex(desc).is_some()
     }
 
     /// Is this descriptor a structural name rather than a positional number?

@@ -1739,8 +1739,24 @@ impl Project {
     /// be cleared (see `apply_regen`).
     fn prep_box3(&mut self, p: &Pass, dx: f64, dy: f64, dz: f64, body: Id) -> crate::feature::KernelJob {
         let (dx, dy, dz) = (p.dim("dx", dx), p.dim("dy", dy), p.dim("dz", dz));
-        let profile = rect_profile(dx, dy);
-        crate::feature::KernelJob::new(Vec::new(), move |k| k.extrude(body, &profile, dz, crate::feature::PLACE_IDENTITY))
+        self.named_prism_job(p.node, &rect_profile(dx, dy), dz, body)
+    }
+
+    /// A PRIMITIVE EXTRUDED FROM A POLYGON, every face named by recipe: side k of the polygon (from 1) makes the wall
+    /// `Role::Wall` of number k, the ends are the caps of the node. The number of a side is its place in the recipe of
+    /// the primitive - the side from the first corner of a box, the side from the first vertex of a prism - and not
+    /// the place the face takes in the walk of the result: measured, a box and a prism laid with an unnamed profile
+    /// had 6 of 6 and 8 of 8 faces on positional numbers, and a fillet of an edge of a box held a number.
+    fn named_prism_job(&mut self, feature: Id, xy: &[f64], height: f64, body: Id) -> crate::feature::KernelJob {
+        let points: Vec<crate::geom::Point2> = xy.as_chunks::<2>().0.iter().map(|[x, y]| crate::geom::Point2::new(*x, *y)).collect();
+        let sides = points.len() as Id;
+        let mut outline = crate::geom::Contour::closed(points);
+        outline.edge_src = (1..=sides).collect();
+        let walls: Vec<u32> = (1..=sides).map(|k| self.intern_name(feature, crate::names::Role::Wall, k)).collect();
+        let name_of = |src: Id, _: &crate::geom::ProfEdge| -> u32 { walls.get((src as usize).wrapping_sub(1)).copied().unwrap_or(0) };
+        let profiles = vec![crate::geom::encode_profile_named(&outline, &[], &name_of)];
+        let caps = self.region_cap_names(feature, &profiles);
+        crate::feature::KernelJob::new(Vec::new(), move |k| k.combine_region_multi(BodyOp { src: 0, op: 1, body }, &profiles, height, crate::feature::PLACE_IDENTITY, &caps))
     }
 
     /// Cylinder: one branch of the timeline rebuild. Returns whether the node's error record may
@@ -1794,8 +1810,7 @@ impl Project {
     /// be cleared (see `apply_regen`).
     fn prep_prism(&mut self, p: &Pass, r: f64, n: u32, h: f64, body: Id) -> crate::feature::KernelJob {
         let (r, h) = (p.dim("r", r), p.dim("h", h));
-        let profile = polygon_profile(r, n);
-        crate::feature::KernelJob::new(Vec::new(), move |k| k.extrude(body, &profile, h, crate::feature::PLACE_IDENTITY))
+        self.named_prism_job(p.node, &polygon_profile(r, n), h, body)
     }
 
     /// Loft: one branch of the timeline rebuild. Returns whether the node's error record may
@@ -1823,16 +1838,13 @@ impl Project {
     /// be cleared (see `apply_regen`).
     fn regen_import(&mut self, p: &mut Pass, body: Id) -> bool {
         // An external STEP solid has no recipe, so this only re-tessellates the shape from the kernel
-        // cache. Without a shape in the kernel (a mock, or before restoration from the source) the
-        // already loaded mesh is kept.
-        if let Some(crate::geom::Built { mesh, faces }) = p.kernel.tessellate(body) {
-            self.set_body_mesh(body, mesh);
-            p.dirty.insert(body);
-            self.regen_faces.insert(body, faces.clone());
-            p.report.built.push((body, faces));
-            self.regen_errors.remove(&p.node);
+        // cache - and lands it the way every result lands, so its faces and edges are named by the one rule (where
+        // nothing else is known about a face, by where it lies). Without a shape in the kernel (a mock, or before
+        // restoration from the source) the already loaded mesh is kept.
+        match p.kernel.tessellate(body) {
+            Some(built) => self.apply_regen(p.landing(), body, Ok(built)),
+            None => true, // The body is valid (a mesh exists), so the node is clean and its consumers continue.
         }
-        true // The body is valid (a mesh exists), so the node is clean and its consumers continue.
     }
 
     /// PartInstance: one branch of the timeline rebuild. Returns whether the node's error record may

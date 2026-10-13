@@ -302,7 +302,15 @@ struct QymShape {
     TopTools_DataMapOfShapeInteger fsplit_idx;
     // The ABSORPTION of names when coplanar faces merge: "the former name -> the shared face's name".
     std::vector<std::pair<unsigned, unsigned>> absorbed;
+    // A FREE EDGE OF A SHEET -> THE NAME OF THE FACE BESIDE IT IN THE BODY IT WAS TAKEN FROM. A copied or offset face
+    // has edges with one face only, and an edge is named after the pair of its faces: the face that stood across its
+    // source edge is the second of the pair. Filled where a sheet is cut out of a body, read when its edges are named.
+    TopTools_DataMapOfShapeInteger ebeside;
 };
+
+/// Note, for every edge of `taken` (a face cut out of the body `s` as `source`, the same edges in the same order), the
+/// name of the face across its source edge in `s`, into `ebeside`. Nothing is noted where the order does not hold.
+void note_beside(const QymShape* s, const TopoDS_Shape& source, const TopoDS_Shape& taken, TopTools_DataMapOfShapeInteger& ebeside);
 
 // AN ASSEMBLY AS ITS FILE BUILDS IT: every subassembly and part a node - its name in UTF-8, where it stands in its
 // parent, its colour where the file gives one - and every part's solids an index into the list of solids read.

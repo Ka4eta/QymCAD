@@ -1967,6 +1967,15 @@ impl KernelJob {
     }
 }
 
+/// WHERE A FACE LIES: the point of its surface at the middle of its parametric bounds and the normal there. What a face
+/// is named by when nothing else about it is known - a face of a body brought in from a file or made of a mesh.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FacePlace {
+    pub id: u32,
+    pub at: [f64; 3],
+    pub normal: [f64; 3],
+}
+
 pub trait Kernel {
     fn extrude(&self, body: Id, profile: &[f64], height: f64, place: [f64; 12]) -> Result<Built, crate::errors::CoreError>;
     fn revolve(&self, body: Id, profile: &[f64], axis: u8, angle_deg: f64, place: [f64; 12]) -> Result<Built, crate::errors::CoreError>;
@@ -2343,6 +2352,11 @@ pub trait Kernel {
     /// Edge names: pairs of "edge to its two faces", by face name. Empty when the kernel does not supply
     /// them.
     fn edge_face_pairs(&self, _body: Id) -> Vec<(u32, u32, u32)> {
+        Vec::new()
+    }
+
+    /// Where every named face of a body lies, exactly. Empty when the kernel does not supply it.
+    fn face_places(&self, _body: Id) -> Vec<FacePlace> {
         Vec::new()
     }
 

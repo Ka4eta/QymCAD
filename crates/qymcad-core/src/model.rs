@@ -4992,7 +4992,90 @@ impl Project {
         // named by the first wave become the anchor for the second.
         for _ in 0..8 {
             if !self.name_seam_wave(feature, body, kernel) {
-                return;
+                break;
+            }
+        }
+        self.name_placed_faces_of(feature, body, kernel);
+    }
+
+    /// A BODY BROUGHT IN FROM A FILE AND RAISED AGAIN FROM IT - on opening a project, without a rebuild - takes back the
+    /// names its faces and edges were given when it came in: they are made by the one rule, from where the faces lie, so
+    /// the same file gives the same names. Without it the raised body holds positional numbers, the document the names,
+    /// and a fillet on an edge of it finds nothing.
+    pub fn name_restored_body(&mut self, body: Id, kernel: &dyn crate::feature::Kernel) {
+        let Some(node) = self.timeline.iter().find(|n| matches!(n.kind, crate::feature::FeatureKind::Import { body: b, .. } if b == body)).map(|n| n.id) else { return };
+        self.name_by_place(node, body, kernel);
+        self.name_edges_of(body, kernel, &mut EdgeRenames::default());
+    }
+
+    /// THE LAST RULE, WHERE THE HISTORY IS SILENT AND NO NAMED FACE IS BESIDE: a face is named by where it lies. A body
+    /// brought in from a file or made of a mesh has no recipe and no named face at all, so the seam waves have nothing
+    /// to start from; measured, a cube made of a mesh held 6 of 6 faces and 12 of 12 edges on positional numbers, and a
+    /// reference to one was a place in the walk of the result.
+    ///
+    /// The place is the point of the surface of the face at the middle of its parametric bounds and the normal there,
+    /// from the B-rep (`face_places`), to a micrometre and a thousandth: the same file and the same mesh give the same names on every rebuild and at any
+    /// quality of drawing. Two faces at one place - which two faces of a sound body are not - take the order of their
+    /// numbers, an honest tie.
+    fn name_placed_faces_of(&mut self, feature: Id, body: Id, kernel: &dyn crate::feature::Kernel) {
+        // asked of the list first, which costs nothing: the places are measured over the surfaces, face by face
+        if self.regen_faces.get(&body).is_some_and(|f| f.iter().all(|x| self.names.knows(x.id))) {
+            return;
+        }
+        self.name_by_place(feature, body, kernel);
+    }
+
+    /// The faces of `body` the kernel holds without a name, named by their place. The faces as the kernel holds them,
+    /// not as `regen_faces` lists them: a body raised again from its file holds numbers while the document already
+    /// lists the names it was given when it came in.
+    fn name_by_place(&mut self, feature: Id, body: Id, kernel: &dyn crate::feature::Kernel) {
+        let places = kernel.face_places(body);
+        // WHERE IN THE FRAME OF THE FILE: a body brought in at a factor lies at that factor, and a place told in the
+        // frame of the document changed every name with the scale - rescaled, saved and opened, a fillet on it found
+        // no edge
+        let factor = self.import_scale(body).filter(|f| *f > 0.0).unwrap_or(1.0);
+        let mut by_key: std::collections::BTreeMap<Id, Vec<u32>> = std::collections::BTreeMap::new();
+        for place in &places {
+            if !self.names.knows(place.id) {
+                let in_file = crate::feature::FacePlace { at: place.at.map(|v| v / factor), ..*place };
+                by_key.entry(place_key(&in_file)).or_default().push(place.id);
+            }
+        }
+        if by_key.is_empty() {
+            return;
+        }
+        let taken: std::collections::HashSet<u32> = places.iter().map(|x| x.id).collect();
+        let mut renames: Vec<(u32, u32)> = Vec::new();
+        for (key, mut faces) in by_key {
+            faces.sort_unstable();
+            for (k, f) in faces.iter().enumerate() {
+                let name = crate::names::GeoName { feature, role: crate::names::Role::Placed, src: key, split: k.min(u16::MAX as usize) as u16 };
+                let d = self.names.intern_face(name);
+                if *f != d && !taken.contains(&d) {
+                    renames.push((*f, d));
+                }
+            }
+        }
+        if renames.is_empty() {
+            return;
+        }
+        kernel.rename_faces(body, &renames);
+        let map: std::collections::HashMap<u32, u32> = renames.into_iter().collect();
+        if let Some(faces) = self.regen_faces.get_mut(&body) {
+            for f in faces.iter_mut() {
+                if let Some(&d) = map.get(&f.id) {
+                    f.id = d;
+                }
+            }
+        }
+        // the colour a file gives a single face is held by the id of the face, as any reference to it is: it follows the
+        // name, or the top face of a plate brought in green went out of the program in the colour of the plate
+        let root = self.lineage_root(body);
+        if let Some(colours) = self.face_colors.get_mut(&root) {
+            for (id, _) in colours.iter_mut() {
+                if let Some(&d) = map.get(id) {
+                    *id = d;
+                }
             }
         }
     }
@@ -5207,11 +5290,11 @@ impl Project {
             .into_iter()
             .map(|e| e.id)
             .chain(pairs.iter().map(|(e, _, _)| *e)) // Both sources: a mock kernel leaves the body edges empty.
-            .filter(|e| named(*e))
+            .filter(|e| self.names.knows(*e))
             .collect();
         let mut by_pair: std::collections::BTreeMap<(u32, u32), Vec<u32>> = std::collections::BTreeMap::new();
         for (e, a, b) in pairs {
-            if named(e) {
+            if self.names.knows(e) {
                 continue; // Already named: it came through the operation history.
             }
             if !named(a) || !named(b) {
@@ -5995,4 +6078,11 @@ mod library_extract_insert_tests {
         let uniq: std::collections::HashSet<Id> = ids.iter().copied().collect();
         assert_eq!(ids.len(), uniq.len(), "no component id collisions after two insertions");
     }
+}
+
+/// THE KEY OF A PLACE: the centre to a micrometre and the normal to a thousandth, folded into one number (FNV-1a over
+/// the six rounded values). The same place gives the same key on every machine and every rebuild.
+fn place_key(place: &crate::feature::FacePlace) -> Id {
+    let rounded = [place.at[0] * 1e3, place.at[1] * 1e3, place.at[2] * 1e3, place.normal[0] * 1e3, place.normal[1] * 1e3, place.normal[2] * 1e3].map(|v| v.round() as i64);
+    rounded.iter().flat_map(|v| v.to_le_bytes()).fold(0xcbf2_9ce4_8422_2325u64, |h, b| (h ^ b as u64).wrapping_mul(0x0000_0100_0000_01b3))
 }

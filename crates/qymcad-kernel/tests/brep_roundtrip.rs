@@ -76,3 +76,18 @@ fn a_foreign_blob_is_refused() {
     assert!(Shape::from_brep_bytes(b"").is_none(), "an empty blob has to be rejected");
     assert!(Shape::from_brep_bytes(b"NOPE not a body at all").is_none(), "a foreign blob has to be rejected");
 }
+
+/// THE FACE BESIDE EVERY FREE EDGE OF A SHEET survives the file too. An edge of a sheet has one face, and the name it
+/// is given pairs that face with the face that stood across it in the body the sheet was cut from; read back without
+/// it, the next edit over the sheet - a trim, a thickening - finds its edges with one face only and leaves them on
+/// positional numbers.
+#[test]
+fn a_sheet_keeps_the_faces_beside_its_edges() {
+    let block = cube();
+    let top = named_faces(&block).into_iter().find(|f| f.2 == [0, 0, 1000]).map(|f| f.0).expect("the top face");
+    let sheet = block.copy_faces(&[top], &[0x4000_0777]).expect("the copy of the top");
+    let before = sheet.edge_face_pairs().len();
+    assert_eq!(before, 4, "the copy of the top does not pair its 4 edges with the walls beside them");
+    let back = Shape::from_brep_bytes(&sheet.to_brep_bytes().expect("written")).expect("read back");
+    assert_eq!(back.edge_face_pairs().len(), before, "the sheet read back lost the faces beside its edges");
+}
