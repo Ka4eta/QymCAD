@@ -28,7 +28,7 @@ const ALLOWED: [Allowed; 2] = [
     },
     Allowed {
         file: "qymcad-kernel/tests/every_operation_goes_through_the_door.rs",
-        why: "it addresses TWO NAMED FILES, `kernel.rs` and `guard.rs`: the one implementation of `Kernel` and the door \
+        why: "it addresses NAMED FILES, `kernel.rs`, the door `door/` and the operations `ops/` of the bridge: the one implementation of `Kernel` and the door \
               of its results live there and nowhere else - the walk of every C++ entry is its neighbour's",
     },
 ];

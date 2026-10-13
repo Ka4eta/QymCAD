@@ -23,6 +23,10 @@ pub const EDGE: u32 = 0x6000_0000;
 /// A vertex name. This tag includes `NAMED` too, so the structural check stays the same for faces, edges and
 /// vertices, while `TAG` tells all three apart.
 pub const VERTEX: u32 = 0x5000_0000;
+/// A ROLE AWAITING ITS NAME: the number the bridge hands the faces an operation makes, between building them and
+/// landing the result, where the table gives each its descriptor. Neither a name (no `NAMED` bit) nor a positional
+/// number (those stay small).
+pub const ROLE: u32 = 0x1000_0000;
 const TAG: u32 = 0x7000_0000;
 
 /// The role of a face in the recipe of the operation that produced it.
@@ -95,6 +99,35 @@ pub enum Role {
     /// A face named by where it lies, when its history is silent and no named face is beside it: a face of a body
     /// brought in from a file or made of a mesh. `src` is the key of its place (`place_key`).
     Placed,
+}
+
+/// WHAT THE NAMING OF THE BRIDGE ASKS OF THE TABLE OF THE DOCUMENT: whether a descriptor is one of its names, which
+/// name it is, and the descriptor of a name - given, on the thread of the document and in the order of its tree, by
+/// the table alone. The rules that decide the names live in the bridge; the table keeps them.
+pub trait NameMint {
+    fn knows(&self, desc: u32) -> bool;
+    fn face(&self, desc: u32) -> Option<GeoName>;
+    fn edge(&self, desc: u32) -> Option<EdgeName>;
+    fn intern_face(&mut self, name: GeoName) -> u32;
+    fn intern_edge(&mut self, name: EdgeName) -> u32;
+}
+
+impl NameMint for NameTable {
+    fn knows(&self, desc: u32) -> bool {
+        NameTable::knows(self, desc)
+    }
+    fn face(&self, desc: u32) -> Option<GeoName> {
+        self.get(desc)
+    }
+    fn edge(&self, desc: u32) -> Option<EdgeName> {
+        NameTable::edge(self, desc)
+    }
+    fn intern_face(&mut self, name: GeoName) -> u32 {
+        NameTable::intern_face(self, name)
+    }
+    fn intern_edge(&mut self, name: EdgeName) -> u32 {
+        NameTable::intern_edge(self, name)
+    }
 }
 
 impl Role {

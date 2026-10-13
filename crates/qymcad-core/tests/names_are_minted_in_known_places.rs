@@ -7,42 +7,16 @@
 //! A new place goes on the list on purpose, with its row in `every_operation_names_what_it_makes`.
 
 /// THE PLACES THAT MINT NAMES, by file and function.
-const PLACES: [Place; 34] = [
-    // the roles an operation declares for the faces it makes
-    Place { file: "qymcad-core/src/model/regen.rs", function: "primitive_names" },
-    Place { file: "qymcad-core/src/model/regen.rs", function: "region_cap_names" },
-    Place { file: "qymcad-core/src/model/regen.rs", function: "prep_fillet" },
-    Place { file: "qymcad-core/src/model/regen.rs", function: "prep_chamfer" },
-    Place { file: "qymcad-core/src/model/regen.rs", function: "prep_patch" },
-    Place { file: "qymcad-core/src/model/regen.rs", function: "prep_facecopy" },
-    Place { file: "qymcad-core/src/model/regen.rs", function: "prep_offset_surface" },
-    Place { file: "qymcad-core/src/model/regen.rs", function: "prep_draft" },
-    Place { file: "qymcad-core/src/model/regen.rs", function: "named_prism_job" },
-    Place { file: "qymcad-core/src/model/regen.rs", function: "prep_cylinder" },
-    Place { file: "qymcad-core/src/model/regen.rs", function: "prep_sphere" },
-    Place { file: "qymcad-core/src/model/regen.rs", function: "prep_cone" },
-    Place { file: "qymcad-core/src/model/regen.rs", function: "prep_torus" },
-    Place { file: "qymcad-core/src/model/regen.rs", function: "prep_loft" },
-    Place { file: "qymcad-core/src/model/regen.rs", function: "prep_hole" },
-    Place { file: "qymcad-core/src/model/regen.rs", function: "regen_splitbody" },
-    Place { file: "qymcad-core/src/model/regen.rs", function: "blend_names_all" },
-    Place { file: "qymcad-core/src/model/regen.rs", function: "hole_tool_names" },
-    Place { file: "qymcad-core/src/model/regen.rs", function: "relief_names" },
-    Place { file: "qymcad-core/src/model/regen.rs", function: "thicken_names" },
-    Place { file: "qymcad-core/src/model/regen.rs", function: "groove_names" },
-    Place { file: "qymcad-core/src/model/regen.rs", function: "shell_wall_names" },
-    Place { file: "qymcad-core/src/model/regen.rs", function: "instance_name_seeds" },
-    Place { file: "qymcad-core/src/model/sketch.rs", function: "piece_names" },
-    Place { file: "qymcad-core/src/model/sketch.rs", function: "loft_encoded_named" },
-    // the door every name passes through, and the caps it gives
-    Place { file: "qymcad-core/src/model.rs", function: "intern_name" },
-    Place { file: "qymcad-core/src/model.rs", function: "cap_names" },
+const PLACES: [Place; 8] = [
+    // the roles an operation of the bridge gave, named when its result lands
+    Place { file: "qymcad-kernel/src/naming.rs", function: "land_roles" },
     // the one rule for what the history is silent about: the pieces of a split face, the seams by their neighbours,
-    // then the place; the edges by the pair of their faces; a vertex by its edges
-    Place { file: "qymcad-core/src/model.rs", function: "name_face_splits_of" },
-    Place { file: "qymcad-core/src/model.rs", function: "name_seam_wave" },
-    Place { file: "qymcad-core/src/model.rs", function: "name_by_place" },
-    Place { file: "qymcad-core/src/model.rs", function: "name_edges_of" },
+    // then the place; the edges by the pair of their faces
+    Place { file: "qymcad-kernel/src/naming.rs", function: "pieces" },
+    Place { file: "qymcad-kernel/src/naming.rs", function: "seams" },
+    Place { file: "qymcad-kernel/src/naming.rs", function: "placed" },
+    Place { file: "qymcad-kernel/src/naming.rs", function: "edges" },
+    // a vertex by its edges, asked when a vertex is picked
     Place { file: "qymcad-core/src/model.rs", function: "vertex_pool" },
     // a part copied into another document takes its names into that document's table
     Place { file: "qymcad-core/src/model/timeline.rs", function: "clone_subtree_into" },
@@ -137,8 +111,9 @@ fn names_are_minted_in_the_places_that_name_by_recipe() {
             }
         }
     }
-    // 37 such calls on 12.10.2026; a parse that found none would pass all
-    assert!(seen >= 30, "the walk found {seen} calls that mint a name, fewer than the tree has - it is reading them wrong");
+    // 37 such calls on 12.10.2026; 11 on 13.10, once the roles of every operation moved to the bridge and the model
+    // minted no face names of its own; a parse that found none would pass all
+    assert!(seen >= 9, "the walk found {seen} calls that mint a name, fewer than the tree has - it is reading them wrong");
     assert!(caught.is_empty(), "a name is minted outside the places that name by recipe:\n{}", caught.join("\n"));
 }
 

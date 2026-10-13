@@ -19,7 +19,7 @@ mod tests {
         let dir = std::path::PathBuf::from(format!("{}/../../target/import-names-app", env!("CARGO_MANIFEST_DIR")));
         std::fs::create_dir_all(&dir).expect("a folder for the check");
         let step = dir.join("cube.step");
-        let cube = qymcad_kernel::Shape::extrude(&[0.0, 0.0, 10.0, 0.0, 10.0, 10.0, 0.0, 10.0], 10.0).expect("a cube");
+        let cube = qymcad_kernel::specimen::extrude(&[0.0, 0.0, 10.0, 0.0, 10.0, 10.0, 0.0, 10.0], 10.0).expect("a cube");
         qymcad_kernel::write_step(&[(&cube, PLACE_IDENTITY)], &step.to_string_lossy()).expect("written");
         // brought in as the program brings a file in: its meshes laid as parts, its live body raised from the file and
         // the import rebuilt on it

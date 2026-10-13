@@ -350,6 +350,13 @@ struct QymShapeList {
 
 /// The bit that marks a STRUCTURAL name (one derived from the recipe) apart from a positional one.
 static const int QYM_NAMED = 0x40000000;
+/// A ROLE AWAITING ITS NAME: the number the bridge hands a face an operation makes, until the table of the document
+/// names it when the result lands (`names::ROLE` on the Rust side).
+static const int QYM_ROLE = 0x10000000;
+
+/// A NAME BY RECIPE: a name of the document, or a role awaiting its name. Everything else is a positional number - a
+/// place in the walk of a result, meaningful inside its own body only.
+inline bool qym_recipe(int id) { return (id & (QYM_NAMED | QYM_ROLE)) != 0; }
 
 void why(const char* where, const char* what);
 
@@ -369,10 +376,110 @@ extern "C" const char* qym_why();
 /// What kind of body this is - a solid, a sheet, an empty shape - asked for from more than one part.
 extern "C" int qym_shape_kind(const QymShape* s);
 
+// -- THE DOOR OF THE BRIDGE ON THE C++ SIDE -----------------------------------------------------------------------
+//
+// An operation brings its algorithm and says what its result is made of; the names of its faces and edges are carried
+// here, once for all of them: through the history of the algorithm, from every operand by the rule of that operand,
+// with the pieces of a split face recorded, the faces it generates named by their roles, the free edges of a sheet kept
+// beside the face they stood against, and whatever the history is silent about numbered for the passes after it.
+
+/// WHAT BECAME OF AN ELEMENT in an algorithm: the one question the carrying of names asks. OCCT answers it in three
+/// ways - a builder of shapes, the history of the low-level booleans, the record of a repair - and each has its
+/// translation; the carrying does not know which one it is reading.
+struct QymHistory {
+    virtual ~QymHistory() = default;
+    virtual const TopTools_ListOfShape& Modified(const TopoDS_Shape& s) = 0;
+    virtual const TopTools_ListOfShape& Generated(const TopoDS_Shape& s) = 0;
+    /// the element left the result and nothing took its place
+    virtual bool Removed(const TopoDS_Shape& s) = 0;
+};
+
+/// The history of a builder of shapes: every algorithm of `BRepAlgoAPI`, `BRepFilletAPI`, `BRepOffsetAPI`,
+/// `BRepPrimAPI` and `BRepBuilderAPI`.
+struct QymBuilderHistory : QymHistory {
+    explicit QymBuilderHistory(BRepBuilderAPI_MakeShape& a) : algo(a) {}
+    const TopTools_ListOfShape& Modified(const TopoDS_Shape& s) override { return algo.Modified(s); }
+    const TopTools_ListOfShape& Generated(const TopoDS_Shape& s) override { return algo.Generated(s); }
+    bool Removed(const TopoDS_Shape& s) override { return algo.IsDeleted(s); }
+    BRepBuilderAPI_MakeShape& algo;
+};
+
+/// The history the low-level algorithms hand over (`BRepTools_History`): the merging of a monolith
+/// (`ShapeUpgrade_UnifySameDomain`) and the `BOPAlgo` builders. An algorithm that kept no history changed nothing.
+struct QymToolsHistory : QymHistory {
+    explicit QymToolsHistory(const Handle(BRepTools_History)& h) : hist(h) {}
+    const TopTools_ListOfShape& Modified(const TopoDS_Shape& s) override { return hist.IsNull() ? none : hist->Modified(s); }
+    const TopTools_ListOfShape& Generated(const TopoDS_Shape& s) override { return hist.IsNull() ? none : hist->Generated(s); }
+    bool Removed(const TopoDS_Shape& s) override { return !hist.IsNull() && hist->IsRemoved(s); }
+    Handle(BRepTools_History) hist;
+    TopTools_ListOfShape none;
+};
+
+/// WHAT A REPAIR IS ASKED OF AN ELEMENT: the replacement its record holds for the element itself (`Value`), or the
+/// element rebuilt from the replacements of everything inside it (`Apply`).
+enum class QymRepairAsk { Value, Apply };
+
+/// The record a repair keeps (`ShapeBuild_ReShape`: `ShapeFix_*`, `ShapeUpgrade_*`): the images of an element are the
+/// pieces of its type in what replaced it, none when it stayed itself; it is removed when nothing replaced it. A
+/// repair generates nothing.
+struct QymRepairHistory : QymHistory {
+    QymRepairHistory(const Handle(ShapeBuild_ReShape)& c, QymRepairAsk a) : ctx(c), ask(a) {}
+    /// What stands for `s` after the repair: itself when the record holds nothing for it.
+    TopoDS_Shape Image(const TopoDS_Shape& s) {
+        if (ctx.IsNull()) return s;
+        return ask == QymRepairAsk::Apply ? ctx->Apply(s) : ctx->Value(s);
+    }
+    const TopTools_ListOfShape& Modified(const TopoDS_Shape& s) override {
+        images.Clear();
+        const TopoDS_Shape now = Image(s);
+        if (now.IsNull() || now.IsSame(s)) return images;
+        for (TopExp_Explorer ex(now, s.ShapeType()); ex.More(); ex.Next()) images.Append(ex.Current());
+        return images;
+    }
+    const TopTools_ListOfShape& Generated(const TopoDS_Shape&) override { return none; }
+    bool Removed(const TopoDS_Shape& s) override { return Image(s).IsNull(); }
+    Handle(ShapeBuild_ReShape) ctx;
+    QymRepairAsk ask;
+    TopTools_ListOfShape images;
+    TopTools_ListOfShape none;
+};
+
+/// A BINDING CARRIED THROUGH A HISTORY: every element of type `ty` of the shapes `before`, bound to a value, hands it
+/// to its images, or keeps it when the algorithm left it as it was; a removed element hands it to none. The walk goes
+/// in the order of the shapes, so when two elements become one the first of them wins every time.
+void carry_binding(QymHistory& history, const TopTools_ListOfShape& before, TopAbs_ShapeEnum ty, TopTools_DataMapOfShapeInteger& bound);
+
+/// HOW THE NAMES OF AN OPERAND ARE CARRIED. The first operand of an operation - the body it works on - gives all its
+/// names and its counter of positional numbers; any other gives only the names its recipe made: a positional number
+/// means something only inside its own body, and "face 1" of the tool carried beside "face 1" of the base would glue
+/// two faces under one name.
+enum class QymCarry { Everything, RecipeOnly };
+
+/// AN OPERAND OF AN OPERATION: its body, how its names are carried, and the word a diagnosis tells it by.
+struct QymOperand {
+    const QymShape* body;
+    QymCarry carry;
+    const char* tag;
+};
+
+/// WHAT THE RESULT OF AN OPERATION IS MADE OF.
+struct QymResultSpec {
+    std::vector<QymOperand> operands;
+    /// The names of the faces an operation generates, by the name of the face they come from (a wall of a shell after
+    /// its outer face); null where the generated face continues its source.
+    const std::map<int, int>* generated = nullptr;
+    /// Merge the faces a boolean leaves split along its seam into one (the monolith), recording which names yielded.
+    bool unify = false;
+};
+
+/// THE RESULT OF AN OPERATION WITH ITS NAMES, built from `res` by `history` as `spec` says. Null when `res` is null.
+QymShape* qym_result(QymHistory& history, const TopoDS_Shape& res, const QymResultSpec& spec);
+
 int next_local(const TopTools_DataMapOfShapeInteger& m);
 void seed_ids(const TopoDS_Shape& s, TopAbs_ShapeEnum ty, TopTools_DataMapOfShapeInteger& ids);
 void fill_unnamed(const TopoDS_Shape& res, TopAbs_ShapeEnum ty, TopTools_DataMapOfShapeInteger& out, int& next);
 void carry_ids(BRepBuilderAPI_MakeShape& algo, const TopoDS_Shape& a, TopAbs_ShapeEnum ty, const TopTools_DataMapOfShapeInteger& aid, TopTools_DataMapOfShapeInteger& out, int& next, bool named_only = false, TopTools_DataMapOfShapeInteger* splits_of = nullptr, TopTools_DataMapOfShapeInteger* splits_idx = nullptr, const std::map<int,int>* gen_names = nullptr);
+void carry_ids(QymHistory& history, const TopoDS_Shape& a, TopAbs_ShapeEnum ty, const TopTools_DataMapOfShapeInteger& aid, TopTools_DataMapOfShapeInteger& out, int& next, TopTools_DataMapOfShapeInteger* splits_of = nullptr, TopTools_DataMapOfShapeInteger* splits_idx = nullptr);
 void propagate_ids(BRepBuilderAPI_MakeShape& algo, const TopoDS_Shape& a, TopAbs_ShapeEnum ty, const TopTools_DataMapOfShapeInteger& aid, const TopoDS_Shape& res, TopTools_DataMapOfShapeInteger& out, TopTools_DataMapOfShapeInteger* splits_of = nullptr, TopTools_DataMapOfShapeInteger* splits_idx = nullptr, const std::map<int,int>* gen_names = nullptr);
 void copy_ids_by_order(const TopoDS_Shape& src, TopAbs_ShapeEnum ty, const TopTools_DataMapOfShapeInteger& sid, const TopoDS_Shape& dst, TopTools_DataMapOfShapeInteger& out);
 void classify_unnamed(BRepBuilderAPI_MakeShape& algo, const TopoDS_Shape& src, const QymShape* q, const char* tag, const TopTools_DataMapOfShapeInteger* src_ids = nullptr);

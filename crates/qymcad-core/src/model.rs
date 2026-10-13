@@ -2122,6 +2122,7 @@ pub use regen::{ArrayAxis, BodyOp, ChamferShape, CombineSpan, ExtrudeSpan, HoleT
 mod tess;
 mod timeline;
 mod sketch;
+pub use sketch::{LoftEncoded, LoftSectionsEncoded};
 mod drag;
 mod round;
 pub use sketch::{ChamferLegs, CornerAt, CornerBlend, CornerCut, CornerTool, ExtendAsk, ExtendSides, ExtendStop, ExtendStops, EndKept, FilletBy, FilletSize, LineExtension, LinesCrossing, TextSpec};
@@ -3360,23 +3361,11 @@ impl Project {
         self.feature_profile_encoded_fill(sketch, profile, &[])
     }
 
-    /// Face-name descriptor from its recipe, interned in the document name table.
-    pub fn intern_name(&mut self, feature: Id, role: crate::names::Role, src: Id) -> u32 {
-        self.names.intern_face(crate::names::GeoName::new(feature, role, src))
-    }
-
-    /// Names of the operation caps: the start (the profile itself) and the end (its translated copy). They
-    /// are passed to the kernel as separate parameters, because a cap is not produced by a profile edge and
-    /// has no name to take from the encoding.
-    pub fn cap_names(&mut self, feature: Id) -> [u32; 2] {
-        [self.intern_name(feature, crate::names::Role::CapStart, 0), self.intern_name(feature, crate::names::Role::CapEnd, 0)]
-    }
-
     /// Loft encoding. For each section sketch the contour is taken (`contours[i]`, or the first closed one)
     /// and the result is the concatenation of `loop_block`s, `offsets[nsec+1]` marking where each section
     /// starts, and `places[nsec*12]` holding the 3x4 placements of the section planes. `None` when fewer
     /// than two valid sections were found, since a loft needs at least two.
-    pub fn loft_encoded(&self, sketches: &[Id], contours: &[Id]) -> Option<(Vec<f64>, Vec<usize>, Vec<f64>)> {
+    pub fn loft_encoded(&self, sketches: &[Id], contours: &[Id]) -> Option<LoftSectionsEncoded> {
         self.loft_encoded_with(sketches, contours, &std::collections::HashMap::new())
     }
 
@@ -4968,376 +4957,34 @@ impl Project {
         self.regen_edges.remove(&b);
     }
 
-    /// Seams: a face with no provenance is identified by its neighbours, exactly as an edge is.
-    ///
-    /// Measured on a circular pattern: nine faces are born in pairs at the joints between copies, and no
-    /// face of the source corresponds to them — history does not consider them produced by anything, so the
-    /// "produced by face N" mechanism finds nothing for them (verified: zero matches).
-    ///
-    /// Namelessness is not inevitable here. An edge has no recipe of its own either — it is where two
-    /// surfaces meet — which is exactly why its name is derived from its pair of faces. A seam is in the
-    /// same position: it is where named faces meet. The lowest name among the named neighbours is taken
-    /// (the set is deterministic and does not depend on traversal order), and the ordinal within one
-    /// neighbour is separated by the same marker used for split pieces: the set of the other named
-    /// neighbours.
-    ///
-    /// A positional number remains only where there are no named neighbours at all: there is nothing to
-    /// derive a name from, and inventing one is worse than admitting there is no recipe.
-    fn name_seam_faces_of(&mut self, feature: Id, body: Id, kernel: &dyn crate::feature::Kernel) {
-        // In waves rather than in one pass. An orphan takes its name from a named neighbour, but a face in a
-        // corner has neighbours that are orphans themselves: on a shell of a shell exactly four corner faces
-        // stayed nameless (three neighbours, none of them named). This is not cosmetic — measured, those are
-        // precisely the faces that differ between two builds, because a positional number depends on
-        // traversal order and a name does not. So after each wave the neighbours are asked again: the faces
-        // named by the first wave become the anchor for the second.
-        for _ in 0..8 {
-            if !self.name_seam_wave(feature, body, kernel) {
-                break;
+    /// THE NAMES THE BRIDGE GAVE WHERE THE HISTORY WAS SILENT, landed in the document: the faces it lists, the colours a
+    /// file gave single faces (held by the id of the face, as any reference to it), the edges the references of this
+    /// rebuild are translated by.
+    fn land_silent_names(&mut self, feature: Id, body: Id, kernel: &dyn crate::feature::Kernel, emap: &mut EdgeRenames) {
+        let listed: Vec<u32> = self.regen_faces.get(&body).map(|f| f.iter().map(|x| x.id).collect()).unwrap_or_default();
+        let scale = self.import_scale(body).filter(|f| *f > 0.0).unwrap_or(1.0);
+        let named = kernel.name_silent(crate::feature::SilentNaming { body, feature, listed: Some(&listed), scale, names: &mut self.names });
+        if !named.faces.is_empty() {
+            // all at once: a face may take the name another face gives up in the same renaming
+            let now: std::collections::HashMap<u32, u32> = named.faces.iter().map(|r| (r.was, r.now)).collect();
+            if let Some(faces) = self.regen_faces.get_mut(&body) {
+                faces.iter_mut().for_each(|f| f.id = now.get(&f.id).copied().unwrap_or(f.id));
+            }
+            let root = self.lineage_root(body);
+            if let Some(colours) = self.face_colors.get_mut(&root) {
+                colours.iter_mut().for_each(|c| c.0 = now.get(&c.0).copied().unwrap_or(c.0));
             }
         }
-        self.name_placed_faces_of(feature, body, kernel);
-    }
-
-    /// A BODY BROUGHT IN FROM A FILE AND RAISED AGAIN FROM IT - on opening a project, without a rebuild - takes back the
-    /// names its faces and edges were given when it came in: they are made by the one rule, from where the faces lie, so
-    /// the same file gives the same names. Without it the raised body holds positional numbers, the document the names,
-    /// and a fillet on an edge of it finds nothing.
-    pub fn name_restored_body(&mut self, body: Id, kernel: &dyn crate::feature::Kernel) {
-        let Some(node) = self.timeline.iter().find(|n| matches!(n.kind, crate::feature::FeatureKind::Import { body: b, .. } if b == body)).map(|n| n.id) else { return };
-        self.name_by_place(node, body, kernel);
-        self.name_edges_of(body, kernel, &mut EdgeRenames::default());
-    }
-
-    /// THE LAST RULE, WHERE THE HISTORY IS SILENT AND NO NAMED FACE IS BESIDE: a face is named by where it lies. A body
-    /// brought in from a file or made of a mesh has no recipe and no named face at all, so the seam waves have nothing
-    /// to start from; measured, a cube made of a mesh held 6 of 6 faces and 12 of 12 edges on positional numbers, and a
-    /// reference to one was a place in the walk of the result.
-    ///
-    /// The place is the point of the surface of the face at the middle of its parametric bounds and the normal there,
-    /// from the B-rep (`face_places`), to a micrometre and a thousandth: the same file and the same mesh give the same names on every rebuild and at any
-    /// quality of drawing. Two faces at one place - which two faces of a sound body are not - take the order of their
-    /// numbers, an honest tie.
-    fn name_placed_faces_of(&mut self, feature: Id, body: Id, kernel: &dyn crate::feature::Kernel) {
-        // asked of the list first, which costs nothing: the places are measured over the surfaces, face by face
-        if self.regen_faces.get(&body).is_some_and(|f| f.iter().all(|x| self.names.knows(x.id))) {
-            return;
+        if !named.edges.is_empty() {
+            emap.entry(body).or_default().extend(named.edges.iter().map(|r| (r.was, r.now)));
         }
-        self.name_by_place(feature, body, kernel);
-    }
-
-    /// The faces of `body` the kernel holds without a name, named by their place. The faces as the kernel holds them,
-    /// not as `regen_faces` lists them: a body raised again from its file holds numbers while the document already
-    /// lists the names it was given when it came in.
-    fn name_by_place(&mut self, feature: Id, body: Id, kernel: &dyn crate::feature::Kernel) {
-        let places = kernel.face_places(body);
-        // WHERE IN THE FRAME OF THE FILE: a body brought in at a factor lies at that factor, and a place told in the
-        // frame of the document changed every name with the scale - rescaled, saved and opened, a fillet on it found
-        // no edge
-        let factor = self.import_scale(body).filter(|f| *f > 0.0).unwrap_or(1.0);
-        let mut by_key: std::collections::BTreeMap<Id, Vec<u32>> = std::collections::BTreeMap::new();
-        for place in &places {
-            if !self.names.knows(place.id) {
-                let in_file = crate::feature::FacePlace { at: place.at.map(|v| v / factor), ..*place };
-                by_key.entry(place_key(&in_file)).or_default().push(place.id);
-            }
-        }
-        if by_key.is_empty() {
-            return;
-        }
-        let taken: std::collections::HashSet<u32> = places.iter().map(|x| x.id).collect();
-        let mut renames: Vec<(u32, u32)> = Vec::new();
-        for (key, mut faces) in by_key {
-            faces.sort_unstable();
-            for (k, f) in faces.iter().enumerate() {
-                let name = crate::names::GeoName { feature, role: crate::names::Role::Placed, src: key, split: k.min(u16::MAX as usize) as u16 };
-                let d = self.names.intern_face(name);
-                if *f != d && !taken.contains(&d) {
-                    renames.push((*f, d));
-                }
-            }
-        }
-        if renames.is_empty() {
-            return;
-        }
-        kernel.rename_faces(body, &renames);
-        let map: std::collections::HashMap<u32, u32> = renames.into_iter().collect();
-        if let Some(faces) = self.regen_faces.get_mut(&body) {
-            for f in faces.iter_mut() {
-                if let Some(&d) = map.get(&f.id) {
-                    f.id = d;
-                }
-            }
-        }
-        // the colour a file gives a single face is held by the id of the face, as any reference to it is: it follows the
-        // name, or the top face of a plate brought in green went out of the program in the colour of the plate
-        let root = self.lineage_root(body);
-        if let Some(colours) = self.face_colors.get_mut(&root) {
-            for (id, _) in colours.iter_mut() {
-                if let Some(&d) = map.get(id) {
-                    *id = d;
-                }
-            }
-        }
-    }
-
-    /// One wave of seam naming: orphans that have a named neighbour get a name. Returns `true` when
-    /// something was renamed and another wave is worth running.
-    fn name_seam_wave(&mut self, feature: Id, body: Id, kernel: &dyn crate::feature::Kernel) -> bool {
+        // The names merged faces yielded, in the final names. Stale records are cleared first: a face whose name is
+        // alive again yielded to nobody, and an old record about it only misleads.
         let live: Vec<u32> = self.regen_faces.get(&body).map(|f| f.iter().map(|x| x.id).collect()).unwrap_or_default();
-        let orphans: Vec<u32> = live.iter().copied().filter(|d| !crate::names::NameTable::is_named(*d)).collect();
-        if orphans.is_empty() {
-            return false;
+        self.names.forget_absorbed(&live);
+        for a in &named.absorbed {
+            self.names.absorb(a.loser, a.winner);
         }
-        let mut nb: std::collections::HashMap<u32, Vec<u32>> = std::collections::HashMap::new();
-        for (_, a, b) in kernel.edge_face_pairs(body) {
-            nb.entry(a).or_default().push(b);
-            nb.entry(b).or_default().push(a);
-        }
-        let named_nb = |f: u32| -> Vec<u32> {
-            let mut v: Vec<u32> = nb.get(&f).map(|ns| ns.iter().copied().filter(|n| crate::names::NameTable::is_named(*n)).collect()).unwrap_or_default();
-            v.sort_unstable();
-            v.dedup();
-            v
-        };
-        let mut groups: std::collections::BTreeMap<u32, Vec<u32>> = std::collections::BTreeMap::new();
-        for f in orphans {
-            let ns = named_nb(f);
-            let Some(&host) = ns.first() else { continue }; // No named neighbours yet; wait for the next wave.
-            groups.entry(host).or_default().push(f);
-        }
-        let mut renames: Vec<(u32, u32)> = Vec::new();
-        let taken: std::collections::HashSet<u32> = live.iter().copied().collect();
-        for (host, mut members) in groups {
-            members.sort_by_key(|f| (named_nb(*f), *f));
-            for (k, f) in members.iter().enumerate() {
-                // The feature is part of the name. Without it a seam name is global: two different
-                // operations both produce "seam at face N", and once their bodies meet in one body a
-                // reference leads to two places at once (caught by the duplicate guard: body 431, three
-                // pairs).
-                let name = crate::names::GeoName { feature, role: crate::names::Role::Seam, src: host as Id, split: k.min(u16::MAX as usize) as u16 };
-                let d = self.names.intern_face(name);
-                if *f != d && !taken.contains(&d) {
-                    renames.push((*f, d));
-                }
-            }
-        }
-        if renames.is_empty() {
-            return false;
-        }
-        kernel.rename_faces(body, &renames);
-        if let Some(faces) = self.regen_faces.get_mut(&body) {
-            let map: std::collections::HashMap<u32, u32> = renames.into_iter().collect();
-            for f in faces.iter_mut() {
-                if let Some(&d) = map.get(&f.id) {
-                    f.id = d;
-                }
-            }
-        }
-        true
-    }
-
-    fn name_face_splits_of(&mut self, body: Id, kernel: &dyn crate::feature::Kernel) {
-        let splits = kernel.face_splits(body);
-        if splits.is_empty() {
-            return;
-        }
-        // The record is single-use: read it and clear it. Otherwise the next operation folds it into its own
-        // group and re-elects the name holder, the name moves to a neighbour, and a reference written
-        // earlier leads to a different face (measured: a body came out with 26 faces instead of 56 and a
-        // face pull stopped building). It is cleared immediately, before any names are handed out, so that
-        // no early return below leaves the record alive.
-        kernel.clear_face_splits(body);
-        // Which piece keeps the name of the whole is decided by recipe, not by list order.
-        //
-        // The kernel returns the pieces in `Modified` order and the first one used to inherit the name of
-        // the original face. That order depends on subshape numbering, which shifts with any edit higher up
-        // the timeline. Measured: as soon as a thread named the faces of its relief, the wall names moved to
-        // different pieces and 16 of 36 fillet references landed on the wrong edges, while the references
-        // themselves had not changed.
-        //
-        // The stable marker of a piece is the same as for an edge: which named faces are adjacent to it
-        // (adjacency comes from the face pairs of the edges). Neighbours inside the group do not count, as
-        // they are nameless right now and are being renamed together. The face number remains the last
-        // separator, used only where the recipe is silent.
-        let mut nb: std::collections::HashMap<u32, Vec<u32>> = std::collections::HashMap::new();
-        for (_, a, b) in kernel.edge_face_pairs(body) {
-            nb.entry(a).or_default().push(b);
-            nb.entry(b).or_default().push(a);
-        }
-        let live: std::collections::HashSet<u32> = self.regen_faces.get(&body).map(|f| f.iter().map(|x| x.id).collect()).unwrap_or_default();
-        // IN THE ORDER OF THE ORIGINALS, not of a hash: the names are interned as the groups are walked, and a step back
-        // takes the interned names away, so the rebuild of a step forward hands them out again. Walked in hash order
-        // the same name came to the half of another side - the top of the right (40, 15, 7.5) went to the front.
-        let mut groups: std::collections::BTreeMap<u32, Vec<u32>> = std::collections::BTreeMap::new();
-        for (piece, origin, _idx) in splits {
-            groups.entry(origin).or_default().push(piece);
-        }
-        let mut renames: Vec<(u32, u32)> = Vec::new();
-        for (origin, mut members) in groups {
-            let Some(base) = self.names.get(origin) else { continue }; // The original is nameless, so there is nothing to inherit.
-            if live.contains(&origin) {
-                members.push(origin); // The piece currently holding the name of the whole takes part in the split too.
-            }
-            let own: std::collections::HashSet<u32> = members.iter().copied().collect();
-            let key = |f: u32| -> Vec<u32> {
-                let mut v: Vec<u32> = nb.get(&f).map(|ns| ns.iter().copied().filter(|n| crate::names::NameTable::is_named(*n) && !own.contains(n)).collect()).unwrap_or_default();
-                v.sort_unstable();
-                v.dedup();
-                v
-            };
-            members.sort_by_key(|f| (key(*f), *f));
-            for (k, f) in members.iter().enumerate() {
-                // When the split ordinal is already occupied, what is being cut is itself a piece, and that
-                // piece is the whole for the new pieces.
-                //
-                // For a pattern instance the `split` field holds the copy number, not a piece number.
-                // Writing a piece number there erases the copy number: five pieces of a copied face come out
-                // under one name, "instance, piece 2", and a reference then leads to five places at once
-                // (measured on a scenario document). Their whole is the copied face itself, so its
-                // descriptor becomes the source: "piece k of face origin". The holder (k = 0) stays itself.
-                //
-                // For a seam the ordinal is occupied too — it separates seams sharing one neighbour. Writing
-                // a piece number there erases the seam ordinal, and "piece 1" lands on the name of the
-                // second seam (the guard caught three pairs in body 431). So a seam follows the same path as
-                // a pattern instance.
-                let name = if base.split != 0 || base.role == crate::names::Role::Seam {
-                    // The holder takes the name of the whole rather than staying as it is: the elected piece
-                    // may itself be a positional one, and "as is" would then leave the name of the whole
-                    // carried by nobody while the original face moved into "piece 1" (measured: 378
-                    // positional names instead of 290, entirely from this).
-                    if k == 0 {
-                        base
-                    } else {
-                        crate::names::GeoName { feature: base.feature, role: base.role, src: origin as Id, split: k.min(u16::MAX as usize) as u16 }
-                    }
-                } else {
-                    crate::names::GeoName { split: k.min(u16::MAX as usize) as u16, ..base }
-                };
-                let d = self.names.intern_face(name);
-                if *f != d {
-                    renames.push((*f, d));
-                }
-            }
-        }
-        if renames.is_empty() {
-            return;
-        }
-        kernel.rename_faces(body, &renames);
-        // Rename the faces in the model too: references resolve from them and edge names are derived from
-        // them.
-        if let Some(faces) = self.regen_faces.get_mut(&body) {
-            let map: std::collections::HashMap<u32, u32> = renames.into_iter().collect();
-            for f in faces.iter_mut() {
-                if let Some(&d) = map.get(&f.id) {
-                    f.id = d;
-                }
-            }
-        }
-    }
-
-    /// Edge names from the pair of faces, plus exact translation of references.
-    ///
-    /// An edge has no recipe of its own: it is where two surfaces meet. While face names were positional
-    /// there was nothing to derive from; now there is.
-    ///
-    /// The switch happens for a whole body at a time. A mixed space, where some edges are named and some are
-    /// not, is more dangerous than either pure state: an old "edge 8" reference lands on a positional
-    /// survivor and silently attaches to a different edge — measured, an R10 fillet ended up on an edge that
-    /// only allows 1 mm.
-    ///
-    /// There is no global scheme freeze any more, and removing it was removing a dead safeguard rather than
-    /// relaxing a rule. The freeze protected documents saved under the old edge-naming scheme, and such
-    /// documents no longer exist: the format changed together with query-style references, and the current
-    /// build does not read the older `.qcad` at all, backwards compatibility being out of scope by
-    /// decision.
-    ///
-    /// Its harm, meanwhile, was real. Its cause was local (one positional number in one reference) while its
-    /// effect was global (no names issued anywhere in the document). Measured, that cost four threads: a
-    /// fillet on a body with one nameless face wrote positional numbers, the scheme froze, and threads on
-    /// other bodies stopped finding their rims.
-    ///
-    /// The per-body switch is the condition that stayed, and it is the right one.
-    fn name_edges_of(&mut self, body: Id, kernel: &dyn crate::feature::Kernel, emap: &mut EdgeRenames) {
-        let pairs = kernel.edge_face_pairs(body);
-        if pairs.is_empty() {
-            return;
-        }
-        let named = crate::names::NameTable::is_named;
-        // All-or-nothing was the earlier rule and it was a measured defect: one nameless face cancelled the
-        // pass for the whole body and left every edge positional. On a body with 34 of 64 faces positional,
-        // none of its 190 edges got a recipe name and the fillet references fell off on every edit (20 of 36
-        // found). Removing the rule gives 36 of 36 with no fallback, measured twice.
-        //
-        // An edge between two named faces has a legitimate name regardless of what happens at the other end
-        // of the body. Only edges with nowhere to take a name from are skipped.
-        // Names already taken on this body. An edge name is a pair of faces plus an ordinal within that
-        // pair, and the ordinal has to be free rather than merely "the first among the new ones".
-        //
-        // What that cost: shelling a through pocket. The outer edge of the end face arrives from the extrude
-        // already named, while the inner one is born with the shell. Both share one pair of faces (wall and
-        // end), and numbering from zero handed the newcomer ordinal 0, the one the neighbour already had.
-        // Two different edges received one descriptor, and everything built on it collapsed: clicking one
-        // highlighted both, a fillet cut the outer and the inner at once, and there was no way to select one
-        // of them, the id being shared. Measured: 8 of 24 edges collided into pairs that way.
-        //
-        // The taken names come from the whole body rather than from the list of pairs. The "edge with its
-        // two faces" list is incomplete: a seam and a degenerate edge have no pair, and body 275 contributes
-        // 11 of its 17 edges while body 276 contributes 265 of its 274. The name of such an edge stayed
-        // "free", the election handed it out a second time, and two edges ended up under one name — exactly
-        // the twins the guard was catching.
-        let mut used: std::collections::HashSet<u32> = kernel
-            .edges(body)
-            .into_iter()
-            .map(|e| e.id)
-            .chain(pairs.iter().map(|(e, _, _)| *e)) // Both sources: a mock kernel leaves the body edges empty.
-            .filter(|e| self.names.knows(*e))
-            .collect();
-        let mut by_pair: std::collections::BTreeMap<(u32, u32), Vec<u32>> = std::collections::BTreeMap::new();
-        for (e, a, b) in pairs {
-            if self.names.knows(e) {
-                continue; // Already named: it came through the operation history.
-            }
-            if !named(a) || !named(b) {
-                continue; // Nowhere to take a name from: at least one of the faces is nameless itself.
-            }
-            by_pair.entry((a.min(b), a.max(b))).or_default().push(e);
-        }
-        // The ordinal within a pair comes from the recipe, not from the kernel number.
-        //
-        // When several edges lie between one pair of faces (a through slot gives an upper and a lower edge
-        // between the same walls), they have to be ordered somehow. Ordering by kernel number means the
-        // number shifts with any edit higher up the timeline and the twins silently swap places. Measured:
-        // as soon as a thread named the faces of its relief, 12 of 36 edges moved to the wrong place and an
-        // R2.0 fillet landed on the wrong edge.
-        //
-        // The stable marker is asked of the kernel: which named faces meet at the endpoints of the edge,
-        // besides its own two. For the upper edge of a slot that is the top face, for the lower one the
-        // bottom. The kernel number remains only as the last separator, where the recipe is silent (both
-        // sides nameless), which is an honest tie rather than a choice.
-        let ends: std::collections::HashMap<u32, (u32, u32)> = kernel.edge_end_faces(body).into_iter().map(|(e, a, b)| (e, (a, b))).collect();
-        let mut renames: Vec<(u32, u32)> = Vec::new();
-        for ((a, b), mut es) in by_pair {
-            es.sort_unstable_by_key(|e| (ends.get(e).copied().unwrap_or((0, 0)), *e));
-            let mut next = 0u16;
-            for e in es {
-                // The first free ordinal within this pair. A taken ordinal already exists in the table, so
-                // probing through `intern_edge` creates no garbage: the same name comes back.
-                let name = loop {
-                    let n = self.names.intern_edge(crate::names::EdgeName::new(a, b, next));
-                    next = next.saturating_add(1);
-                    if !used.contains(&n) {
-                        break n;
-                    }
-                };
-                used.insert(name);
-                renames.push((e, name));
-            }
-        }
-        if renames.is_empty() {
-            return;
-        }
-        kernel.rename_edges(body, &renames);
-        emap.entry(body).or_default().extend(renames);
     }
 }
 
@@ -6078,11 +5725,4 @@ mod library_extract_insert_tests {
         let uniq: std::collections::HashSet<Id> = ids.iter().copied().collect();
         assert_eq!(ids.len(), uniq.len(), "no component id collisions after two insertions");
     }
-}
-
-/// THE KEY OF A PLACE: the centre to a micrometre and the normal to a thousandth, folded into one number (FNV-1a over
-/// the six rounded values). The same place gives the same key on every machine and every rebuild.
-fn place_key(place: &crate::feature::FacePlace) -> Id {
-    let rounded = [place.at[0] * 1e3, place.at[1] * 1e3, place.at[2] * 1e3, place.normal[0] * 1e3, place.normal[1] * 1e3, place.normal[2] * 1e3].map(|v| v.round() as i64);
-    rounded.iter().flat_map(|v| v.to_le_bytes()).fold(0xcbf2_9ce4_8422_2325u64, |h, b| (h ^ b as u64).wrapping_mul(0x0000_0100_0000_01b3))
 }

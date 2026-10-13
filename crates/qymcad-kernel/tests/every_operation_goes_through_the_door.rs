@@ -1,10 +1,10 @@
-//! EVERY OPERATION OF THE KERNEL ENDS AT THE ONE DOOR (`OcctKernel::finish`, `src/guard.rs`): the result is cleaned of
+//! EVERY OPERATION OF THE KERNEL ENDS AT THE ONE DOOR (`OcctKernel::run` and `finish`, `src/door/`): the result is cleaned of
 //! pinched faces and cracks, checked for being empty, broken or of no volume, repaired where it can be, and only then
 //! cached as a body. An operation that put its result into the cache itself would hand the document a body none of
 //! that was asked of - and a new operation would start with none of the fixes the old ones were given.
 //!
 //! The check reads the sources of the kernel: every method of `impl Kernel for OcctKernel` that builds a body ends in
-//! `self.finish(` or hands over to another such method, and nothing but the door puts a body into the cache.
+//! `self.run(` (or its short ways) or hands over to another such method, and nothing but the door puts a body into the cache.
 
 /// The source of a file of the kernel, its comments taken out.
 fn source(name: &str) -> String {
@@ -60,6 +60,10 @@ fn kernel_methods() -> Vec<Method> {
     out
 }
 
+/// THE DOOR AND ITS SHORT WAYS: `run`, `plain` for an operation with no size, `land_built` for a result built before
+/// its door, the last two also with the roles of the faces.
+const DOOR: [&str; 5] = ["self.run(", "self.plain(", "self.plain_named(", "self.land_built(", "self.land_built_named("];
+
 #[test]
 fn every_operation_that_builds_ends_at_the_door() {
     let methods = kernel_methods();
@@ -68,7 +72,9 @@ fn every_operation_that_builds_ends_at_the_door() {
     assert!(building.len() >= 45, "the parse found {} building methods of the kernel, fewer than it has - it is reading them wrong", building.len());
     let mut caught: Vec<String> = Vec::new();
     for m in methods.iter().filter(|m| m.builds) {
-        let at_the_door = m.body.contains("self.finish(");
+        // through the door - `run`, or its short ways - or handed over to an operation of the bridge (`ops/`), which the
+        // check below holds to the door; `finish` itself is private to the door, which the compiler holds
+        let at_the_door = DOOR.iter().any(|w| m.body.contains(w)) || (m.body.contains("self.") && m.body.contains("_op("));
         let hands_over = building.iter().any(|other| *other != m.name && m.body.contains(&format!("self.{other}(")));
         if !(at_the_door || hands_over) {
             caught.push(m.name.clone());
@@ -95,7 +101,42 @@ fn nothing_but_the_door_puts_a_body_into_the_cache() {
     if outside_impl.contains("shapes.borrow_mut()") {
         caught.push("kernel.rs: outside the Kernel implementation".into());
     }
-    let door = source("guard.rs");
+    let door = source("door/land.rs");
     assert!(door.contains("self.shapes.borrow_mut().insert(body, shape)"), "the door no longer caches the body it lets through");
     assert!(caught.is_empty(), "a body is put into the cache past the door:\n{}", caught.join("\n"));
+}
+
+/// AN OPERATION OF THE BRIDGE GOES THROUGH THE DOOR: every `*_op` of `src/ops/` runs its work by the door (or hands
+/// over to another operation that does).
+#[test]
+fn every_operation_of_the_bridge_runs_through_the_door() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src").join("ops");
+    let mut caught: Vec<String> = Vec::new();
+    let mut seen = 0usize;
+    for e in std::fs::read_dir(&dir).expect("the operations of the bridge").flatten() {
+        let name = format!("ops/{}", e.file_name().to_string_lossy());
+        if name == "ops/mod.rs" {
+            continue;
+        }
+        let text = source(&name);
+        let bytes = text.as_bytes();
+        let mut at = 0usize;
+        while let Some(found) = text[at..].find("pub(crate) fn ") {
+            let head = at + found + "pub(crate) fn ".len();
+            let fname: String = text[head..].chars().take_while(|c| c.is_alphanumeric() || *c == '_').collect();
+            let open = head + text[head..].find('{').expect("a body");
+            let close = closing(bytes, open + 1);
+            if fname.ends_with("_op") {
+                seen += 1;
+                let body = &text[open..close];
+                let hands_over = body.contains("self.") && body.matches("_op(").count() > 0;
+                if !(DOOR.iter().any(|w| body.contains(w)) || hands_over) {
+                    caught.push(format!("{name}: {fname}"));
+                }
+            }
+            at = close;
+        }
+    }
+    assert!(seen >= 1, "no operation of the bridge was found - the check reads the wrong place");
+    assert!(caught.is_empty(), "an operation of the bridge does not go through the door:\n{}", caught.join("\n"));
 }

@@ -341,7 +341,7 @@ pub(crate) mod tests {
         )
         .expect("the mesh is written");
         let igs = dir.join("cube.igs");
-        let cube = qymcad_kernel::Shape::extrude(&[0.0, 0.0, 10.0, 0.0, 10.0, 10.0, 0.0, 10.0], 10.0).expect("a cube");
+        let cube = qymcad_kernel::specimen::extrude(&[0.0, 0.0, 10.0, 0.0, 10.0, 10.0, 0.0, 10.0], 10.0).expect("a cube");
         qymcad_kernel::write_iges(&[(&cube, qymcad_core::feature::PLACE_IDENTITY)], &igs.to_string_lossy(), qymcad_kernel::LengthUnit::Millimetre).expect("the IGES is written");
         // the STEP is written here too, like every other format of this check: a file brought from elsewhere is not in
         // every tree the check runs in
@@ -683,7 +683,7 @@ pub(crate) mod tests {
     #[test]
     fn a_file_that_lies_about_its_unit_is_scaled_and_keeps_its_scale() {
         let p = scale_file("half-mm.step");
-        let s = qymcad_kernel::Shape::extrude(&[0.0, 0.0, 0.5, 0.0, 0.5, 0.5, 0.0, 0.5], 0.5).expect("a cube");
+        let s = qymcad_kernel::specimen::extrude(&[0.0, 0.0, 0.5, 0.0, 0.5, 0.5, 0.0, 0.5], 0.5).expect("a cube");
         qymcad_kernel::write_step(&[(&s, qymcad_core::feature::PLACE_IDENTITY)], &p).expect("written");
         let (mut app, ctx) = running();
         let before = app.project.bodies.len();
@@ -967,7 +967,7 @@ pub(crate) mod tests {
     #[test]
     fn a_solid_is_asked_about_again_from_its_node() {
         let p = scale_file("again.step");
-        let s = qymcad_kernel::Shape::extrude(&[0.0, 0.0, 10.0, 0.0, 10.0, 10.0, 0.0, 10.0], 10.0).expect("a cube");
+        let s = qymcad_kernel::specimen::extrude(&[0.0, 0.0, 10.0, 0.0, 10.0, 10.0, 0.0, 10.0], 10.0).expect("a cube");
         qymcad_kernel::write_step(&[(&s, qymcad_core::feature::PLACE_IDENTITY)], &p).expect("written");
         let (mut app, ctx) = running();
         let before = app.project.bodies.len();

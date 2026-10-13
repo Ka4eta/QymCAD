@@ -69,9 +69,11 @@ fn named_as_they_came_in(project: &Project, raised: Vec<(Id, crate::Shape)>) -> 
     let mut names = project.clone();
     {
         let _gate = crate::kernel_gate();
-        for b in bodies {
-            names.name_restored_body(b, &kernel);
-            unminted(project, b, &kernel);
+        for body in bodies {
+            let Some(feature) = names.timeline.iter().find(|n| matches!(n.kind, qymcad_core::feature::FeatureKind::Import { body: b, .. } if b == body)).map(|n| n.id) else { continue };
+            let scale = names.import_scale(body).filter(|f| *f > 0.0).unwrap_or(1.0);
+            crate::naming::silent(&kernel, qymcad_core::feature::SilentNaming { body, feature, listed: None, scale, names: &mut names.names });
+            unminted(project, body, &kernel);
         }
     }
     kernel.shapes.into_inner().into_iter().collect()
@@ -88,12 +90,12 @@ fn unminted(project: &Project, body: Id, kernel: &crate::OcctKernel) {
     let edges: Vec<u32> = s.edges_with_ids().1;
     let free = faces.iter().chain(edges.iter()).filter(|d| !qymcad_core::names::NameTable::is_named(**d)).max().copied().unwrap_or(0);
     let mut next = free + 1;
-    let mut back = |ids: &[u32]| -> Vec<(u32, u32)> {
+    let mut back = |ids: &[u32]| -> Vec<qymcad_core::feature::Rename> {
         ids.iter()
             .filter(|d| qymcad_core::names::NameTable::is_named(**d) && !project.names.knows(**d))
             .map(|d| {
                 next += 1;
-                (*d, next - 1)
+                qymcad_core::feature::Rename { was: *d, now: next - 1 }
             })
             .collect()
     };

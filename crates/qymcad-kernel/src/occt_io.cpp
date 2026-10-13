@@ -1042,7 +1042,7 @@ static void name_blend_faces(BRepBuilderAPI_MakeShape& mk, const QymShape* s, Qy
             for (TopTools_ListIteratorOfListOfShape it(mk.Generated(ex.Current())); it.More(); it.Next()) {
                 if (it.Value().IsNull() || it.Value().ShapeType() != TopAbs_FACE) continue;
                 if (q->fsplit_of.IsBound(it.Value())) { ++piece; continue; }
-                if (q->fids.IsBound(it.Value()) && (q->fids.Find(it.Value()) & QYM_NAMED)) { ++piece; continue; }
+                if (q->fids.IsBound(it.Value()) && qym_recipe(q->fids.Find(it.Value()))) { ++piece; continue; }
                 if (piece == 0) {
                     q->fids.Bind(it.Value(), (int)nm);
                 } else {
@@ -1089,7 +1089,7 @@ static void names_by_place(TopAbs_ShapeEnum ty, const TopoDS_Shape& old, const T
         }
         if (best == 0) continue;
         if (!res.IsBound(news(best))) res.Bind(news(best), id);
-        else if (absorbed && (id & QYM_NAMED) && (res.Find(news(best)) & QYM_NAMED) && id != res.Find(news(best)))
+        else if (absorbed && qym_recipe(id) && qym_recipe(res.Find(news(best))) && id != res.Find(news(best)))
             absorbed->emplace_back((unsigned)id, (unsigned)res.Find(news(best)));
     }
     out = res;
@@ -1358,20 +1358,14 @@ static bool move_seams_off(QymShape* q, const uint32_t* idx, size_t n) {
     ShapeUpgrade_ShapeDivideClosed div(q->shape);
     div.SetNbSplitPoints(1);
     if (!div.Perform()) return false;
-    const Handle(ShapeBuild_ReShape) ctx = div.GetContext();
+    QymRepairHistory divided(div.GetContext(), QymRepairAsk::Value);
     QymShape cut{div.Result(), {}, {}, {}, {}};
-    auto carry = [&](const TopTools_DataMapOfShapeInteger& from, TopTools_DataMapOfShapeInteger& to) {
-        for (TopTools_DataMapIteratorOfDataMapOfShapeInteger it(from); it.More(); it.Next()) {
-            TopoDS_Shape now = ctx->Value(it.Key());
-            if (now.IsNull()) continue;
-            // a face cut in pieces keeps its name on the first; the others are named afresh
-            TopExp_Explorer first(now, it.Key().ShapeType());
-            const TopoDS_Shape& one = first.More() ? first.Current() : now;
-            if (!to.IsBound(one)) to.Bind(one, it.Value());
-        }
-    };
-    carry(q->fids, cut.fids);
-    carry(q->eids, cut.eids);
+    // a face cut in pieces keeps its name on the first; the others are named afresh
+    {
+        int nf = next_local(q->fids), ne = next_local(q->eids);
+        carry_ids(divided, q->shape, TopAbs_FACE, q->fids, cut.fids, nf);
+        carry_ids(divided, q->shape, TopAbs_EDGE, q->eids, cut.eids, ne);
+    }
     // EVERY PIECE of such a face laid on the same round surface turned half a turn: glued back, the pieces make the one
     // face again, its seam now opposite, and nothing goes straight on from the end of the edge any more. All of them, not
     // only the two either side of the seam: a piece left on the old surface keeps a line between it and the turned ones,
@@ -1380,7 +1374,7 @@ static bool move_seams_off(QymShape* q, const uint32_t* idx, size_t n) {
     for (const auto& [face, seam] : to_turn) {
         const Turn t = turned_surface(face, seam);
         if (t.surface.IsNull()) continue;
-        for (TopExp_Explorer px(ctx->Value(face), TopAbs_FACE); px.More(); px.Next()) {
+        for (TopExp_Explorer px(divided.Image(face), TopAbs_FACE); px.More(); px.Next()) {
             const TopoDS_Face piece = TopoDS::Face(px.Current());
             // each piece on its own copy of the surface, its lines moved by the shift and by whole periods so that the
             // piece lies in one run of the parameters: two pieces sharing one surface would share one line between them,
@@ -1496,7 +1490,7 @@ static bool move_seams_off(QymShape* q, const uint32_t* idx, size_t n) {
     // a cone and a plane is refused on it (the top of a cut cone: taken with its own circle, refused with the new one)
     TopTools_MapOfShape keep;
     for (TopExp_Explorer vx(q->shape, TopAbs_VERTEX); vx.More(); vx.Next()) {
-        const TopoDS_Shape a = ctx->Value(vx.Current());
+        const TopoDS_Shape a = divided.Image(vx.Current());
         if (a.IsNull() || a.ShapeType() != TopAbs_VERTEX) continue;
         try { const TopoDS_Shape b = mod.ModifiedShape(a); if (!b.IsNull()) keep.Add(b); } catch (...) {}
     }
@@ -1507,23 +1501,13 @@ static bool move_seams_off(QymShape* q, const uint32_t* idx, size_t n) {
     {
         ShapeFix_Shape heal(glued);
         heal.Perform();
-        const Handle(ShapeBuild_ReShape) hc = heal.Context();
-        auto healed = [&](TopTools_DataMapOfShapeInteger& ids) {
-            TopTools_DataMapOfShapeInteger out;
-            for (TopTools_DataMapIteratorOfDataMapOfShapeInteger it(ids); it.More(); it.Next()) {
-                TopoDS_Shape now = hc.IsNull() ? it.Key() : hc->Value(it.Key());
-                if (now.IsNull()) continue;
-                if (now.ShapeType() != it.Key().ShapeType()) {
-                    TopExp_Explorer first(now, it.Key().ShapeType());
-                    if (!first.More()) continue;
-                    now = first.Current();
-                }
-                if (!out.IsBound(now)) out.Bind(now, it.Value());
-            }
-            ids = out;
-        };
-        healed(cut.fids);
-        healed(cut.eids);
+        QymRepairHistory healed(heal.Context(), QymRepairAsk::Value);
+        TopTools_DataMapOfShapeInteger fids, eids;
+        int nf = next_local(cut.fids), ne = next_local(cut.eids);
+        carry_ids(healed, glued, TopAbs_FACE, cut.fids, fids, nf);
+        carry_ids(healed, glued, TopAbs_EDGE, cut.eids, eids, ne);
+        cut.fids = fids;
+        cut.eids = eids;
         glued = heal.Shape();
     }
     q->shape = glued;
@@ -2242,23 +2226,13 @@ extern "C" QymShape* qym_shape_trim(const QymShape* s, const QymShape* tool, con
         // a red node, because one never finds out about it.
         if (kept == 0 || dropped == 0) return why("trim/keep", kept == 0 ? "the side asked to be kept holds nothing" : "the tool cut nothing away"), nullptr;
 
-        QymShape* q = new QymShape{shell, {}, {}, {}, {}};
-        int nf = next_local(s->fids), ne = next_local(s->eids);
-        carry_ids(algo, s->shape, TopAbs_FACE, s->fids, q->fids, nf, false, &q->fsplit_of, &q->fsplit_idx);
-        carry_ids(algo, s->shape, TopAbs_EDGE, s->eids, q->eids, ne);
-        fill_unnamed(shell, TopAbs_FACE, q->fids, nf);
-        fill_unnamed(shell, TopAbs_EDGE, q->eids, ne);
-        // THE FACE BESIDE EACH FREE EDGE of the piece kept: a piece of an edge of the sheet keeps the face its whole
-        // stood beside; an edge of the cut lies on the tool, and the face of the tool it lies on is beside it. Measured:
-        // a face copy trimmed across held 2 of its 4 edges on positional numbers without it.
+        QymBuilderHistory history(algo);
+        QymShape* q = qym_result(history, shell, {{{s, QymCarry::Everything, "trim/sheet"}}, nullptr, false});
+        // AN EDGE OF THE CUT lies on the tool, and the face of the tool it lies on is beside it: the pieces of the edges
+        // of the sheet the door carried. Measured: a face copy trimmed across held 2 of its 4 edges on positional
+        // numbers without it.
         TopTools_IndexedMapOfShape kept_edges;
         TopExp::MapShapes(shell, TopAbs_EDGE, kept_edges);
-        for (TopTools_DataMapIteratorOfDataMapOfShapeInteger it(s->ebeside); it.More(); it.Next()) {
-            const TopTools_ListOfShape& pieces = algo.Modified(it.Key());
-            if (pieces.IsEmpty() && kept_edges.Contains(it.Key())) q->ebeside.Bind(it.Key(), it.Value());
-            for (TopTools_ListIteratorOfListOfShape pc(pieces); pc.More(); pc.Next())
-                if (kept_edges.Contains(pc.Value())) q->ebeside.Bind(pc.Value(), it.Value());
-        }
         for (int i = 1; i <= kept_edges.Extent(); ++i) {
             const TopoDS_Shape& e = kept_edges(i);
             if (q->ebeside.IsBound(e)) continue;

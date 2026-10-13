@@ -1457,21 +1457,14 @@ extern "C" QymShape* qym_shape_heal(const QymShape* s) {
         BRepCheck_Analyzer an(res, Standard_True);
         if (!an.IsValid()) return nullptr;
         QymShape* q = new QymShape{res, {}, {}, {}, {}};
-        Handle(ShapeBuild_ReShape) ctx = fx.Context();
-        auto carry = [&](TopAbs_ShapeEnum ty, const TopTools_DataMapOfShapeInteger& src, TopTools_DataMapOfShapeInteger& dst) {
-            for (TopExp_Explorer ex(s->shape, ty); ex.More(); ex.Next()) {
-                if (!src.IsBound(ex.Current())) continue;
-                TopoDS_Shape img = ctx.IsNull() ? ex.Current() : ctx->Apply(ex.Current());
-                if (img.IsNull()) continue;
-                for (TopExp_Explorer e2(img, ty); e2.More(); e2.Next()) {
-                    if (!dst.IsBound(e2.Current())) dst.Bind(e2.Current(), src.Find(ex.Current()));
-                }
-            }
-            int next = next_local(dst);
-            fill_unnamed(res, ty, dst, next);
-        };
-        carry(TopAbs_FACE, s->fids, q->fids);
-        carry(TopAbs_EDGE, s->eids, q->eids);
+        // a face the repair cut in pieces keeps its name on the first and records the rest as its pieces: all of them
+        // under the one name made two faces a reference could not tell apart
+        QymRepairHistory history(fx.Context(), QymRepairAsk::Apply);
+        int nf = next_local(s->fids), ne = next_local(s->eids);
+        carry_ids(history, s->shape, TopAbs_FACE, s->fids, q->fids, nf, &q->fsplit_of, &q->fsplit_idx);
+        carry_ids(history, s->shape, TopAbs_EDGE, s->eids, q->eids, ne);
+        fill_unnamed(res, TopAbs_FACE, q->fids, nf);
+        fill_unnamed(res, TopAbs_EDGE, q->eids, ne);
         return q;
     } catch (...) { return nullptr; }
 }

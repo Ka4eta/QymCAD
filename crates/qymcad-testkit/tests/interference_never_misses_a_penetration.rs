@@ -44,7 +44,7 @@ fn bolt(d: f64, pitch: f64, len: f64, lead: f64, fit: f64) -> Shape {
 
 /// A slab of space: a disc wide enough to swallow anything under test, `t` thick, its bottom at `z`.
 fn slab(t: f64, z: f64) -> Shape {
-    Shape::cylinder(50.0, t).expect("the slab").transformed(&[1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, z]).expect("the slab moved into place")
+    qymcad_kernel::specimen::cylinder(50.0, t).expect("the slab").transformed(&[1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, z]).expect("the slab moved into place")
 }
 
 /// THE SAME SLAB OF THE SAME BOLT WEIGHS THE SAME AT EVERY HEIGHT.
@@ -89,8 +89,8 @@ fn the_bolt_of_the_complaint_weighs_the_same_at_every_height() {
 #[test]
 fn a_rod_driven_through_a_block_is_caught_at_every_depth() {
     let (r, len, thick) = (4.0, 30.0, 6.0);
-    let rod = Shape::cylinder(r, len).expect("the rod");
-    let block = Shape::cylinder(20.0, thick).expect("the block");
+    let rod = qymcad_kernel::specimen::cylinder(r, len).expect("the rod");
+    let block = qymcad_kernel::specimen::cylinder(20.0, thick).expect("the block");
     for i in 0..20 {
         let z = 1.0 + 1.5 * i as f64; // from well inside the rod to hanging off its far end
         let at = block.transformed(&[1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, z]).expect("the block moved");

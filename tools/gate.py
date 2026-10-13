@@ -70,6 +70,10 @@ HEAVY = [
 
 # THE STEPS BOTH LEVELS SHARE, and the acceptance run each makes.
 BUILDS = ("the code builds with no warning", ["cargo", "check", "--workspace", "--all-targets"], {})
+# THE APPLICATION BUILDS AS IT SHIPS: with no target of a probe the dev-dependencies are not built, so the specimens of
+# the bridge (`qymcad_kernel::specimen`, asked for by dev-dependencies alone) are not there, and code of the window that
+# builds a body past the door does not compile. A build with every target has them, for the probes.
+SHIPPED = ("the application builds as it ships", ["cargo", "check", "--workspace", "--lib", "--bins"], {})
 ORACLES = ("the oracles and the runner", ["cargo", "test", "-p", "qymcad-acceptance", "--lib"], {})
 ACCEPTANCE = ["cargo", "test", "-p", "qymcad-acceptance", "--test", "acceptance", "--no-fail-fast", "--"]
 # the place of the number of threads in a run of the acceptance set, filled once the machine is looked at
@@ -87,13 +91,22 @@ SKETCH_TIME = (
     {"QYMCAD_TIER": "time"},
 )
 
+# THE PROBES OF TIME OF A THREAD, in the bridge: they hold their budgets at this level only, one at a time.
+THREAD_TIME = (
+    "the probes of time of a thread, one at a time",
+    ["cargo", "test", "-p", "qymcad-kernel", "--lib", "thread_perf", "--", "--test-threads=1"],
+    {"QYMCAD_TIER": "time"},
+)
+
 RELEASE_MARK = os.path.join(ROOT, "target", "gate-release.json")
 
 LEVELS = {
     "release": [
         BUILDS,
+        SHIPPED,
         ("every crate's own checks", ["cargo", "test", "--workspace", "--exclude", "qymcad-acceptance", "--no-fail-fast"], {}),
         SKETCH_TIME,
+        THREAD_TIME,
         # EVERY LANGUAGE WHOLE: a string missing in a language falls back to English, so the checks of every change pass
         # with English alone and a contributor is asked for no language they do not know; before a release each
         # language must hold every key of the reference
@@ -107,6 +120,7 @@ LEVELS = {
     ],
     "full": [
         BUILDS,
+        SHIPPED,
         # every crate but the acceptance set: the rules of the code, the words, the help, the kernel and the heavy
         # geometry, the testkit's matrices
         ("every crate's own checks", ["cargo", "test", "--workspace", "--exclude", "qymcad-acceptance", "--no-fail-fast"], {}),
@@ -116,12 +130,14 @@ LEVELS = {
     "time": [
         ("the probes of time, one at a time", ACCEPTANCE + ["--test-threads=1", TIME], {"QYMCAD_TIER": "fast"}),
         SKETCH_TIME,
+        THREAD_TIME,
     ],
     "fast": [
         # THE LAYOUT IS RUSTFMT'S: the tree was formatted once, and a hand layout coming back would be the next
         # thousand-line diff nobody can review
         ("the layout is rustfmt's", ["cargo", "fmt", "--all", "--check"], {}),
         BUILDS,
+        SHIPPED,
         # CLIPPY HAS NOTHING TO SAY: every remark is an error in the manifest, and the tree was brought to none. A crate
         # that fails is not kept as built, so a run from the cache sees again whatever was not mended.
         ("clippy has nothing to say", ["cargo", "clippy", "--workspace", "--all-targets"], {}),

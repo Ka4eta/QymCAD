@@ -1031,7 +1031,7 @@ mod command_flow_tests {
         let _ = std::fs::remove_file(&proj_path);
 
         // a real embedded source: a block, then STEP, then the bytes into the project plus an import node on them
-        let cube = qymcad_kernel::Shape::extrude(&[0.0, 0.0, 10.0, 0.0, 10.0, 10.0, 0.0, 10.0], 10.0).expect("the block");
+        let cube = qymcad_kernel::specimen::extrude(&[0.0, 0.0, 10.0, 0.0, 10.0, 10.0, 0.0, 10.0], 10.0).expect("the block");
         qymcad_kernel::write_step(&[(&cube, qymcad_core::feature::PLACE_IDENTITY)], step.to_string_lossy().as_ref()).expect("the step was written");
         let bytes = std::fs::read(&step).expect("the step's bytes");
         let mut app = App::default();

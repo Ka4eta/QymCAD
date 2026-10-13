@@ -172,7 +172,7 @@ const ROWS: [Row; 12] = [
             let dir = std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/names-survive-an-edit"));
             std::fs::create_dir_all(&dir).expect("a folder for the check");
             let step = dir.join(format!("block-{}.step", unique()));
-            let block = qymcad_kernel::Shape::extrude(&[200.0, 0.0, 220.0, 0.0, 220.0, 10.0, 200.0, 10.0], 4.0).expect("a block");
+            let block = qymcad_kernel::specimen::extrude(&[200.0, 0.0, 220.0, 0.0, 220.0, 10.0, 200.0, 10.0], 4.0).expect("a block");
             qymcad_kernel::write_step(&[(&block, qymcad_core::feature::PLACE_IDENTITY)], &step.to_string_lossy()).expect("written");
             let source = p.add_source("block.step", std::fs::read(&step).expect("reads"));
             let qymcad_core::geom::Built { mesh, .. } = qymcad_kernel::import_step(&step.to_string_lossy(), 0.5).expect("imports").remove(0);

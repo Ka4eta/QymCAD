@@ -1177,8 +1177,7 @@ pub fn split_plane_local(pc: &mut qymcad_ui_state::PartCtx, src: Id) -> Option<(
 pub fn split_piece_count(pc: &mut qymcad_ui_state::PartCtx, src: Id) -> Option<usize> {
     let (o, n) = split_plane_local(pc, src)?;
     qymcad_ui_state::ensure_brep(&mut pc.rebuild()); // there is nothing to cut with while there is no live B-rep
-    let sh = pc.live.shapes.get(&src)?;
-    sh.split_by_plane(o, n, 0).map(|v| v.len())
+    qymcad_kernel::ask::split_pieces(pc.live.shapes.get(&src)?, qymcad_core::feature::PlaneAt { origin: o, normal: n })
 }
 
 /// Apply the thickening: one selected face plus a thickness.
@@ -1216,7 +1215,7 @@ pub fn apply_split_face_cmd(pc: &mut qymcad_ui_state::PartCtx) -> Option<Id> {
     // nothing, and a node in the timeline that is certain to go red is of no use to anyone.
     let (o, n) = split_plane_local(pc, src)?;
     qymcad_ui_state::ensure_brep(&mut pc.rebuild());
-    if pc.live.shapes.get(&src).and_then(|sh| sh.split_faces(o, n)).is_none() {
+    if !pc.live.shapes.get(&src).is_some_and(|sh| qymcad_kernel::ask::splits_faces(sh, qymcad_core::feature::PlaneAt { origin: o, normal: n })) {
         *pc.status = qymcad_i18n::tr("msg-plane-splits-nothing");
         return None;
     }
@@ -1731,8 +1730,7 @@ pub fn apply_surface_replace_cmd(pc: &mut qymcad_ui_state::PartCtx) -> Option<Id
     // THE SHEET MUST CLOSE WHAT IS TAKEN AWAY, and that is asked of the live bodies before Enter lays a node: a sheet
     // over the top taken for the top and a side left the side open - the node came in red, "4 edges left unpaired".
     if let (Some(b), Some(sheet)) = (pc.live.shapes.get(&src), pc.live.shapes.get(&surface)) {
-        let _gate = qymcad_kernel::kernel_gate(); // the kernel is not safe to run beside a rebuild
-        if let Err(free) = b.replace_faces(&picks, sheet, 1e-4) {
+        if let Err(free) = qymcad_kernel::ask::sheet_closes(b, &picks, sheet) {
             *pc.status = qymcad_i18n::error_words::error_text(&qymcad_core::errors::CoreError::SurfaceDoesNotClose { free });
             return None;
         }
@@ -2517,7 +2515,7 @@ pub fn take_boolean_pick(pc: &mut qymcad_ui_state::PartCtx, hit: Option<Id>) {
             // pieces of a split only touch), is refused in words and the document is not touched, rather than laying a
             // node that goes red. Without both shapes (a mesh, a body not built yet) the rebuild judges it as before.
             if let (0 | 2, Some(sa), Some(sb)) = (op, pc.live.shapes.get(&a), pc.live.shapes.get(&b)) {
-                if let Err(why) = sa.boolean_checked(sb, op) {
+                if let Err(why) = qymcad_kernel::ask::boolean_gives_body(sa, sb, op) {
                     *pc.status = qymcad_i18n::tr(match why {
                         qymcad_kernel::BoolVerdict::NothingInCommon => "vp-bool-nothing-in-common",
                         qymcad_kernel::BoolVerdict::CutRemovedNothing => "vp-bool-cut-removes-nothing",
