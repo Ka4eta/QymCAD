@@ -1661,6 +1661,15 @@ impl Project {
     /// Move: one branch of the timeline rebuild. Returns whether the node's error record may
     /// be cleared (see `apply_regen`).
     fn prep_move(&mut self, src: Id, mat: [f64; 12], body: Id) -> crate::feature::KernelJob {
+        // A BODY MADE OF A MESH MOVES IN THE DOCUMENT: it has no B-rep for the kernel to move - its mesh and the faces found
+        // on it are moved as they are, and nothing is found on it again
+        if self.mesh_born(src) {
+            let Some(mi) = self.mesh_index(src) else { return crate::feature::KernelJob::refused(crate::errors::CoreError::SourceBodyNotBuilt) };
+            let mut mesh = self.bodies[mi].mesh.clone();
+            mesh.transform(&mat);
+            let faces: Vec<crate::geom::MeshFace> = self.bodies[mi].faces.iter().map(|f| f.transformed(&mat)).collect();
+            return crate::feature::KernelJob::new(Vec::new(), move |_| Ok(crate::geom::Built { mesh, faces }));
+        }
         crate::feature::KernelJob::new(vec![src], move |k| k.transform_body(body, src, mat))
     }
 

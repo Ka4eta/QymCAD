@@ -1429,7 +1429,9 @@ impl Project {
     pub fn add_move(&mut self, src: Id, mat: [f64; 12]) -> Id {
         use crate::feature::{FeatureKind, FeatureNode};
         let body = self.alloc_id();
-        let parent = Some(self.body_parent());
+        // the move of a body stands in the part the body stands in: laid in the assembly in hand, it read a body of
+        // another component and was refused
+        let parent = Some(self.body_owner(src).unwrap_or_else(|| self.body_parent()));
         self.push_timeline(FeatureNode { id: body, name: "feat-name-move".into(), kind: FeatureKind::Move { src, mat, body }, parent, dirty: true, suppressed: false });
         body
     }

@@ -23,6 +23,7 @@ serde = { version = "1", features = ["derive"] }
 bytemuck = { version = "1", features = ["derive"] }
 qymcad-core = { path = "../qymcad-core" }
 qymcad-kernel = { path = "../qymcad-kernel" }
+qymcad-meshfit = { path = "../qymcad-meshfit" }
 qymcad-shell = { path = "../qymcad-shell" }
 qymcad-scheme = { path = "../qymcad-scheme" }
 qymcad-i18n = { path = "../qymcad-i18n" }

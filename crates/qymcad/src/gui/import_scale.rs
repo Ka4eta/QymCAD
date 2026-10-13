@@ -8,7 +8,7 @@
 //! imported.
 
 use super::ph;
-use qymcad_core::geom::{Built, Mesh, MeshFace, Point3};
+use qymcad_core::geom::{Built, Mesh};
 use qymcad_core::model::Id;
 use qymcad_io::FileUnit;
 use qymcad_ui_state::{ImportScale, MeshFormat, WinCtx};
@@ -27,7 +27,6 @@ pub(crate) fn land_mesh(wc: &mut WinCtx, path: String, format: MeshFormat, piece
     *wc.dxf_path = Some(path.clone()); // the next file chooser opens where this file was
     let said = super::io_jobs::mesh_added(format, &pieces);
     let span = span_of(pieces.iter().map(|p| &p.mesh));
-    let read: Vec<Built> = pieces.iter().map(|p| Built { mesh: p.mesh.clone(), faces: p.faces.clone() }).collect();
     let first = wc.project.bodies.len();
     qymcad_ui_state::begin_edit(wc.edits, wc.project, crate::i18n::tr1("io-import-mesh", "format", super::mesh_entry(format).name())); // an EDIT of the document: bodies are added to the current one
     let source = super::embed_source(wc.project, &path).unwrap_or(0);
@@ -75,7 +74,7 @@ pub(crate) fn land_mesh(wc: &mut WinCtx, path: String, format: MeshFormat, piece
     wc.view.initialized = false;
     wc.cam.init = false;
     *wc.status = said;
-    let meshes = (first..wc.project.bodies.len()).filter_map(|i| wc.project.mesh_id(i)).zip(read).map(|(id, Built { mesh: m, faces: f })| (id, m, f)).collect();
+    let meshes = (first..wc.project.bodies.len()).filter_map(|i| wc.project.mesh_id(i)).collect();
     let unitless = matches!(format, MeshFormat::Stl | MeshFormat::Obj | MeshFormat::Ply);
     let ask =
         ImportScale { file: super::file_name(&path), format: super::mesh_entry(format).name().to_string(), unitless, factor: 1.0, applied: 1.0, span, meshes, solids: Vec::new(), places, again: None };
@@ -224,19 +223,16 @@ fn ask_or_keep(wc: &mut WinCtx, mut ask: ImportScale) {
     wc.win.import_scale = Some(ask);
 }
 
-/// Put every body that came in at `ask.factor` from the file's own numbers: a mesh from its copy as read, a solid
-/// from its shape as read, with the factor kept by its import node.
+/// Put every body that came in at `ask.factor` from the file's own numbers: a mesh scaled by the document from the factor
+/// it stands at, a solid from its shape as read, with the factor kept by its import node.
 fn apply(wc: &mut WinCtx, ask: &mut ImportScale) {
     let f = ask.factor;
-    for (id, mesh, faces) in &ask.meshes {
-        wc.project.set_import_scale(*id, f); // the mesh piece keeps the factor its mesh stands at
-        let Some(i) = wc.project.bodies.iter().position(|b| b.id == *id) else { continue };
-        let mut m = mesh.clone();
-        m.scale(0.0, 0.0, 0.0, f);
-        let fs = scaled_faces(faces, f);
-        wc.project.bodies[i].mesh = m;
-        wc.live.faces.insert(*id, fs.clone());
-        wc.project.set_body_faces(*id, fs);
+    for id in &ask.meshes {
+        // the document scales the piece, its mesh and faces together, from the factor it stood at
+        wc.project.set_import_scale(*id, f);
+        if let Some(i) = wc.project.mesh_index(*id) {
+            wc.live.faces.insert(*id, wc.project.bodies[i].faces.clone());
+        }
     }
     for (id, shape) in &ask.solids {
         if let Some(s) = qymcad_kernel::imports::scaled(shape, f) {
@@ -263,11 +259,6 @@ fn apply(wc: &mut WinCtx, ask: &mut ImportScale) {
     ask.applied = f;
 }
 
-/// Faces at factor `f` about the origin: a centroid moves with it, an area grows as its square.
-fn scaled_faces(faces: &[MeshFace], f: f64) -> Vec<MeshFace> {
-    faces.iter().map(|x| MeshFace { centroid: Point3::new(x.centroid.x * f, x.centroid.y * f, x.centroid.z * f), area: x.area * f * f, ..x.clone() }).collect()
-}
-
 /// ASKED AGAIN FROM ITS NODE: the units and scale of an import already in the document, opened by a double click on
 /// its node as any feature is edited. Everything that came in from the same file is asked about together, at the
 /// factor it stands at now, and what was read is what stands now divided by that factor. Enter keeps the new factor
@@ -288,10 +279,7 @@ pub(crate) fn rescale(wc: &mut WinCtx, nid: Id) {
     let (mut meshes, mut solids) = (Vec::new(), Vec::new());
     for &(b, piece) in &nodes {
         if piece {
-            let Some(i) = wc.project.mesh_index(b) else { continue };
-            let mut m = wc.project.bodies[i].mesh.clone();
-            m.scale(0.0, 0.0, 0.0, back);
-            meshes.push((b, m, scaled_faces(&wc.project.bodies[i].faces, back)));
+            meshes.push(b);
         } else {
             // a solid's factor is taken from its live shape; one still being read back from its file after opening
             // has none yet

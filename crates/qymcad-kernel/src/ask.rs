@@ -63,13 +63,26 @@ pub struct Clash {
     pub b: qymcad_core::model::Id,
 }
 
+/// WHETHER A QUESTION WAITS FOR THE KERNEL.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Wait {
+    /// Only when nobody holds it: a window rebuilding its document asks again on a later frame instead of freezing for
+    /// the rebuild.
+    IfFree,
+    /// Until it is free: nothing of the asker's own holds it, and whoever does is quick.
+    Always,
+}
+
 /// THE PAIRS OF BODIES OF DIFFERENT PARTS THAT GO INTO EACH OTHER by more than 1e-3 mm^3. Bodies of one part overlap as
 /// they are made, and are not asked about. A pair the kernel cannot measure is told too: "could not measure" is not
 /// "clear of each other", and taking it for the second is how a part ends up inside another with nothing said. Each
-/// body is placed on a copy, and the common part is asked under the lock of the kernel - `None` while a rebuild holds
-/// it: the window asks again on a later frame instead of waiting the rebuild out.
-pub fn clashes(bodies: &[PlacedBody<'_>]) -> Option<Vec<Clash>> {
-    let _gate = crate::kernel::try_kernel_gate()?;
+/// body is placed on a copy, and the common part is asked under the lock of the kernel; with `Wait::IfFree` there is no
+/// answer (`None`) while someone holds it.
+pub fn clashes(bodies: &[PlacedBody<'_>], wait: Wait) -> Option<Vec<Clash>> {
+    let _gate = match wait {
+        Wait::IfFree => crate::kernel::try_kernel_gate()?,
+        Wait::Always => crate::kernel::kernel_gate(),
+    };
     let placed: Vec<(&PlacedBody<'_>, Shape)> = bodies.iter().filter_map(|b| b.shape.transformed(&b.place).map(|s| (b, s))).collect();
     let mut out = Vec::new();
     for i in 0..placed.len() {
@@ -105,9 +118,9 @@ mod tests {
         let bodies = [PlacedBody { body: 1, part: 10, shape: &a, place: PLACE_IDENTITY }, PlacedBody { body: 2, part: 20, shape: &b, place: PLACE_IDENTITY }];
         {
             let _rebuild = crate::kernel::kernel_gate();
-            assert_eq!(clashes(&bodies), None, "a clash was asked while a rebuild held the kernel");
+            assert_eq!(clashes(&bodies, Wait::IfFree), None, "a clash was asked while a rebuild held the kernel");
         }
-        assert_eq!(clashes(&bodies), Some(vec![Clash { a: 1, b: 2 }]), "two overlapping blocks of two parts do not clash");
+        assert_eq!(clashes(&bodies, Wait::IfFree), Some(vec![Clash { a: 1, b: 2 }]), "two overlapping blocks of two parts do not clash");
     }
 
     /// THE ANSWERS ARE THOSE OF THE OPERATIONS, and the body asked about is left as it was, byte for byte.

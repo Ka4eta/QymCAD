@@ -3,17 +3,23 @@
 //! `QYM_SIGNALS`: the handlers of `OSD` set and a point for the signal to jump to. A `try` without it lets the fault end
 //! the program, as a rounding of R9.9999998 on the arc of an R10 rounding did.
 
-/// Every C++ file of the bridge, as text.
+/// Every C++ file under the `src` of every crate, as text: C++ that calls OCCT outside the bridge would be named too.
 fn sources() -> Vec<(String, String)> {
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let crates = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).parent().expect("the crates directory");
+    let mut stack: Vec<std::path::PathBuf> = std::fs::read_dir(crates).expect("the crates read").flatten().map(|e| e.path().join("src")).filter(|p| p.is_dir()).collect();
     let mut out: Vec<(String, String)> = Vec::new();
-    for e in std::fs::read_dir(&dir).expect("the sources read").flatten() {
-        let p = e.path();
-        if p.extension().is_some_and(|x| x == "cpp") {
-            out.push((p.file_name().unwrap_or_default().to_string_lossy().into_owned(), std::fs::read_to_string(&p).unwrap_or_default()));
+    while let Some(dir) = stack.pop() {
+        for e in std::fs::read_dir(&dir).expect("the sources read").flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                stack.push(p);
+            } else if p.extension().is_some_and(|x| x == "cpp") {
+                let name = p.strip_prefix(crates).unwrap_or(&p).to_string_lossy().replace('\\', "/");
+                out.push((name, std::fs::read_to_string(&p).unwrap_or_default()));
+            }
         }
     }
-    assert!(out.iter().any(|(n, _)| n == "occt_bridge.cpp"), "the bridge itself was not found");
+    assert!(out.iter().any(|(n, _)| n.ends_with("occt_bridge.cpp")), "the bridge itself was not found");
     out
 }
 

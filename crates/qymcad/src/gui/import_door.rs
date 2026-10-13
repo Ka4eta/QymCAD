@@ -906,6 +906,38 @@ pub(crate) mod tests {
         assert!(app.win.import_scale.is_some(), "a double click on the import's node does not ask about its scale again; status: {}", app.status);
     }
 
+    /// A RAW MESH MOVES AS A SOLID DOES: by a node of the timeline, the move made by the rebuild in the document - its
+    /// mesh and the faces found on it carried along, nothing found on it again. The move is the one the handle of a body
+    /// makes when it is let go. Reported behaviour it replaces: the interface shifted the mesh in place and found its
+    /// faces anew, with no step in the timeline.
+    #[test]
+    fn a_raw_mesh_moves_by_a_node_of_the_timeline() {
+        let (mut app, ctx) = running();
+        let body = stl_cube(&mut app, &ctx, "moved.stl");
+        let mi = app.project.mesh_index(body).expect("the cube's mesh");
+        let before: Vec<(f64, [f64; 3])> = app.project.bodies[mi].faces.iter().map(|f| (f.area, [f.centroid.x, f.centroid.y, f.centroid.z])).collect();
+        assert_eq!(before.len(), 6, "setup: the cube came in with {} faces", before.len());
+        qymcad_part::apply_body_move(&mut app.part_ctx(), mi, [1.0, 0.0, 0.0, 50.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0]);
+        let _ = frame(&mut app, &ctx, Vec::new()); // the frame after the handle is let go starts the rebuild
+        settle(&mut app, &ctx);
+        let moved = app.project.timeline.iter().find_map(|n| match n.kind {
+            qymcad_core::feature::FeatureKind::Move { src, body: b, .. } if src == body => Some(b),
+            _ => None,
+        });
+        let moved = moved.unwrap_or_else(|| panic!("no node of the timeline moved the mesh; status: {}", app.status));
+        let i = app.project.mesh_index(moved).unwrap_or_else(|| panic!("the moved mesh is no body of the document; errors {:?}, status: {}", app.project.regen_errors, app.status));
+        let b = app.project.bodies[i].mesh.bounds().expect("the moved mesh has a box");
+        assert!((b.min.x - 50.0).abs() < 1e-6 && (b.max.x - 60.0).abs() < 1e-6, "the moved cube stands from x {} to {}, not 50 to 60", b.min.x, b.max.x);
+        let after: Vec<(f64, [f64; 3])> = app.project.bodies[i].faces.iter().map(|f| (f.area, [f.centroid.x, f.centroid.y, f.centroid.z])).collect();
+        assert_eq!(after.len(), before.len(), "the moved cube has {} faces, it had {}", after.len(), before.len());
+        for ((a0, c0), (a1, c1)) in before.iter().zip(&after) {
+            assert!(
+                (a0 - a1).abs() < 1e-9 && (c0[0] + 50.0 - c1[0]).abs() < 1e-9 && (c0[1] - c1[1]).abs() < 1e-9 && (c0[2] - c1[2]).abs() < 1e-9,
+                "a face of {a0} at {c0:?} came to {a1} at {c1:?}, not 50 along x"
+            );
+        }
+    }
+
     /// The side of `body` along x, as it stands in its part.
     fn side_of(app: &App, body: qymcad_core::model::Id) -> f64 {
         app.project.mesh_index(body).and_then(|i| app.project.bodies[i].mesh.bounds()).map(|b| b.max.x - b.min.x).unwrap_or(0.0)

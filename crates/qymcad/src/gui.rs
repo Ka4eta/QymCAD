@@ -2892,7 +2892,7 @@ pub(super) fn open_mesh(regen: &mut Rebuilding, path: String, format: qymcad_ui_
         let res = match read {
             Ok(meshes) => {
                 let pieces = meshes.into_iter().map(|n| {
-                    let faces = n.mesh.detect_faces(8.0);
+                    let faces = qymcad_meshfit::raw_faces(&n.mesh);
                     qymcad_ui_state::MeshPiece { name: n.name, mesh: n.mesh, faces, color: n.color, place: n.place, tri_colors: n.tri_colors, within: n.within }
                 });
                 JobResult::MeshImported { path: p, format, pieces: pieces.collect() }
@@ -3873,8 +3873,10 @@ pub(crate) fn refresh_interference(bv: qymcad_ui_state::BodyView, drag: qymcad_u
             Some(qymcad_kernel::ask::PlacedBody { body, part, shape, place: bv.project.body_display_transform(body, ctx) })
         })
         .collect();
-    // a rebuild holding the kernel: the pairs as they were, asked again on a later frame
-    let Some(clashes) = qymcad_kernel::ask::clashes(&placed) else { return };
+    // while this window rebuilds, the pairs as they were, asked again on a later frame; otherwise the kernel is waited for,
+    // whoever holds it being quick
+    let wait = if bv.regen.busy.is_some() { qymcad_kernel::ask::Wait::IfFree } else { qymcad_kernel::ask::Wait::Always };
+    let Some(clashes) = qymcad_kernel::ask::clashes(&placed, wait) else { return };
     interference.pairs = clashes.into_iter().map(|c| (c.a, c.b)).collect();
     interference.rev = bv.regen.geom_rev;
 }

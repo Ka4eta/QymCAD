@@ -3316,8 +3316,7 @@ pub fn apply_feat_cmd(pc: &mut qymcad_ui_state::PartCtx) {
 }
 
 /// Apply the world transform `accum` to the body of mesh `mi`: if the body is already a Move feature,
-/// accumulate into its matrix (no chain of Move nodes); otherwise create a new Move for a B-rep, or
-/// shift a raw mesh directly.
+/// accumulate into its matrix (no chain of Move nodes); otherwise create a new Move, for a B-rep and a raw mesh alike.
 pub fn apply_body_move(pc: &mut qymcad_ui_state::PartCtx, mi: usize, accum: [f64; 12]) {
     qymcad_ui_state::begin_edit(&mut *pc.edits, &*pc.project, qymcad_i18n::tr("status-move-body")); // THE BOUNDARY OF AN OPERATION
     use qymcad_core::feature::FeatureKind;
@@ -3328,7 +3327,7 @@ pub fn apply_body_move(pc: &mut qymcad_ui_state::PartCtx, mi: usize, accum: [f64
         qymcad_ui_state::mark_dirty_for_rebuild(&mut pc.rebuild()); // the document is marked; the planner does the counting
         qymcad_ui_state::select_body(&mut *pc.project, &mut *pc.sel, &mut *pc.view, body);
     } else {
-        qymcad_ui_state::move_body_at(&mut pc.rebuild(), mi, accum); // a B-rep gets a new Move feature (and selection); a raw mesh is shifted directly
+        qymcad_ui_state::move_body_at(&mut pc.rebuild(), mi, accum); // a new Move feature (and selection), a raw mesh's moved by the document
     }
     qymcad_ui_state::after_placement_change(&mut pc.rebuild()); // the source moved -> rebuild whoever consumes it
     qymcad_ui_state::commit_edit(&mut pc.rebuild());

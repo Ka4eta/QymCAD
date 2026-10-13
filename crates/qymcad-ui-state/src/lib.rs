@@ -2598,8 +2598,8 @@ pub struct ImportScale {
     pub applied: f64,
     /// The sides of the box of everything that came in, as the file has it.
     pub span: [f64; 3],
-    /// Every mesh that came in: its body, and the mesh and faces as read.
-    pub meshes: Vec<(Id, qymcad_core::geom::Mesh, Vec<qymcad_core::geom::MeshFace>)>,
+    /// The body of every mesh that came in: the document scales a piece itself, from the factor it stands at.
+    pub meshes: Vec<Id>,
     /// Every solid that came in: its body, and the shape as read.
     pub solids: Vec<(Id, qymcad_kernel::Shape)>,
     /// Every component that came in with the file's tree: its id, and where the file places it.
@@ -12978,14 +12978,13 @@ pub fn materialize_ref(project: &mut Project, si: usize, r: SketchRef) -> Id {
 
 pub fn move_body_at(rc: &mut RebuildCtx, mi: usize, mat: [f64; 12]) {
     begin_edit(rc.edits, rc.project, qymcad_i18n::tr("status-move-body")); // THE OPERATION BOUNDARY
-    if let Some(id) = brep_at(rc.live, rc.project, mi) {
+                                                                           // a body of a solid or of a raw mesh alike: a node of the timeline, the move made by the rebuild - of a mesh in the
+                                                                           // document, its faces carried with it
+    let movable = brep_at(rc.live, rc.project, mi).or_else(|| rc.project.mesh_id(mi).filter(|b| rc.project.mesh_born(*b)));
+    if let Some(id) = movable {
         let nb = rc.project.add_move(id, mat);
         mark_dirty_for_rebuild(rc); // the document is marked; the scheduler does the computing
         select_body(rc.project, rc.sel, rc.view, nb);
-    } else {
-        rc.project.bodies[mi].mesh.transform(&mat);
-        rc.project.bodies[mi].faces = rc.project.bodies[mi].mesh.detect_faces(8.0);
-        invalidate(rc.regen);
     }
     commit_edit(rc);
 }
@@ -15454,7 +15453,7 @@ pub fn detect_missing_faces(live: &mut LiveGeom, project: &mut Project) {
         let has_brep = project.mesh_id(i).is_some_and(|id| live.shapes.contains_key(&id));
         let empty = project.bodies.get(i).is_none_or(|b| b.faces.is_empty());
         if !has_brep && empty {
-            let f = project.bodies[i].mesh.detect_faces(8.0);
+            let f = qymcad_meshfit::raw_faces(&project.bodies[i].mesh);
             project.bodies[i].faces = f.clone();
             if let Some(body) = project.mesh_id(i) {
                 live.faces.insert(body, f); // mesh detection goes into the cache by body Id as well

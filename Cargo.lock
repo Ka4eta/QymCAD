@@ -3892,6 +3892,7 @@ dependencies = [
  "qymcad-core",
  "qymcad-i18n",
  "qymcad-kernel",
+ "qymcad-meshfit",
  "qymcad-scheme",
  "qymcad-shell",
  "ron",
