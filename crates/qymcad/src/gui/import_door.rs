@@ -906,6 +906,36 @@ pub(crate) mod tests {
         assert!(app.win.import_scale.is_some(), "a double click on the import's node does not ask about its scale again; status: {}", app.status);
     }
 
+    /// CTRL+Z WHILE AN IMPORT ASKS ABOUT ITS SCALE TAKES THAT IMPORT BACK, as Cancel does: the window goes, the mesh
+    /// asked about goes - moved by the handle while it was asked or not - and the steps before it stay as they were.
+    /// Reported behaviour: the window stayed, the mesh went, and the person was taken to the part last edited, its last
+    /// step undone.
+    #[test]
+    fn ctrl_z_while_an_import_asks_takes_that_import_back() {
+        let (mut app, ctx) = running();
+        let first = stl_cube(&mut app, &ctx, "kept-first.stl");
+        let steps = app.disk.edits.undo.len();
+        let path = app.active_path.clone();
+        let dir = std::path::PathBuf::from(format!("{}/../../target/import-door", env!("CARGO_MANIFEST_DIR")));
+        let p = dir.join("asked-second.stl");
+        std::fs::write(&p, cube_stl(10.0)).expect("written");
+        answer(&mut app, &ctx, Want::Anything, &p.to_string_lossy());
+        settle(&mut app, &ctx);
+        let _ = frame(&mut app, &ctx, Vec::new());
+        assert!(app.win.import_scale.is_some(), "setup: the second STL asks about its scale");
+        let second = app.project.bodies.iter().map(|b| b.id).find(|b| *b != first).expect("setup: the second cube is laid in while it asks");
+        let mi = app.project.mesh_index(second).expect("setup: the second cube's mesh");
+        qymcad_part::apply_body_move(&mut app.part_ctx(), mi, [1.0, 0.0, 0.0, 30.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0]);
+        let _ = frame(&mut app, &ctx, Vec::new());
+        undo_by_hand(&mut app, &ctx);
+        let _ = frame(&mut app, &ctx, Vec::new());
+        assert!(app.win.import_scale.is_none(), "Ctrl+Z left the window of the scale open");
+        assert!(app.project.mesh_index(second).is_none(), "the second cube is still in the document");
+        assert!(app.project.mesh_index(first).is_some(), "Ctrl+Z took away the first cube, a step before the import");
+        assert_eq!(app.disk.edits.undo.len(), steps, "Ctrl+Z took a step of the history before the import");
+        assert_eq!(app.active_path, path, "Ctrl+Z took the person elsewhere");
+    }
+
     /// A RAW MESH MOVES AS A SOLID DOES: by a node of the timeline, the move made by the rebuild in the document - its
     /// mesh and the faces found on it carried along, nothing found on it again. The move is the one the handle of a body
     /// makes when it is let go. Reported behaviour it replaces: the interface shifted the mesh in place and found its

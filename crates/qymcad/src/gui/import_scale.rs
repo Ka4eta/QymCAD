@@ -220,6 +220,7 @@ fn ask_or_keep(wc: &mut WinCtx, mut ask: ImportScale) {
             apply(wc, &mut ask);
         }
     }
+    wc.edits.open_kind = qymcad_ui_state::OpenEdit::Asking; // Ctrl+Z now takes the import back, as Cancel does
     wc.win.import_scale = Some(ask);
 }
 
@@ -311,13 +312,15 @@ pub(crate) fn rescale(wc: &mut WinCtx, nid: Id) {
     let format = qymcad_io::Format::of_path(&file).map(|f| f.name()).unwrap_or_default().to_string();
     qymcad_ui_state::begin_edit(wc.edits, wc.project, crate::i18n::tr("import-scale-title"));
     wc.win.import_scale = Some(ImportScale { file, format, unitless: matches!(ext.as_str(), "stl" | "obj" | "ply"), factor: was, applied: was, span, meshes, solids, places, again: Some(was) });
+    wc.edits.open_kind = qymcad_ui_state::OpenEdit::Asking;
 }
 
 /// The window: what the file is drawn in, by what factor to take it, and how big it lands.
 pub(crate) fn import_scale_window(wc: &mut WinCtx, ctx: &egui::Context) {
     let Some(mut ask) = wc.win.import_scale.take() else { return };
     let mut keep = ctx.input(|i| i.key_pressed(egui::Key::Enter));
-    let mut cancel = ctx.input(|i| i.key_pressed(egui::Key::Escape));
+    // Esc, or Ctrl+Z asked while the window waited (`step_through_history`)
+    let mut cancel = ctx.input(|i| i.key_pressed(egui::Key::Escape)) || wc.edits.open_kind == qymcad_ui_state::OpenEdit::AskingDropped;
     egui::Window::new(format!("{} {}", ph::RULER, crate::i18n::tr("import-scale-title"))).id(egui::Id::new("win_import_scale"))
         .collapsible(false)
         .resizable(false)

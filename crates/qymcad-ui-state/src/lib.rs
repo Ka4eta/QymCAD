@@ -446,6 +446,19 @@ pub struct TrimTool {
     pub tool: Option<Id>,
 }
 
+/// WHAT THE OPEN EDIT IS. Work in hand - a sketch, a command, a drag - takes Ctrl+Z as a step of the history under it. A
+/// question to the person - an import waiting for its scale - is one step not yet taken: Ctrl+Z takes it back as its
+/// Cancel does, and the history under it is not touched.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum OpenEdit {
+    #[default]
+    Working,
+    /// The open edit waits for an answer.
+    Asking,
+    /// Ctrl+Z came while it waited: its window cancels it on its next frame.
+    AskingDropped,
+}
+
 /// UNDO, REDO AND WHAT IS SAVED: the history of the document and how far it has been written to disk.
 pub struct Edits {
     /// Undo and redo: snapshots of the editor's state.
@@ -457,6 +470,8 @@ pub struct Edits {
     pub open: Option<(String, Snapshot)>,
     /// the nesting depth of the edits: an inner `commit_edit` must not close the OUTER edit
     pub depth: usize,
+    /// What the open edit is: work in hand or a question waiting for its answer.
+    pub open_kind: OpenEdit,
     pub committed_key: u64,
     /// The places that change the document past `App::edit` - they are gathered during real work and converted one
     /// at a time. A field rather than a global flag: the debt belongs to the session, not to the process.
@@ -485,6 +500,7 @@ impl Edits {
         self.redo.clear();
         self.open = None;
         self.depth = 0;
+        self.open_kind = OpenEdit::Working;
         self.ready = false;
     }
 }
@@ -497,6 +513,7 @@ impl Default for Edits {
             baseline: Snapshot { project: Project::default() },
             open: None,
             depth: 0,
+            open_kind: OpenEdit::Working,
             committed_key: 0,
             #[cfg(debug_assertions)]
             debt: std::collections::HashSet::new(),
@@ -10727,6 +10744,7 @@ pub fn abort_edit(rc: &mut RebuildCtx) {
         return;
     }
     let Some((_, before)) = rc.edits.open.take() else { return };
+    rc.edits.open_kind = OpenEdit::Working;
     rc.regen.pending = false; // the operation was rolled back: there is nothing to rebuild
     let _ = restore(rc, before); // an aborted operation leaves the window where it is
     rc.edits.committed_key = doc_key(rc.project);
@@ -10741,6 +10759,7 @@ pub fn commit_edit_if_changed(rc: &mut RebuildCtx) {
     if unchanged {
         rc.edits.depth = 0;
         rc.edits.open = None;
+        rc.edits.open_kind = OpenEdit::Working;
     } else {
         commit_edit(rc);
     }
@@ -10831,6 +10850,7 @@ pub fn commit_edit(rc: &mut RebuildCtx) {
         return; // a nested operation: the outer one will sum it up
     }
     let Some((name, before)) = rc.edits.open.take() else { return };
+    rc.edits.open_kind = OpenEdit::Working;
     rc.edits.undo.push(Step { name, snap: before });
     rc.regen.pending = false;
     rebuild_if_dirty(rc); // ONE point: the scheduler decides for itself whether to compute
@@ -11066,6 +11086,15 @@ pub fn regenerate_all(rc: &mut RebuildCtx) {
 /// found by the check: with a mate tool holding its picks, Ctrl+Z took "Extrusion" off the list and the extrusion
 /// stayed in the document.
 pub fn step_through_history(rc: &mut RebuildCtx, redo: bool) -> Option<Vec<Id>> {
+    // A QUESTION WAITING FOR ITS ANSWER IS ONE STEP NOT YET TAKEN: Ctrl+Z takes it back - its window cancels it on the
+    // next frame, as its Cancel does - and nothing under it. Reported behaviour: with an STL asking about its scale, Ctrl+Z
+    // undid the step before the import, took the person to the part of that step, and left the window open.
+    if rc.edits.open.is_some() && rc.edits.open_kind != OpenEdit::Working {
+        if !redo {
+            rc.edits.open_kind = OpenEdit::AskingDropped;
+        }
+        return None;
+    }
     let step = if redo { rc.edits.redo.pop() } else { rc.edits.undo.pop() }?;
     // an operation still open - a command, a sketch session - now starts from the state brought back: put down, it
     // returns there. Letting it go instead broke the sketch session that owned it, and rebuilding everything after an
