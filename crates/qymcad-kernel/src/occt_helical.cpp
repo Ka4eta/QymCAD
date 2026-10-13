@@ -762,8 +762,8 @@ extern "C" size_t qym_shape_absorbed(const QymShape* s, unsigned* out, size_t ma
 }
 
 extern "C" int qym_shape_bbox(const QymShape* s, double* out) {
-    if (!s || s->shape.IsNull() || !out) return 0;
     try {
+        if (!s || s->shape.IsNull() || !out) return 0;
         Bnd_Box b;
         BRepBndLib::Add(s->shape, b);
         if (b.IsVoid()) return 0;
@@ -1292,8 +1292,8 @@ extern "C" QymShape* qym_shape_offset_faces(const QymShape* s, const uint32_t* i
 }
 
 extern "C" int qym_shape_kind(const QymShape* s) {
-    if (!s || s->shape.IsNull()) return 0;
     try {
+        if (!s || s->shape.IsNull()) return 0;
         for (TopExp_Explorer ex(s->shape, TopAbs_SOLID); ex.More(); ex.Next()) return 1;
         for (TopExp_Explorer ex(s->shape, TopAbs_FACE); ex.More(); ex.Next()) return 2;
         return 0;
@@ -1305,9 +1305,9 @@ extern "C" int qym_shape_kind(const QymShape* s) {
 // needed to tell a person the truth: a wall thicker than that radius eats it whole when offset, and the shell
 // does not build. 0 means there are no round faces and hence no limit.
 extern "C" double qym_shape_min_round_radius(const QymShape* s) {
-    if (!s || s->shape.IsNull()) return 0.0;
     double best = 0.0;
     try {
+        if (!s || s->shape.IsNull()) return 0.0;
         for (TopExp_Explorer ex(s->shape, TopAbs_FACE); ex.More(); ex.Next()) {
             Handle(Geom_Surface) su = BRep_Tool::Surface(TopoDS::Face(ex.Current()));
             if (su.IsNull()) continue;
@@ -1334,17 +1334,23 @@ extern "C" double qym_shape_min_round_radius(const QymShape* s) {
 // part is one solid", and that is what a person has to be told, not "broken solid": it is a different trouble
 // calling for different action.
 extern "C" int qym_shape_shell_count(const QymShape* s) {
-    if (!s || s->shape.IsNull()) return 0;
-    int n = 0;
-    for (TopExp_Explorer ex(s->shape, TopAbs_SHELL); ex.More(); ex.Next()) ++n;
-    return n;
+    try {
+        if (!s || s->shape.IsNull()) return 0;
+        int n = 0;
+        for (TopExp_Explorer ex(s->shape, TopAbs_SHELL); ex.More(); ex.Next()) ++n;
+        return n;
+    } QYM_WHY_CATCH("shape_shell_count")
+    return 0;
 }
 
 extern "C" int qym_shape_solid_count(const QymShape* s) {
-    if (!s || s->shape.IsNull()) return 0;
-    int n = 0;
-    for (TopExp_Explorer ex(s->shape, TopAbs_SOLID); ex.More(); ex.Next()) ++n;
-    return n;
+    try {
+        if (!s || s->shape.IsNull()) return 0;
+        int n = 0;
+        for (TopExp_Explorer ex(s->shape, TopAbs_SOLID); ex.More(); ex.Next()) ++n;
+        return n;
+    } QYM_WHY_CATCH("shape_solid_count")
+    return 0;
 }
 
 // THE FACES OF THE SHAPE BY THE KIND OF SURFACE THEY LIE ON, into `out[7]`: plane, cylinder, cone, sphere, torus,
@@ -1352,9 +1358,9 @@ extern "C" int qym_shape_solid_count(const QymShape* s) {
 // planes is one more cylinder, a cut one is one more plane: this is what tells a rounding that was made from one
 // that was dropped while the node stayed green.
 extern "C" int qym_shape_face_kinds(const QymShape* s, int* out) {
-    if (!s || s->shape.IsNull() || !out) return 0;
-    for (int i = 0; i < 7; ++i) out[i] = 0;
     try {
+        if (!s || s->shape.IsNull() || !out) return 0;
+        for (int i = 0; i < 7; ++i) out[i] = 0;
         for (TopExp_Explorer ex(s->shape, TopAbs_FACE); ex.More(); ex.Next()) {
             BRepAdaptor_Surface surf(TopoDS::Face(ex.Current()), Standard_False);
             switch (surf.GetType()) {
@@ -1378,8 +1384,8 @@ extern "C" int qym_shape_face_kinds(const QymShape* s, int* out) {
 // straightens such defects out; the names of faces and edges are carried across through the repair's context
 // (old shape -> its image), or the part would lose all its references at once.
 extern "C" QymShape* qym_shape_heal(const QymShape* s) {
-    if (!s || s->shape.IsNull()) return nullptr;
     try {
+        if (!s || s->shape.IsNull()) return nullptr;
         ShapeFix_Shape fx(s->shape);
         fx.Perform();
         TopoDS_Shape res = fx.Shape();
@@ -1416,8 +1422,8 @@ static std::string check_word(BRepCheck_Status st) {
 }
 
 extern "C" int qym_shape_is_valid(const QymShape* s) {
-    if (!s || s->shape.IsNull()) return 0;
     try {
+        if (!s || s->shape.IsNull()) return 0;
         BRepCheck_Analyzer an(s->shape, Standard_True);
         if (an.IsValid()) return 1;
         if (getenv("QYM_WHY_INVALID")) {
@@ -1536,8 +1542,8 @@ extern "C" QymDoc* qym_shape_tessellate(const QymShape* s, double defl) {
 // `volumes[i]`, at most `max` of them. Returns how many there are (possibly more than `max`), 0 on failure. The order
 // is the one `qym_shape_solid_at` counts in.
 extern "C" int qym_shape_solids_info(const QymShape* s, double* centres, double* volumes, int max) {
-    if (!s || s->shape.IsNull()) return 0;
     try {
+        if (!s || s->shape.IsNull()) return 0;
         int n = 0;
         for (TopExp_Explorer ex(s->shape, TopAbs_SOLID); ex.More(); ex.Next(), ++n) {
             if (n >= max) continue;
@@ -1559,8 +1565,8 @@ extern "C" int qym_shape_solids_info(const QymShape* s, double* centres, double*
 // rebuilt, so every face and edge keeps its name: a fillet on a piece that became a body of its own still finds its
 // edges.
 extern "C" QymShape* qym_shape_solid_at(const QymShape* s, int index) {
-    if (!s || s->shape.IsNull() || index < 0) return nullptr;
     try {
+        if (!s || s->shape.IsNull() || index < 0) return nullptr;
         int n = 0;
         for (TopExp_Explorer ex(s->shape, TopAbs_SOLID); ex.More(); ex.Next(), ++n) {
             if (n != index) continue;

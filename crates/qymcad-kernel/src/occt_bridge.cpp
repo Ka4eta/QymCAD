@@ -1598,58 +1598,62 @@ bool step_tree(const char* path, QymTree& tree, std::vector<TopoDS_Shape>& solid
 extern "C" int qym_step_write_tree(size_t n, const int64_t* parents, const char* const* names, const double* places, const QymShape* const* shapes, const int64_t* same_as, const float* rgb, const int* has_rgb, const size_t* face_starts, const uint32_t* face_ids, const float* face_rgb, const char* path) {
     if (n == 0 || !parents || !names || !places || !shapes || !same_as || !rgb || !has_rgb || !face_starts || !path) return 4;
     std::lock_guard<std::mutex> one_at_a_time(xstep_lock());
-    Handle(XCAFApp_Application) app = XCAFApp_Application::GetApplication();
-    Handle(TDocStd_Document) doc;
     try {
-        Interface_Static::SetCVal("write.step.unit", "MM");
-        app->NewDocument("MDTV-XCAF", doc);
-        Handle(XCAFDoc_ShapeTool) st = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
-        Handle(XCAFDoc_ColorTool) ct = XCAFDoc_DocumentTool::ColorTool(doc->Main());
-        std::vector<TDF_Label> product(n);
-        for (size_t i = 0; i < n; ++i) {
-            if (same_as[i] >= 0 && (size_t)same_as[i] < i) {
-                product[i] = product[same_as[i]];
-                continue;
-            }
-            if (shapes[i] && !shapes[i]->shape.IsNull()) {
-                product[i] = st->AddShape(shapes[i]->shape, Standard_False);
-                if (has_rgb[i]) ct->SetColor(product[i], Quantity_Color(rgb[3 * i], rgb[3 * i + 1], rgb[3 * i + 2], Quantity_TOC_sRGB), XCAFDoc_ColorSurf);
-                // FACES OF A COLOUR OF THEIR OWN: found by their persistent id in the live body, coloured as its sub-shapes
-                if (face_starts[i + 1] > face_starts[i]) {
-                    std::map<int, TopoDS_Shape> by_id;
-                    for (TopTools_DataMapIteratorOfDataMapOfShapeInteger it(shapes[i]->fids); it.More(); it.Next()) by_id[it.Value()] = it.Key();
-                    for (size_t k = face_starts[i]; k < face_starts[i + 1]; ++k) {
-                        const auto f = by_id.find((int)face_ids[k]);
-                        if (f == by_id.end()) continue;
-                        const TDF_Label sub = st->AddSubShape(product[i], f->second);
-                        if (!sub.IsNull()) ct->SetColor(sub, Quantity_Color(face_rgb[3 * k], face_rgb[3 * k + 1], face_rgb[3 * k + 2], Quantity_TOC_sRGB), XCAFDoc_ColorSurf);
-                    }
+        Handle(XCAFApp_Application) app = XCAFApp_Application::GetApplication();
+        Handle(TDocStd_Document) doc;
+        try {
+            Interface_Static::SetCVal("write.step.unit", "MM");
+            app->NewDocument("MDTV-XCAF", doc);
+            Handle(XCAFDoc_ShapeTool) st = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
+            Handle(XCAFDoc_ColorTool) ct = XCAFDoc_DocumentTool::ColorTool(doc->Main());
+            std::vector<TDF_Label> product(n);
+            for (size_t i = 0; i < n; ++i) {
+                if (same_as[i] >= 0 && (size_t)same_as[i] < i) {
+                    product[i] = product[same_as[i]];
+                    continue;
                 }
-            } else {
-                product[i] = st->NewShape();
+                if (shapes[i] && !shapes[i]->shape.IsNull()) {
+                    product[i] = st->AddShape(shapes[i]->shape, Standard_False);
+                    if (has_rgb[i]) ct->SetColor(product[i], Quantity_Color(rgb[3 * i], rgb[3 * i + 1], rgb[3 * i + 2], Quantity_TOC_sRGB), XCAFDoc_ColorSurf);
+                    // FACES OF A COLOUR OF THEIR OWN: found by their persistent id in the live body, coloured as its sub-shapes
+                    if (face_starts[i + 1] > face_starts[i]) {
+                        std::map<int, TopoDS_Shape> by_id;
+                        for (TopTools_DataMapIteratorOfDataMapOfShapeInteger it(shapes[i]->fids); it.More(); it.Next()) by_id[it.Value()] = it.Key();
+                        for (size_t k = face_starts[i]; k < face_starts[i + 1]; ++k) {
+                            const auto f = by_id.find((int)face_ids[k]);
+                            if (f == by_id.end()) continue;
+                            const TDF_Label sub = st->AddSubShape(product[i], f->second);
+                            if (!sub.IsNull()) ct->SetColor(sub, Quantity_Color(face_rgb[3 * k], face_rgb[3 * k + 1], face_rgb[3 * k + 2], Quantity_TOC_sRGB), XCAFDoc_ColorSurf);
+                        }
+                    }
+                } else {
+                    product[i] = st->NewShape();
+                }
+                TDataStd_Name::Set(product[i], TCollection_ExtendedString(names[i], Standard_True));
             }
-            TDataStd_Name::Set(product[i], TCollection_ExtendedString(names[i], Standard_True));
+            for (size_t i = 0; i < n; ++i) {
+                if (parents[i] < 0 || (size_t)parents[i] >= i) continue;
+                const double* m = places + 12 * i;
+                gp_Trsf t;
+                t.SetValues(m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8], m[9], m[10], m[11]);
+                const TDF_Label occurrence = st->AddComponent(product[parents[i]], product[i], TopLoc_Location(t));
+                TDataStd_Name::Set(occurrence, TCollection_ExtendedString(names[i], Standard_True));
+            }
+            st->UpdateAssemblies();
+            STEPCAFControl_Writer writer;
+            writer.SetNameMode(Standard_True);
+            writer.SetColorMode(Standard_True);
+            int rc = 2;
+            if (writer.Transfer(doc, STEPControl_AsIs)) rc = writer.Write(path) == IFSelect_RetDone ? 0 : 1;
+            app->Close(doc);
+            return rc;
+        } catch (...) {
+            // the document is closed whatever the writer threw, then the throw goes on to be told
+            if (!doc.IsNull()) app->Close(doc);
+            throw;
         }
-        for (size_t i = 0; i < n; ++i) {
-            if (parents[i] < 0 || (size_t)parents[i] >= i) continue;
-            const double* m = places + 12 * i;
-            gp_Trsf t;
-            t.SetValues(m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8], m[9], m[10], m[11]);
-            const TDF_Label occurrence = st->AddComponent(product[parents[i]], product[i], TopLoc_Location(t));
-            TDataStd_Name::Set(occurrence, TCollection_ExtendedString(names[i], Standard_True));
-        }
-        st->UpdateAssemblies();
-        STEPCAFControl_Writer writer;
-        writer.SetNameMode(Standard_True);
-        writer.SetColorMode(Standard_True);
-        int rc = 2;
-        if (writer.Transfer(doc, STEPControl_AsIs)) rc = writer.Write(path) == IFSelect_RetDone ? 0 : 1;
-        app->Close(doc);
-        return rc;
-    } catch (...) {
-        if (!doc.IsNull()) app->Close(doc);
-        return 3;
-    }
+    } QYM_WHY_CATCH("step/write")
+    return 3;
 }
 
 // An exact file read into bodies and solids, and - for STEP - the tree they stand in (`tree_out` may be null).
@@ -2092,9 +2096,12 @@ TopoDS_Shape mesh_shells(const double* verts, size_t nv, const uint32_t* tris, s
 }
 
 extern "C" QymShape* qym_shape_from_mesh(const double* verts, size_t nv, const uint32_t* tris, size_t nt) {
-    if (!verts || !tris || nv < 3 || nt < 1) return nullptr;
-    TopoDS_Shape made = mesh_shells(verts, nv, tris, nt, true, true, nullptr);
-    return made.IsNull() ? shape_from_mesh_sewn(verts, nv, tris, nt) : seeded(made);
+    try {
+        if (!verts || !tris || nv < 3 || nt < 1) return nullptr;
+        TopoDS_Shape made = mesh_shells(verts, nv, tris, nt, true, true, nullptr);
+        return made.IsNull() ? shape_from_mesh_sewn(verts, nv, tris, nt) : seeded(made);
+    } QYM_WHY_CATCH("shape_from_mesh")
+    return nullptr;
 }
 
 extern "C" QymDoc* qym_occt_box_doc(double dx, double dy, double dz, double defl) {
@@ -3065,40 +3072,47 @@ extern "C" QymShape* qym_shape_bezier_shell(const double* pts, size_t patches, d
 // measurement caught this in a live scenario: the body came out with 26 faces instead of 56, and pushing a
 // face stopped building.
 extern "C" void qym_shape_clear_face_splits(QymShape* s) {
-    if (!s) return;
-    s->fsplit_of.Clear();
-    s->fsplit_idx.Clear();
+    try {
+        if (!s) return;
+        s->fsplit_of.Clear();
+        s->fsplit_idx.Clear();
+    } QYM_WHY_CATCH("shape_clear_face_splits")
 }
 
 extern "C" size_t qym_shape_face_splits(const QymShape* s, unsigned* out, size_t cap) {
-    if (!s) return 0;
-    size_t n = 0;
-    for (TopExp_Explorer ex(s->shape, TopAbs_FACE); ex.More(); ex.Next()) {
-        const TopoDS_Shape& f = ex.Current();
-        if (!s->fsplit_of.IsBound(f) || !s->fids.IsBound(f)) continue;
-        if (out && (n + 1) * 3 <= cap) {
-            out[n * 3 + 0] = (unsigned)s->fids.Find(f);
-            out[n * 3 + 1] = (unsigned)s->fsplit_of.Find(f);
-            out[n * 3 + 2] = (unsigned)(s->fsplit_idx.IsBound(f) ? s->fsplit_idx.Find(f) : 1);
+    try {
+        if (!s) return 0;
+        size_t n = 0;
+        for (TopExp_Explorer ex(s->shape, TopAbs_FACE); ex.More(); ex.Next()) {
+            const TopoDS_Shape& f = ex.Current();
+            if (!s->fsplit_of.IsBound(f) || !s->fids.IsBound(f)) continue;
+            if (out && (n + 1) * 3 <= cap) {
+                out[n * 3 + 0] = (unsigned)s->fids.Find(f);
+                out[n * 3 + 1] = (unsigned)s->fsplit_of.Find(f);
+                out[n * 3 + 2] = (unsigned)(s->fsplit_idx.IsBound(f) ? s->fsplit_idx.Find(f) : 1);
+            }
+            ++n;
         }
-        ++n;
-    }
-    return n;
+        return n;
+    } QYM_WHY_CATCH("shape_face_splits")
+    return 0;
 }
 
 // Rewrite face names, given pairs of "was -> became".
 extern "C" void qym_shape_rename_faces(QymShape* s, const unsigned* from, const unsigned* to, size_t n) {
-    if (!s || !from || !to || n == 0) return;
-    std::unordered_map<unsigned, unsigned> ren;
-    for (size_t i = 0; i < n; ++i) ren[from[i]] = to[i];
-    TopTools_DataMapOfShapeInteger out;
-    for (TopExp_Explorer ex(s->shape, TopAbs_FACE); ex.More(); ex.Next()) {
-        if (!s->fids.IsBound(ex.Current())) continue;
-        unsigned id = (unsigned)s->fids.Find(ex.Current());
-        auto f = ren.find(id);
-        out.Bind(ex.Current(), (int)(f == ren.end() ? id : f->second));
-    }
-    s->fids = out;
+    try {
+        if (!s || !from || !to || n == 0) return;
+        std::unordered_map<unsigned, unsigned> ren;
+        for (size_t i = 0; i < n; ++i) ren[from[i]] = to[i];
+        TopTools_DataMapOfShapeInteger out;
+        for (TopExp_Explorer ex(s->shape, TopAbs_FACE); ex.More(); ex.Next()) {
+            if (!s->fids.IsBound(ex.Current())) continue;
+            unsigned id = (unsigned)s->fids.Find(ex.Current());
+            auto f = ren.find(id);
+            out.Bind(ex.Current(), (int)(f == ren.end() ? id : f->second));
+        }
+        s->fids = out;
+    } QYM_WHY_CATCH("shape_rename_faces")
 }
 
 // AN EDGE'S NAME IS DERIVED FROM THE PAIR OF ITS FACES. The kernel only REPORTS the pairs: [the edge's id,
@@ -3117,78 +3131,86 @@ extern "C" void qym_shape_rename_faces(QymShape* s, const unsigned* from, const 
 // and none of it depends on numbering. The two SMALLEST such names are returned (0 when there are none), in
 // rows of [the edge's id, name 1, name 2].
 extern "C" size_t qym_shape_edge_end_faces(const QymShape* s, unsigned* out, size_t cap) {
-    if (!s) return 0;
-    TopTools_IndexedDataMapOfShapeListOfShape e2f, v2f, e2v;
-    TopExp::MapShapesAndAncestors(s->shape, TopAbs_EDGE, TopAbs_FACE, e2f);
-    TopExp::MapShapesAndAncestors(s->shape, TopAbs_VERTEX, TopAbs_FACE, v2f);
-    size_t n = 0;
-    for (int i = 1; i <= e2f.Extent(); ++i) {
-        const TopoDS_Shape& e = e2f.FindKey(i);
-        if (!s->eids.IsBound(e)) continue;
-        const TopTools_ListOfShape& own = e2f.FindFromIndex(i);
-        std::set<int> mine;
-        for (TopTools_ListIteratorOfListOfShape it(own); it.More(); it.Next())
-            if (s->fids.IsBound(it.Value())) mine.insert(s->fids.Find(it.Value()));
-        std::set<unsigned> around;
-        for (TopExp_Explorer vx(e, TopAbs_VERTEX); vx.More(); vx.Next()) {
-            const int vi = v2f.FindIndex(vx.Current());
-            if (vi < 1) continue;
-            for (TopTools_ListIteratorOfListOfShape it(v2f.FindFromIndex(vi)); it.More(); it.Next()) {
-                if (!s->fids.IsBound(it.Value())) continue;
-                const int id = s->fids.Find(it.Value());
-                if ((id & QYM_NAMED) == 0 || mine.count(id)) continue;   // positional ones do not count: they drift themselves
-                around.insert((unsigned)id);
+    try {
+        if (!s) return 0;
+        TopTools_IndexedDataMapOfShapeListOfShape e2f, v2f, e2v;
+        TopExp::MapShapesAndAncestors(s->shape, TopAbs_EDGE, TopAbs_FACE, e2f);
+        TopExp::MapShapesAndAncestors(s->shape, TopAbs_VERTEX, TopAbs_FACE, v2f);
+        size_t n = 0;
+        for (int i = 1; i <= e2f.Extent(); ++i) {
+            const TopoDS_Shape& e = e2f.FindKey(i);
+            if (!s->eids.IsBound(e)) continue;
+            const TopTools_ListOfShape& own = e2f.FindFromIndex(i);
+            std::set<int> mine;
+            for (TopTools_ListIteratorOfListOfShape it(own); it.More(); it.Next())
+                if (s->fids.IsBound(it.Value())) mine.insert(s->fids.Find(it.Value()));
+            std::set<unsigned> around;
+            for (TopExp_Explorer vx(e, TopAbs_VERTEX); vx.More(); vx.Next()) {
+                const int vi = v2f.FindIndex(vx.Current());
+                if (vi < 1) continue;
+                for (TopTools_ListIteratorOfListOfShape it(v2f.FindFromIndex(vi)); it.More(); it.Next()) {
+                    if (!s->fids.IsBound(it.Value())) continue;
+                    const int id = s->fids.Find(it.Value());
+                    if ((id & QYM_NAMED) == 0 || mine.count(id)) continue;   // positional ones do not count: they drift themselves
+                    around.insert((unsigned)id);
+                }
             }
+            if ((n + 1) * 3 <= cap && out) {
+                out[n * 3 + 0] = (unsigned)s->eids.Find(e);
+                auto it = around.begin();
+                out[n * 3 + 1] = it == around.end() ? 0u : *it++;
+                out[n * 3 + 2] = it == around.end() ? 0u : *it;
+            }
+            ++n;
         }
-        if ((n + 1) * 3 <= cap && out) {
-            out[n * 3 + 0] = (unsigned)s->eids.Find(e);
-            auto it = around.begin();
-            out[n * 3 + 1] = it == around.end() ? 0u : *it++;
-            out[n * 3 + 2] = it == around.end() ? 0u : *it;
-        }
-        ++n;
-    }
-    return n;
+        return n;
+    } QYM_WHY_CATCH("shape_edge_end_faces")
+    return 0;
 }
 
 extern "C" size_t qym_shape_edge_face_pairs(const QymShape* s, unsigned* out, size_t cap) {
-    if (!s) return 0;
-    TopTools_IndexedDataMapOfShapeListOfShape m;
-    TopExp::MapShapesAndAncestors(s->shape, TopAbs_EDGE, TopAbs_FACE, m);
-    size_t n = 0;
-    for (int i = 1; i <= m.Extent(); ++i) {
-        const TopoDS_Shape& e = m.FindKey(i);
-        const TopTools_ListOfShape& fs = m.FindFromIndex(i);
-        if (fs.Extent() != 2 || !s->eids.IsBound(e)) continue;
-        TopTools_ListIteratorOfListOfShape it(fs);
-        const TopoDS_Shape& f1 = it.Value();
-        it.Next();
-        const TopoDS_Shape& f2 = it.Value();
-        if (!s->fids.IsBound(f1) || !s->fids.IsBound(f2)) continue;
-        if (out && (n + 1) * 3 <= cap) {
-            out[n * 3 + 0] = (unsigned)s->eids.Find(e);
-            out[n * 3 + 1] = (unsigned)s->fids.Find(f1);
-            out[n * 3 + 2] = (unsigned)s->fids.Find(f2);
+    try {
+        if (!s) return 0;
+        TopTools_IndexedDataMapOfShapeListOfShape m;
+        TopExp::MapShapesAndAncestors(s->shape, TopAbs_EDGE, TopAbs_FACE, m);
+        size_t n = 0;
+        for (int i = 1; i <= m.Extent(); ++i) {
+            const TopoDS_Shape& e = m.FindKey(i);
+            const TopTools_ListOfShape& fs = m.FindFromIndex(i);
+            if (fs.Extent() != 2 || !s->eids.IsBound(e)) continue;
+            TopTools_ListIteratorOfListOfShape it(fs);
+            const TopoDS_Shape& f1 = it.Value();
+            it.Next();
+            const TopoDS_Shape& f2 = it.Value();
+            if (!s->fids.IsBound(f1) || !s->fids.IsBound(f2)) continue;
+            if (out && (n + 1) * 3 <= cap) {
+                out[n * 3 + 0] = (unsigned)s->eids.Find(e);
+                out[n * 3 + 1] = (unsigned)s->fids.Find(f1);
+                out[n * 3 + 2] = (unsigned)s->fids.Find(f2);
+            }
+            ++n;
         }
-        ++n;
-    }
-    return n;
+        return n;
+    } QYM_WHY_CATCH("shape_edge_face_pairs")
+    return 0;
 }
 
 // Rewrite edge names, given pairs of "was -> became". Called right after the body is assembled, before
 // anything refers to its edges.
 extern "C" void qym_shape_rename_edges(QymShape* s, const unsigned* from, const unsigned* to, size_t n) {
-    if (!s || !from || !to || n == 0) return;
-    std::unordered_map<unsigned, unsigned> ren;
-    for (size_t i = 0; i < n; ++i) ren[from[i]] = to[i];
-    TopTools_DataMapOfShapeInteger out;
-    for (TopExp_Explorer ex(s->shape, TopAbs_EDGE); ex.More(); ex.Next()) {
-        if (!s->eids.IsBound(ex.Current())) continue;
-        unsigned id = (unsigned)s->eids.Find(ex.Current());
-        auto f = ren.find(id);
-        out.Bind(ex.Current(), (int)(f == ren.end() ? id : f->second));
-    }
-    s->eids = out;
+    try {
+        if (!s || !from || !to || n == 0) return;
+        std::unordered_map<unsigned, unsigned> ren;
+        for (size_t i = 0; i < n; ++i) ren[from[i]] = to[i];
+        TopTools_DataMapOfShapeInteger out;
+        for (TopExp_Explorer ex(s->shape, TopAbs_EDGE); ex.More(); ex.Next()) {
+            if (!s->eids.IsBound(ex.Current())) continue;
+            unsigned id = (unsigned)s->eids.Find(ex.Current());
+            auto f = ren.find(id);
+            out.Bind(ex.Current(), (int)(f == ren.end() ? id : f->second));
+        }
+        s->eids = out;
+    } QYM_WHY_CATCH("shape_rename_edges")
 }
 
 // --- ONE UNION INSTEAD OF A CHAIN OF PAIRWISE ONES ---------------------------------------------

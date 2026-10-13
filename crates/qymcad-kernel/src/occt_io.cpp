@@ -19,87 +19,90 @@
 // Blob format: "QYMB" | ver:u32 | nf:u32 | ne:u32 | fids[nf] | fsplit_of[nf] | fsplit_idx[nf] |
 //              eids[ne] | the BRep body
 extern "C" unsigned char* qym_shape_to_brep(const QymShape* q, size_t* out_len) {
-    if (!q || q->shape.IsNull() || !out_len) return nullptr;
-    // BINARY BREP, AND NO TRIANGULATION. On a real document the text format came to 7.4 MB of raw solids, and
-    // the mesh is not needed in the blob at all — the meshes sit in the bundle separately and the model is
-    // drawn from those.
-    std::ostringstream os(std::ios::binary);
-    BinTools::Write(q->shape, os, Standard_False, Standard_False, BinTools_FormatVersion_CURRENT);
-    const std::string brep = os.str();
-    TopTools_IndexedMapOfShape fm, em;
-    TopExp::MapShapes(q->shape, TopAbs_FACE, fm);
-    TopExp::MapShapes(q->shape, TopAbs_EDGE, em);
-    const uint32_t nf = static_cast<uint32_t>(fm.Extent());
-    const uint32_t ne = static_cast<uint32_t>(em.Extent());
-    std::vector<uint32_t> head;
-    head.reserve(4 + 3 * nf + ne);
-    head.push_back(2u); // version 2: binary BRep without triangulation
-    head.push_back(nf);
-    head.push_back(ne);
-    auto put = [&](const TopTools_DataMapOfShapeInteger& m, const TopTools_IndexedMapOfShape& idx, uint32_t n) {
-        for (uint32_t i = 1; i <= n; ++i) {
-            const TopoDS_Shape& sh = idx(i);
-            head.push_back(m.IsBound(sh) ? static_cast<uint32_t>(m.Find(sh)) : 0u);
-        }
-    };
-    put(q->fids, fm, nf);
-    put(q->fsplit_of, fm, nf);
-    put(q->fsplit_idx, fm, nf);
-    put(q->eids, em, ne);
-    const size_t magic = 4;
-    const size_t total = magic + head.size() * 4 + brep.size();
-    unsigned char* out = static_cast<unsigned char*>(malloc(total));
-    if (!out) return nullptr;
-    memcpy(out, "QYMB", magic);
-    memcpy(out + magic, head.data(), head.size() * 4);
-    memcpy(out + magic + head.size() * 4, brep.data(), brep.size());
-    *out_len = total;
-    return out;
+    try {
+        if (!q || q->shape.IsNull() || !out_len) return nullptr;
+        // BINARY BREP, AND NO TRIANGULATION. On a real document the text format came to 7.4 MB of raw solids, and
+        // the mesh is not needed in the blob at all — the meshes sit in the bundle separately and the model is
+        // drawn from those.
+        std::ostringstream os(std::ios::binary);
+        BinTools::Write(q->shape, os, Standard_False, Standard_False, BinTools_FormatVersion_CURRENT);
+        const std::string brep = os.str();
+        TopTools_IndexedMapOfShape fm, em;
+        TopExp::MapShapes(q->shape, TopAbs_FACE, fm);
+        TopExp::MapShapes(q->shape, TopAbs_EDGE, em);
+        const uint32_t nf = static_cast<uint32_t>(fm.Extent());
+        const uint32_t ne = static_cast<uint32_t>(em.Extent());
+        std::vector<uint32_t> head;
+        head.reserve(4 + 3 * nf + ne);
+        head.push_back(2u); // version 2: binary BRep without triangulation
+        head.push_back(nf);
+        head.push_back(ne);
+        auto put = [&](const TopTools_DataMapOfShapeInteger& m, const TopTools_IndexedMapOfShape& idx, uint32_t n) {
+            for (uint32_t i = 1; i <= n; ++i) {
+                const TopoDS_Shape& sh = idx(i);
+                head.push_back(m.IsBound(sh) ? static_cast<uint32_t>(m.Find(sh)) : 0u);
+            }
+        };
+        put(q->fids, fm, nf);
+        put(q->fsplit_of, fm, nf);
+        put(q->fsplit_idx, fm, nf);
+        put(q->eids, em, ne);
+        const size_t magic = 4;
+        const size_t total = magic + head.size() * 4 + brep.size();
+        unsigned char* out = static_cast<unsigned char*>(malloc(total));
+        if (!out) return nullptr;
+        memcpy(out, "QYMB", magic);
+        memcpy(out + magic, head.data(), head.size() * 4);
+        memcpy(out + magic + head.size() * 4, brep.data(), brep.size());
+        *out_len = total;
+        return out;
+    } QYM_WHY_CATCH("shape_to_brep")
+    return nullptr;
 }
 
 extern "C" void qym_bytes_free(unsigned char* p) { free(p); }
 
 extern "C" QymShape* qym_shape_from_brep(const unsigned char* data, size_t len) {
-    const size_t magic = 4;
-    if (!data || len < magic + 12 || memcmp(data, "QYMB", magic) != 0) return nullptr;
-    uint32_t head3[3];
-    memcpy(head3, data + magic, 12);
-    if (head3[0] != 2u) return nullptr; // a foreign version; do not guess silently
-    const uint32_t nf = head3[1], ne = head3[2];
-    const size_t table = static_cast<size_t>(3) * nf + ne;
-    const size_t off = magic + 12 + table * 4;
-    if (len < off) return nullptr;
-    std::vector<uint32_t> ids(table);
-    if (table) memcpy(ids.data(), data + magic + 12, table * 4);
-    std::string brep(reinterpret_cast<const char*>(data + off), len - off);
-    std::istringstream is(brep, std::ios::binary);
-    TopoDS_Shape shape;
     try {
+        const size_t magic = 4;
+        if (!data || len < magic + 12 || memcmp(data, "QYMB", magic) != 0) return nullptr;
+        uint32_t head3[3];
+        memcpy(head3, data + magic, 12);
+        if (head3[0] != 2u) return nullptr; // a foreign version; do not guess silently
+        const uint32_t nf = head3[1], ne = head3[2];
+        const size_t table = static_cast<size_t>(3) * nf + ne;
+        const size_t off = magic + 12 + table * 4;
+        if (len < off) return nullptr;
+        std::vector<uint32_t> ids(table);
+        if (table) memcpy(ids.data(), data + magic + 12, table * 4);
+        std::string brep(reinterpret_cast<const char*>(data + off), len - off);
+        std::istringstream is(brep, std::ios::binary);
+        TopoDS_Shape shape;
         BinTools::Read(shape, is);
-    } catch (...) {
-        return nullptr;
-    }
-    if (shape.IsNull()) return nullptr;
-    QymShape* q = new QymShape();
-    q->shape = shape;
-    TopTools_IndexedMapOfShape fm, em;
-    TopExp::MapShapes(shape, TopAbs_FACE, fm);
-    TopExp::MapShapes(shape, TopAbs_EDGE, em);
-    // THE FACE COUNT HAS TO MATCH. If it does not, either the order or the shape itself is different, and
-    // names must not be handed out by index: they would silently land in the wrong places. Better to return the
-    // solid WITHOUT names, so that references honestly fail to resolve, than to have them resolve wrongly.
-    const bool ok = static_cast<uint32_t>(fm.Extent()) == nf && static_cast<uint32_t>(em.Extent()) == ne;
-    if (ok) {
-        for (uint32_t i = 1; i <= nf; ++i) {
-            if (ids[i - 1]) q->fids.Bind(fm(i), static_cast<int>(ids[i - 1]));
-            if (ids[nf + i - 1]) q->fsplit_of.Bind(fm(i), static_cast<int>(ids[nf + i - 1]));
-            if (ids[2 * nf + i - 1]) q->fsplit_idx.Bind(fm(i), static_cast<int>(ids[2 * nf + i - 1]));
+        if (shape.IsNull()) return nullptr;
+        // owned until it is handed out: a throw while the names are bound leaks nothing
+        auto q = std::make_unique<QymShape>();
+        q->shape = shape;
+        TopTools_IndexedMapOfShape fm, em;
+        TopExp::MapShapes(shape, TopAbs_FACE, fm);
+        TopExp::MapShapes(shape, TopAbs_EDGE, em);
+        // THE FACE COUNT HAS TO MATCH. If it does not, either the order or the shape itself is different, and
+        // names must not be handed out by index: they would silently land in the wrong places. Better to return the
+        // solid WITHOUT names, so that references honestly fail to resolve, than to have them resolve wrongly.
+        const bool ok = static_cast<uint32_t>(fm.Extent()) == nf && static_cast<uint32_t>(em.Extent()) == ne;
+        if (ok) {
+            for (uint32_t i = 1; i <= nf; ++i) {
+                if (ids[i - 1]) q->fids.Bind(fm(i), static_cast<int>(ids[i - 1]));
+                if (ids[nf + i - 1]) q->fsplit_of.Bind(fm(i), static_cast<int>(ids[nf + i - 1]));
+                if (ids[2 * nf + i - 1]) q->fsplit_idx.Bind(fm(i), static_cast<int>(ids[2 * nf + i - 1]));
+            }
+            for (uint32_t i = 1; i <= ne; ++i) {
+                if (ids[3 * nf + i - 1]) q->eids.Bind(em(i), static_cast<int>(ids[3 * nf + i - 1]));
+            }
         }
-        for (uint32_t i = 1; i <= ne; ++i) {
-            if (ids[3 * nf + i - 1]) q->eids.Bind(em(i), static_cast<int>(ids[3 * nf + i - 1]));
-        }
-    }
-    return q;
+        return q.release();
+    } QYM_WHY_CATCH("shape_from_brep")
+    return nullptr;
 }
 
 extern "C" void qym_shape_free(QymShape* s) { delete s; }
@@ -1116,8 +1119,8 @@ static bool crack_face(const TopoDS_Shape& f) {
 
 // How many faces of the body are cracks.
 extern "C" int qym_shape_sliver_count(const QymShape* s) {
-    if (!s || s->shape.IsNull()) return 0;
     try {
+        if (!s || s->shape.IsNull()) return 0;
         int n = 0;
         for (TopExp_Explorer fx(s->shape, TopAbs_FACE); fx.More(); fx.Next()) n += crack_face(fx.Current());
         return n;
@@ -1125,8 +1128,8 @@ extern "C" int qym_shape_sliver_count(const QymShape* s) {
 }
 
 extern "C" int qym_shape_drop_slivers(QymShape* s) {
-    if (!s || s->shape.IsNull()) return 0;
     try {
+        if (!s || s->shape.IsNull()) return 0;
         int cracks = 0, before = 0; // not `small`: a macro of the Windows headers
         for (TopExp_Explorer fx(s->shape, TopAbs_FACE); fx.More(); fx.Next()) {
             ++before;
@@ -1138,7 +1141,9 @@ extern "C" int qym_shape_drop_slivers(QymShape* s) {
         const TopoDS_Shape copy = BRepBuilderAPI_Copy(s->shape).Shape();
         Handle(ShapeFix_FixSmallFace) fix = new ShapeFix_FixSmallFace();
         fix->Init(copy);
-        fix->SetPrecision(1e-6);
+        // the precision is the width a crack is told by: at 1e-6 the fixing left a strip exactly 1e-6 wide (a blend
+        // of 3.999999 on a face 4 wide, 20 long) standing, 9 faces in and 9 out, on all five ways of blending
+        fix->SetPrecision(1e-5);
         fix->SetMaxTolerance(1e-5);
         fix->Perform();
         const TopoDS_Shape out = fix->FixShape();

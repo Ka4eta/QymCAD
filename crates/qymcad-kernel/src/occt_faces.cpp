@@ -211,8 +211,10 @@ double ahead(double a, double b) {
 static thread_local std::unordered_map<std::string, std::pair<TopoDS_Face, double>>* face_cache = nullptr;
 
 extern "C" void qym_faces_cache(int on) {
-    delete face_cache;
-    face_cache = on ? new std::unordered_map<std::string, std::pair<TopoDS_Face, double>>() : nullptr;
+    try {
+        delete face_cache;
+        face_cache = on ? new std::unordered_map<std::string, std::pair<TopoDS_Face, double>>() : nullptr;
+    } QYM_WHY_CATCH("faces_cache")
 }
 
 // Does a loop of `face` cross itself on the face?
@@ -241,18 +243,18 @@ extern "C" QymShape* qym_shape_from_faces(size_t ns, const int* skind, const dou
     if (out_free) *out_free = 0;
     if (out_dropped) *out_dropped = 0;
     for (size_t f = 0; out_area && f < nf; ++f) out_area[f] = -1.0;
-    // how much of its surface a face took, into `out_area`: a face that took a wrong piece shows it here first
-    auto measured = [&](size_t f, const TopoDS_Face& face) {
-        if (!out_area) return;
-        GProp_GProps props;
-        // to a thousandth: the default integration of a B-spline face was 5 to 20 % off on a smooth handle, and a
-        // millionth took 8 s of every 10 s round of building
-        BRepGProp::SurfaceProperties(face, props, 1.0e-3);
-        out_area[f] = props.Mass();
-    };
     if ((ns == 0 || nf == 0) && nloose == 0) return why("faces/asked", "there is no face to build"), nullptr;
     if (ns > nf) return why("faces/asked", "more surfaces than faces to take a point amid each from"), nullptr;
     try {
+        // how much of its surface a face took, into `out_area`: a face that took a wrong piece shows it here first
+        auto measured = [&](size_t f, const TopoDS_Face& face) {
+            if (!out_area) return;
+            GProp_GProps props;
+            // to a thousandth: the default integration of a B-spline face was 5 to 20 % off on a smooth handle, and a
+            // millionth took 8 s of every 10 s round of building
+            BRepGProp::SurfaceProperties(face, props, 1.0e-3);
+            out_area[f] = props.Mass();
+        };
         const double step = std::max(tol, 1.0e-7);
         std::vector<Handle(Geom_Surface)> S(ns);
         for (size_t i = 0; i < ns; ++i) S[i] = surface(skind[i], sparam + NUMBERS * i, pnt(finside + 3 * i));
