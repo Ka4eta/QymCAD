@@ -913,7 +913,7 @@ extern "C" QymShape* qym_shape_from_faces(size_t ns, const int* skind, const dou
             TopoDS_Compound took;
             B.MakeCompound(took);
             for (const TopoDS_Face& face : faces) B.Add(took, face);
-            return seeded(took);
+            return qym_born(took);
         }
         // THE BODY WITHOUT SEWING. Every edge between two faces is one edge already, made once above; the regions left
         // as mesh go in as their triangles on the same corners and the same sides: an edge beside such a region is cut
@@ -1046,7 +1046,7 @@ extern "C" QymShape* qym_shape_from_faces(size_t ns, const int* skind, const dou
                 BRepLib::UpdateTolerances(shell, Standard_False);
                 ShapeFix_Solid fs;
                 TopoDS_Solid solid = fs.SolidFromShell(shell);
-                if (!solid.IsNull()) return seeded(solid);
+                if (!solid.IsNull()) return qym_born(solid);
             }
             if (lost == 0) {
                 direct = shell;
@@ -1140,11 +1140,11 @@ extern "C" QymShape* qym_shape_from_faces(size_t ns, const int* skind, const dou
             if (shell.Closed()) {
                 ShapeFix_Solid fs;
                 TopoDS_Solid solid = fs.SolidFromShell(shell);
-                if (!solid.IsNull()) return seeded(solid);
+                if (!solid.IsNull()) return qym_born(solid);
             }
-            return seeded(sewn);
+            return qym_born(sewn);
         }
-        return seeded(n == 1 ? only : TopoDS_Shape(bodies));
+        return qym_born(n == 1 ? only : TopoDS_Shape(bodies));
     } QYM_WHY_CATCH("faces")
     return nullptr;
 }

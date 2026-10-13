@@ -242,7 +242,15 @@ impl Kernel for MockKernel {
         self.shapes.borrow_mut().insert(body);
         Ok(Self::placed(dist, PLACE_IDENTITY))
     }
-    fn chamfer_ex(&self, body: Id, src: Id, d1: f64, shape: qymcad_core::model::ChamferShape, edges: &[u32]) -> Result<Built, qymcad_core::errors::CoreError> {
+    fn chamfer_ex(
+        &self,
+        body: Id,
+        src: Id,
+        d1: f64,
+        shape: qymcad_core::model::ChamferShape,
+        edges: &[u32],
+        _roles: qymcad_core::feature::BlendRoles,
+    ) -> Result<Built, qymcad_core::errors::CoreError> {
         let qymcad_core::model::ChamferShape { mode, d2, flip, ref_face } = shape;
         self.calls.borrow_mut().push(format!("chamfer_ex d1={d1} d2={d2} mode={mode:?} flip={flip} rf={ref_face} n={}", edges.len()));
         self.need_src(src)?;
@@ -2733,6 +2741,7 @@ fn a_moved_sketch_does_not_cost_the_fillet_its_edges() {
         axis: [0.0, 0.0, 1.0],
         radius: 0.0,
         ref_dir: [0.0, 0.0, 1.0],
+        ends: Default::default(),
     };
     let fid: Id = 100;
     // A part roughly 40 mm across; the edges used to sit here.

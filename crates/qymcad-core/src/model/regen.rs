@@ -1327,12 +1327,12 @@ impl Project {
         // a vertex name is derived from its edges, so editing the neighbours does not disturb it.
         // The value is parametric like the radius itself, under the dimension key
         // `at{descriptor}`.
-        let verts: Vec<([f64; 3], f64)> = at_vertices
+        let verts: Vec<crate::feature::RadiusAt> = at_vertices
             .iter()
             .filter_map(|(r, val)| {
                 let desc = self.resolve_vertex_refs(src, r, "ref-what-fillet-vertex").ok()?.first().copied()?;
-                let val = p.dim(&format!("at{desc}"), *val);
-                self.vertex_point(src, desc).map(|p| (p, val))
+                let radius = p.dim(&format!("at{desc}"), *val);
+                self.vertex_point(src, desc).map(|at| crate::feature::RadiusAt { at, radius })
             })
             .collect();
         // A solid tool does not operate on a surface. Otherwise it appears to work: the node goes
@@ -1344,7 +1344,9 @@ impl Project {
         } else if lost_edges {
             crate::feature::KernelJob::refused(lost_error)
         } else if !verts.is_empty() && !edges.is_empty() {
-            crate::feature::KernelJob::new(vec![src], move |k| k.fillet_at_vertices(body, src, radius, &edges, &verts))
+            // the faces it makes are named by the bridge, after this node, as a fillet of one radius names them
+            let roles = crate::feature::BlendRoles::Named { feature: p.node };
+            crate::feature::KernelJob::new(vec![src], move |k| k.fillet_at_vertices(body, src, radius, &edges, &verts, roles))
         } else {
             // the faces it makes are named by the bridge, after this node
             let roles = crate::feature::BlendRoles::Named { feature: p.node };
@@ -1379,7 +1381,9 @@ impl Project {
         if lost_edges {
             crate::feature::KernelJob::refused(lost_error)
         } else if mode != crate::feature::ChamferMode::Symmetric && !edges.is_empty() {
-            crate::feature::KernelJob::new(vec![src], move |k| k.chamfer_ex(body, src, dist, ChamferShape { mode, d2, flip, ref_face }, &edges))
+            // the faces it makes are named by the bridge, after this node, as a symmetric chamfer names them
+            let roles = crate::feature::BlendRoles::Named { feature: p.node };
+            crate::feature::KernelJob::new(vec![src], move |k| k.chamfer_ex(body, src, dist, ChamferShape { mode, d2, flip, ref_face }, &edges, roles))
         } else {
             // the faces it makes are named by the bridge, after this node: the same rule as for a fillet
             let roles = crate::feature::BlendRoles::Named { feature: p.node };
@@ -1803,8 +1807,18 @@ impl Project {
         // cache - and lands it the way every result lands, so its faces and edges are named by the one rule (where
         // nothing else is known about a face, by where it lies). Without a shape in the kernel (a mock, or before
         // restoration from the source) the already loaded mesh is kept.
-        match p.kernel.tessellate(body) {
-            Some(built) => self.apply_regen(p.landing(), body, Ok(built)),
+        //
+        // THROUGH THE DOOR, as every body: a body read from a file comes as the file holds it - a face pinched to two
+        // places, a crack, a shell the check calls broken - and nothing cleaned it, the operations on it meeting the flaw.
+        // Landed through the door it is cleaned and checked; one the door cannot repair is kept as it came, in yellow.
+        self.regen_warnings.remove(&p.node);
+        match p.kernel.land_import(body) {
+            Some(crate::feature::ImportLanded { built, kept }) => {
+                if let Some(why) = kept {
+                    self.regen_warnings.insert(p.node, why);
+                }
+                self.apply_regen(p.landing(), body, Ok(built))
+            }
             None => true, // The body is valid (a mesh exists), so the node is clean and its consumers continue.
         }
     }
@@ -2649,8 +2663,9 @@ impl Project {
         } else {
             self.resolve_edge_refs_in(src, &cur, r, "ref-what-fillet-edge").unwrap_or_default()
         };
-        // And no foreign number reaches the kernel. The kernel does not refuse a non-existent edge, it
-        // crashes, so the check belongs on this side. Cheap insurance against a whole class of failures.
+        // A reference resolves to edges of the body as it stands: a number that did not resolve is counted lost
+        // (`edge_refs_lost`) and said, not handed on. That the kernel never meets an edge a body does not have is the
+        // bridge's to hold (`ops::blend::sharp`), whatever asks it.
         let known: std::collections::HashSet<u32> = cur.into_iter().map(|e| e.id).collect();
         if known.is_empty() {
             return live;

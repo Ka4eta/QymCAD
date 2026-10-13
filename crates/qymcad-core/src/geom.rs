@@ -823,6 +823,10 @@ pub struct MeshEdge {
     /// adjacent face removes that dependency.
     #[serde(default)]
     pub ref_dir: [f64; 3],
+    /// The names of the two ends, at `a` and at `b`: the vertex of the topology each end stands on, named by the edges
+    /// that meet at it. Given by the bridge with the edge; a vertex has nothing of its own but its place and its edges.
+    #[serde(default)]
+    pub ends: [crate::names::VertexName; 2],
 }
 
 impl MeshEdge {

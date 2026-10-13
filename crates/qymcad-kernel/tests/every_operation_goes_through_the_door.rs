@@ -60,9 +60,9 @@ fn kernel_methods() -> Vec<Method> {
     out
 }
 
-/// THE DOOR AND ITS SHORT WAYS: `run`, `plain` for an operation with no size, `land_built` for a result built before
-/// its door, the last two also with the roles of the faces.
-const DOOR: [&str; 5] = ["self.run(", "self.plain(", "self.plain_named(", "self.land_built(", "self.land_built_named("];
+/// THE DOOR AND ITS SHORT WAYS: `run`, `plain` for an operation with no size (with the roles of its faces or without),
+/// and `land_piece` for each body of an operation that makes several.
+const DOOR: [&str; 4] = ["self.run(", "self.plain(", "self.plain_named(", "self.land_piece("];
 
 #[test]
 fn every_operation_that_builds_ends_at_the_door() {

@@ -1,4 +1,4 @@
-//! EVERY FACE AND EVERY EDGE AN OPERATION MAKES CARRIES A NAME BY RECIPE, not a positional number. A reference - a
+//! EVERY FACE, EDGE AND VERTEX AN OPERATION MAKES CARRIES A NAME BY RECIPE, not a positional number. A reference - a
 //! sketch on a face, a fillet of an edge, a mate - holds a name; a positional number is the place the element happened
 //! to take in the walk of the result, and an edit above moves it to another face without a word.
 //!
@@ -475,8 +475,11 @@ fn every_operation_names_every_face_and_edge_it_makes() {
         if of_faces == 0 {
             fails.push(format!("{}: no faces to look at", row.name));
         }
-        if faces > 0 || edges > 0 {
-            fails.push(format!("{}: {faces} of {of_faces} faces and {edges} of {of_edges} edges without a name", row.name));
+        // a vertex is named by the edges meeting at it: a positional number among them is a vertex without a name
+        let spots = p.vertex_spots(node);
+        let vertices = spots.iter().filter(|v| v.name.edges.iter().any(|d| *d != 0 && !p.names.knows(*d))).count();
+        if faces > 0 || edges > 0 || vertices > 0 {
+            fails.push(format!("{}: {faces} of {of_faces} faces, {edges} of {of_edges} edges and {vertices} of {} vertices without a name", row.name, spots.len()));
         }
     }
     assert!(fails.is_empty(), "\nELEMENTS ON POSITIONAL NUMBERS ({}):\n{}", fails.len(), fails.join("\n"));

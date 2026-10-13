@@ -462,6 +462,81 @@ struct QymOperand {
     const char* tag;
 };
 
+/// THE COUNTERS OF POSITIONAL NUMBERS of a result in the making, faces and edges apart.
+struct QymCounters {
+    int faces;
+    int edges;
+};
+
+/// WHAT THE RECIPE NAMES ITSELF in a result in the making - a fillet surface after its edge, the wall of a hole, a
+/// moved face as itself. Called after the names of the operands are carried and before what is left gets positional
+/// numbers: a name the recipe gives is then never taken by a number first.
+using QymRecipe = std::function<void(QymShape& made, QymCounters& next)>;
+
+/// The record of a sewing (`BRepBuilderAPI_Sewing`): a face or an edge it replaced has that one image, one it left as
+/// it was has none; one it found degenerate is removed. A sewing generates nothing.
+struct QymSewingHistory : QymHistory {
+    explicit QymSewingHistory(BRepBuilderAPI_Sewing& s) : sew(s) {}
+    const TopTools_ListOfShape& Modified(const TopoDS_Shape& s) override {
+        images.Clear();
+        if (sew.IsModified(s)) images.Append(sew.Modified(s));
+        else if (sew.IsModifiedSubShape(s)) images.Append(sew.ModifiedSubShape(s));
+        return images;
+    }
+    const TopTools_ListOfShape& Generated(const TopoDS_Shape&) override { return none; }
+    bool Removed(const TopoDS_Shape& s) override { return sew.IsDegenerated(s); }
+    BRepBuilderAPI_Sewing& sew;
+    TopTools_ListOfShape images;
+    TopTools_ListOfShape none;
+};
+
+/// TWO HISTORIES ONE AFTER THE OTHER: what the first made of an element, then what the second made of that. An element
+/// the first left as it was goes into the second as itself; one left as it was by both is not modified.
+struct QymChainHistory : QymHistory {
+    QymChainHistory(QymHistory& a, QymHistory& b) : first(a), then(b) {}
+    /// What the first made of `s`, `s` itself when it left it as it was; empty when it removed it.
+    TopTools_ListOfShape Middle(const TopoDS_Shape& s) {
+        TopTools_ListOfShape mid;
+        for (TopTools_ListIteratorOfListOfShape it(first.Modified(s)); it.More(); it.Next()) mid.Append(it.Value());
+        if (mid.IsEmpty() && !first.Removed(s)) mid.Append(s);
+        return mid;
+    }
+    /// What the second made of `m`, `m` itself when it left it as it was.
+    void Then(const TopoDS_Shape& m, TopTools_ListOfShape& into) {
+        TopTools_ListOfShape now;
+        for (TopTools_ListIteratorOfListOfShape it(then.Modified(m)); it.More(); it.Next()) now.Append(it.Value());
+        if (now.IsEmpty() && !then.Removed(m)) now.Append(m);
+        into.Append(now);
+    }
+    const TopTools_ListOfShape& Modified(const TopoDS_Shape& s) override {
+        images.Clear();
+        TopTools_ListOfShape mid = Middle(s);
+        for (TopTools_ListIteratorOfListOfShape it(mid); it.More(); it.Next()) Then(it.Value(), images);
+        if (images.Extent() == 1 && images.First().IsSame(s)) images.Clear();
+        return images;
+    }
+    const TopTools_ListOfShape& Generated(const TopoDS_Shape& s) override {
+        made.Clear();
+        TopTools_ListOfShape born;
+        for (TopTools_ListIteratorOfListOfShape it(first.Generated(s)); it.More(); it.Next()) born.Append(it.Value());
+        for (TopTools_ListIteratorOfListOfShape it(born); it.More(); it.Next()) Then(it.Value(), made);
+        TopTools_ListOfShape mid = Middle(s);
+        for (TopTools_ListIteratorOfListOfShape it(mid); it.More(); it.Next())
+            for (TopTools_ListIteratorOfListOfShape g(then.Generated(it.Value())); g.More(); g.Next()) made.Append(g.Value());
+        return made;
+    }
+    bool Removed(const TopoDS_Shape& s) override {
+        TopTools_ListOfShape mid = Middle(s);
+        for (TopTools_ListIteratorOfListOfShape it(mid); it.More(); it.Next())
+            if (!then.Removed(it.Value())) return false;
+        return true;
+    }
+    QymHistory& first;
+    QymHistory& then;
+    TopTools_ListOfShape images;
+    TopTools_ListOfShape made;
+};
+
 /// WHAT THE RESULT OF AN OPERATION IS MADE OF.
 struct QymResultSpec {
     std::vector<QymOperand> operands;
@@ -470,25 +545,28 @@ struct QymResultSpec {
     const std::map<int, int>* generated = nullptr;
     /// Merge the faces a boolean leaves split along its seam into one (the monolith), recording which names yielded.
     bool unify = false;
+    /// What the recipe names itself, between the names carried and the numbers handed out; empty when nothing.
+    QymRecipe recipe = {};
 };
 
 /// THE RESULT OF AN OPERATION WITH ITS NAMES, built from `res` by `history` as `spec` says. Null when `res` is null.
 QymShape* qym_result(QymHistory& history, const TopoDS_Shape& res, const QymResultSpec& spec);
 
 int next_local(const TopTools_DataMapOfShapeInteger& m);
-void seed_ids(const TopoDS_Shape& s, TopAbs_ShapeEnum ty, TopTools_DataMapOfShapeInteger& ids);
 void fill_unnamed(const TopoDS_Shape& res, TopAbs_ShapeEnum ty, TopTools_DataMapOfShapeInteger& out, int& next);
 void carry_ids(BRepBuilderAPI_MakeShape& algo, const TopoDS_Shape& a, TopAbs_ShapeEnum ty, const TopTools_DataMapOfShapeInteger& aid, TopTools_DataMapOfShapeInteger& out, int& next, bool named_only = false, TopTools_DataMapOfShapeInteger* splits_of = nullptr, TopTools_DataMapOfShapeInteger* splits_idx = nullptr, const std::map<int,int>* gen_names = nullptr);
 void carry_ids(QymHistory& history, const TopoDS_Shape& a, TopAbs_ShapeEnum ty, const TopTools_DataMapOfShapeInteger& aid, TopTools_DataMapOfShapeInteger& out, int& next, TopTools_DataMapOfShapeInteger* splits_of = nullptr, TopTools_DataMapOfShapeInteger* splits_idx = nullptr);
-void propagate_ids(BRepBuilderAPI_MakeShape& algo, const TopoDS_Shape& a, TopAbs_ShapeEnum ty, const TopTools_DataMapOfShapeInteger& aid, const TopoDS_Shape& res, TopTools_DataMapOfShapeInteger& out, TopTools_DataMapOfShapeInteger* splits_of = nullptr, TopTools_DataMapOfShapeInteger* splits_idx = nullptr, const std::map<int,int>* gen_names = nullptr);
-void copy_ids_by_order(const TopoDS_Shape& src, TopAbs_ShapeEnum ty, const TopTools_DataMapOfShapeInteger& sid, const TopoDS_Shape& dst, TopTools_DataMapOfShapeInteger& out);
 void classify_unnamed(BRepBuilderAPI_MakeShape& algo, const TopoDS_Shape& src, const QymShape* q, const char* tag, const TopTools_DataMapOfShapeInteger* src_ids = nullptr);
 gp_Vec face_normal_vec(const TopoDS_Face& f);
 int heal_pinched_faces(TopoDS_Shape& shape, TopTools_DataMapOfShapeInteger& fids, TopTools_DataMapOfShapeInteger& eids, TopTools_DataMapOfShapeInteger& fsplit_of, TopTools_DataMapOfShapeInteger& fsplit_idx);
 TopoDS_Shape unify_monolithic(const TopoDS_Shape& in, TopTools_DataMapOfShapeInteger& fids, TopTools_DataMapOfShapeInteger& eids, std::vector<std::pair<unsigned, unsigned>>* absorbed = nullptr, const TopTools_MapOfShape* keep = nullptr);
 QymDoc* doc_from_shape(const TopoDS_Shape& shape, double defl, const TopTools_DataMapOfShapeInteger& fids);
 QymDoc* doc_from_shape(const TopoDS_Shape& shape, double defl);
-QymShape* seeded(const TopoDS_Shape& s);
+/// A BODY NO HISTORY LEADS TO - a file read, a primitive, a sweep of a profile, a plate thickened off a face, a compound
+/// put together of pieces each already named: what its recipe names keeps that name, the rest is numbered in the order
+/// of the shape, stable for one recipe. Null when `s` is null. The one door of a body with no history to carry names
+/// through, as `qym_result` is the one door of a body an algorithm made of others.
+QymShape* qym_born(const TopoDS_Shape& s, const QymRecipe& recipe = {});
 // The shells a triangle mesh makes, its faces built with their edges shared and neighbours on one plane one face: solids
 // of the closed pieces where `solids`, and runs of sides along a patch's border one edge only where `border_runs`. A null
 // shape where this way does not come through. `dropped` counts the triangles with no area.

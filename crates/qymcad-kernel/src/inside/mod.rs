@@ -4,6 +4,7 @@
 
 mod a_boolean_of_touching_bodies_is_refused;
 mod a_face_that_did_not_mesh_is_a_hole;
+mod a_profile_comes_in_as_it_is;
 mod a_mesh_becomes_a_body;
 mod a_sheet_has_no_volume;
 mod a_union_gives_every_face_a_name_of_its_own;

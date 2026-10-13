@@ -578,7 +578,7 @@ const ON_THE_BLOCK: [OnTheBlock; 38] = [
             let side = p.regen_faces[&c].iter().find(|f| f.normal[2].abs() < 0.5).map(|f| f.id).expect("the side of the cylinder");
             p.add_offset_surface(c, Ref::picks(&[side]), -10.0)
         },
-        expect: Expect::Refused,
+        expect: Expect::Says(qymcad_core::errors::CoreError::OffsetPastRadius { radius: 10.0 }),
     },
     // one straight edge is no opening to close
     OnTheBlock {

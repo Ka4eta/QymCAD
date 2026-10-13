@@ -31,9 +31,8 @@ impl OcctKernel {
     /// A SHELL: the faces opened, walls of the thickness left, each inner wall the image of its outer face.
     pub(crate) fn shell_op(&self, ask: ShellAsk<'_>, walls: &[ImageOf], roles: Roles) -> Result<Built, qymcad_core::errors::CoreError> {
         let ShellAsk { body, src, thickness, outward, faces } = ask;
-        let res = {
-            let shapes = self.shapes.borrow();
-            let s = shapes.get(&src).ok_or(qymcad_core::errors::CoreError::SourceBodyNotBuilt)?;
+        self.plain_named(qymcad_core::errors::Op::Shell, body, roles, |b| {
+            let s = b.get(src)?;
             // the sign is the direction
             let offset = if outward { thickness.abs() } else { -thickness.abs() };
             // There is nothing to remove: the face reference matched none, so the kernel is never reached, yet an
@@ -50,7 +49,7 @@ impl OcctKernel {
             // `BrokenSolid`. The report said the shell was built and the part stayed solid. So the volume is
             // asked for: a hollow part has strictly less of it than a solid one.
             let vol_was = s.volume();
-            match s.shell(offset, faces, walls) {
+            Ok(match s.shell(offset, faces, walls) {
                 Some(v) if !outward && vol_was > 1e-9 && v.volume() >= vol_was - 1e-6 => {
                     let r = s.min_round_radius();
                     let t = thickness.abs();
@@ -76,17 +75,15 @@ impl OcctKernel {
                         qymcad_core::errors::CoreError::ShellNotBuiltHere
                     });
                 }
-            }
-        };
-        self.land_built_named(qymcad_core::errors::Op::Shell, body, roles, res)
+            })
+        })
     }
 
     /// A THICKENING: a plate raised from the face, joined to the part it was taken from.
     pub(crate) fn thicken_op(&self, ask: ThickenAsk, names: &Thickened, roles: Roles) -> Result<Built, qymcad_core::errors::CoreError> {
         let ThickenAsk { body, src, face, thickness, join } = ask;
-        let res = {
-            let shapes = self.shapes.borrow();
-            let s = shapes.get(&src).ok_or(qymcad_core::errors::CoreError::SourceBodyNotBuilt)?;
+        self.plain_named(qymcad_core::errors::Op::Thicken, body, roles, |b| {
+            let s = b.get(src)?;
             // A refusal names itself. Both possible failures used to look the same, as "the operation
             // failed", leaving no way to tell an excessive thickness from a plate that did not join.
             let plate = s.thicken_face_join(face, thickness, &names.faces, &names.edges).ok_or(qymcad_core::errors::CoreError::ThickenFaceRefused)?;
@@ -95,7 +92,7 @@ impl OcctKernel {
             let res = match join {
                 0 => plate,
                 j => {
-                    let base = shapes.get(&j).ok_or(qymcad_core::errors::CoreError::SourceBodyNotBuilt)?;
+                    let base = b.get(j)?;
                     base.boolean(&plate, 1).ok_or(qymcad_core::errors::CoreError::ThickenPlateNotJoined)?
                 }
             };
@@ -104,8 +101,7 @@ impl OcctKernel {
             if !s.is_sheet() && res.volume() <= s.volume() + 1e-6 {
                 return Err(qymcad_core::errors::CoreError::ThickenAddedNothing);
             }
-            res
-        };
-        self.land_built_named(qymcad_core::errors::Op::Thicken, body, roles, res)
+            Ok(res)
+        })
     }
 }

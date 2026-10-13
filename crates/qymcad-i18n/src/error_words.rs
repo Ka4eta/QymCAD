@@ -94,6 +94,7 @@ pub fn error_text(e: &qymcad_core::errors::CoreError) -> String {
             args.set("r", format!("{limit:.2}"));
         }
         E::DraftFailed { angle } => args.set("angle", fmt2(*angle)),
+        E::OffsetPastRadius { radius } => args.set("r", fmt2(*radius)),
         E::JointUnsatisfied { residual } => args.set("residual", fmt2(*residual)),
         E::CrossComponentInput { input } | E::SketchOnForeignFace { input } => args.set("input", *input as i64),
         E::SketchFaceRefLost { sketch, body } => {

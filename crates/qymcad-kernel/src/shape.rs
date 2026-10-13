@@ -84,6 +84,8 @@ extern "C" {
     fn qym_shape_transform(s: *const QymShape, m: *const c_double) -> *mut QymShape;
     fn qym_shape_fillet_all(s: *const QymShape, r: c_double) -> *mut QymShape;
     fn qym_shape_chamfer_all(s: *const QymShape, d: c_double) -> *mut QymShape;
+    fn qym_shape_vertices(s: *const QymShape, pts: *mut f64, ids: *mut u32, cap: usize) -> usize;
+    fn qym_shape_edge_vertices(s: *const QymShape, ids: *mut u32, ends: *mut u32, cap: usize) -> usize;
     fn qym_shape_edges(s: *const QymShape) -> *mut QymEdges;
     fn qym_edge_smooth(e: *const QymEdges, i: usize) -> i32;
     fn qym_edges_count(e: *const QymEdges) -> usize;
@@ -96,9 +98,35 @@ extern "C" {
     fn qym_shape_fillet_edges(s: *const QymShape, r: c_double, idx: *const u32, n: usize, names: *const u32, corners: *const u32, all_names: *const u32, n_all: usize) -> *mut QymShape;
     #[cfg(test)]
     fn qym_shape_fillet_var(s: *const QymShape, r1: c_double, r2: c_double, idx: *const u32, n: usize) -> *mut QymShape;
-    fn qym_shape_fillet_at_vertices(s: *const QymShape, r_default: c_double, idx: *const u32, n: usize, vpts: *const f64, vrads: *const f64, m: usize, tol: c_double) -> *mut QymShape;
+    fn qym_shape_fillet_at_vertices(
+        s: *const QymShape,
+        r_default: c_double,
+        idx: *const u32,
+        n: usize,
+        vpts: *const f64,
+        vrads: *const f64,
+        m: usize,
+        tol: c_double,
+        names: *const u32,
+        corners: *const u32,
+        all_names: *const u32,
+        n_all: usize,
+    ) -> *mut QymShape;
     fn qym_shape_chamfer_edges(s: *const QymShape, d: c_double, idx: *const u32, n: usize, names: *const u32, corners: *const u32, all_names: *const u32, n_all: usize) -> *mut QymShape;
-    fn qym_shape_chamfer_edges_asym(s: *const QymShape, a: c_double, b: c_double, mode: i32, flip: i32, ref_face: u32, idx: *const u32, n: usize) -> *mut QymShape;
+    fn qym_shape_chamfer_edges_asym(
+        s: *const QymShape,
+        a: c_double,
+        b: c_double,
+        mode: i32,
+        flip: i32,
+        ref_face: u32,
+        idx: *const u32,
+        n: usize,
+        names: *const u32,
+        corners: *const u32,
+        all_names: *const u32,
+        n_all: usize,
+    ) -> *mut QymShape;
     fn qym_shape_shell(s: *const QymShape, t: c_double, idx: *const u32, n: usize, gfrom: *const u32, gto: *const u32, gn: usize) -> *mut QymShape;
     fn qym_shape_remove_faces(s: *const QymShape, ids: *const u32, n: usize, out_reason: *mut i32) -> *mut QymShape;
     fn qym_shape_push_face(s: *const QymShape, fid: u32, dist: c_double) -> *mut QymShape;
@@ -311,6 +339,42 @@ pub struct EdgeInfo {
     /// connector. `None` means there is no adjacent face or its normal is undefined, leaving the roll about
     /// the edge unset.
     pub ref_dir: Option<[f64; 3]>,
+}
+
+/// THE TWO VERTICES OF AN EDGE: its id, and the places of its first and last vertex in the list of the vertices of the
+/// shape, counted from 1 (0: none).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct EdgeVertices {
+    pub edge: u32,
+    pub ends: [u32; 2],
+}
+
+/// THE NAMES A BLEND GIVES WHAT IT MAKES, as the C++ side reads them: its surface after each edge asked, the patch at
+/// each corner, and every edge of the body after itself (pairs laid flat).
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct BlendNames<'a> {
+    pub surfaces: &'a [u32],
+    pub corners: &'a [u32],
+    pub all: &'a [u32],
+}
+
+/// AN ASYMMETRIC CHAMFER: mode 1 takes two distances, `a` on the reference face and `b` on the adjacent one; mode 2 the
+/// leg `a` and the angle `b` in degrees from the reference face. `flip` chooses which of the two adjacent faces is the
+/// reference, `ref_face` is one picked by hand (zero: it follows `flip`).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct AsymChamfer {
+    pub a: f64,
+    pub b: f64,
+    pub mode: i32,
+    pub flip: bool,
+    pub ref_face: u32,
+}
+
+/// A VERTEX OF A SHAPE: where it stands and the edges meeting at it, the three smallest ids (zero where fewer meet).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct VertexAt {
+    pub at: [f64; 3],
+    pub edges: [u32; 3],
 }
 
 /// A live B-rep shape. It owns the handle and frees it on drop, and it allows a general boolean over any
@@ -1170,6 +1234,20 @@ impl Shape {
         out
     }
 
+    /// The two vertices of every edge with an id, by their places in [`Shape::vertices`] counted from 1 (0: none).
+    pub fn edge_vertices(&self) -> Vec<EdgeVertices> {
+        let n = unsafe { qym_shape_edge_vertices(self.ptr, std::ptr::null_mut(), std::ptr::null_mut(), 0) };
+        let (mut ids, mut ends) = (vec![0u32; n], vec![0u32; n * 2]);
+        let got = unsafe { qym_shape_edge_vertices(self.ptr, ids.as_mut_ptr(), ends.as_mut_ptr(), n) }.min(n);
+        (0..got).map(|k| EdgeVertices { edge: ids[k], ends: [ends[2 * k], ends[2 * k + 1]] }).collect()
+    }
+    /// The vertices of the shape and the edges meeting at each - the three smallest ids - from its topology.
+    pub fn vertices(&self) -> Vec<VertexAt> {
+        let n = unsafe { qym_shape_vertices(self.ptr, std::ptr::null_mut(), std::ptr::null_mut(), 0) };
+        let (mut pts, mut ids) = (vec![0.0f64; n * 3], vec![0u32; n * 3]);
+        let got = unsafe { qym_shape_vertices(self.ptr, pts.as_mut_ptr(), ids.as_mut_ptr(), n) }.min(n);
+        (0..got).map(|k| VertexAt { at: [pts[3 * k], pts[3 * k + 1], pts[3 * k + 2]], edges: [ids[3 * k], ids[3 * k + 1], ids[3 * k + 2]] }).collect()
+    }
     /// Everything the kernel knows about the edges, in one pass. Walking the edges is expensive, a polyline
     /// per edge, and callers want different parts of the answer, so there is one source and `edges_full*` are
     /// slices of it.
@@ -1227,10 +1305,28 @@ impl Shape {
     /// edge takes the radii of its ends and the kernel drives the law between them; an end with no entry takes
     /// `r_default`. The vertices travel as points, names being the model's business while geometry is enough
     /// for the kernel.
-    pub(crate) fn fillet_at_vertices(&self, r_default: f64, idx: &[u32], verts: &[([f64; 3], f64)], tol: f64) -> Option<Shape> {
-        let pts: Vec<f64> = verts.iter().flat_map(|(p, _)| *p).collect();
-        let rads: Vec<f64> = verts.iter().map(|(_, r)| *r).collect();
-        unsafe { Self::wrap_valid(qym_shape_fillet_at_vertices(self.ptr, r_default, idx.as_ptr(), idx.len(), pts.as_ptr(), rads.as_ptr(), verts.len(), tol)) }
+    pub(crate) fn fillet_at_vertices(&self, r_default: f64, idx: &[u32], verts: &[qymcad_core::feature::RadiusAt], names: BlendNames<'_>) -> Option<Shape> {
+        let pts: Vec<f64> = verts.iter().flat_map(|v| v.at).collect();
+        let rads: Vec<f64> = verts.iter().map(|v| v.radius).collect();
+        // the point of a vertex comes from a live rebuild of the same body: "nearly the same vertex" would be the next one
+        let tol = 1e-6;
+        let BlendNames { surfaces, corners, all } = names;
+        unsafe {
+            Self::wrap_valid(qym_shape_fillet_at_vertices(
+                self.ptr,
+                r_default,
+                idx.as_ptr(),
+                idx.len(),
+                pts.as_ptr(),
+                rads.as_ptr(),
+                verts.len(),
+                tol,
+                Self::opt_ptr(surfaces),
+                Self::opt_ptr(corners),
+                Self::opt_ptr(all),
+                all.len() / 2,
+            ))
+        }
     }
 
     #[cfg(test)]
@@ -1261,8 +1357,25 @@ impl Shape {
     /// one; mode 2 takes the leg `a` and the angle `b` in degrees from the reference face. `flip` chooses
     /// which of the two adjacent faces is the reference, and `ref_face` is the persistent id of one picked by
     /// hand, zero meaning it follows `flip`.
-    pub(crate) fn chamfer_edges_asym(&self, a: f64, b: f64, mode: i32, flip: bool, ref_face: u32, idx: &[u32]) -> Option<Shape> {
-        unsafe { Self::wrap_valid(qym_shape_chamfer_edges_asym(self.ptr, a, b, mode, flip as i32, ref_face, idx.as_ptr(), idx.len())) }
+    pub(crate) fn chamfer_edges_asym(&self, how: AsymChamfer, idx: &[u32], names: BlendNames<'_>) -> Option<Shape> {
+        let AsymChamfer { a, b, mode, flip, ref_face } = how;
+        let BlendNames { surfaces, corners, all } = names;
+        unsafe {
+            Self::wrap_valid(qym_shape_chamfer_edges_asym(
+                self.ptr,
+                a,
+                b,
+                mode,
+                flip as i32,
+                ref_face,
+                idx.as_ptr(),
+                idx.len(),
+                Self::opt_ptr(surfaces),
+                Self::opt_ptr(corners),
+                Self::opt_ptr(all),
+                all.len() / 2,
+            ))
+        }
     }
     /// A shell: remove the faces with the persistent ids `face_ids`, stable across a rebuild, and build walls
     /// by the signed `offset` — negative inward, which is the default, positive outward.
@@ -2031,7 +2144,7 @@ pub struct ImportNode {
     /// holds the product once, and so does the reading.
     pub repeat_of: Option<usize>,
     /// Colours the file gives single faces of the body, sRGB, by the face's persistent id - the number the body's face
-    /// gets when the body is wrapped (`seeded` in the bridge).
+    /// gets when the body is wrapped (`qym_born` in the bridge).
     pub faces: Vec<(u32, [f32; 3])>,
 }
 

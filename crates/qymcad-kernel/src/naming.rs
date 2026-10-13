@@ -108,6 +108,25 @@ pub(crate) fn land_roles(roles: &crate::door::Roles, names: &mut dyn NameMint) -
     renames
 }
 
+/// THE NAMES OF THE ENDS OF THE EDGES. An end is one of the two vertices of the topology the edge runs between - the
+/// nearer to that end, so a closed edge or one walked backwards is read right - and a vertex is named by the edges that
+/// meet at it (`VertexName`: the three smallest). Told by the topology, not by where the ends stand: the model grouped the
+/// ends of the edges of a mesh within a micrometre, and two vertices nearer than that were one.
+pub(crate) fn name_edge_ends(edges: &mut [qymcad_core::geom::MeshEdge], vertices: &[crate::VertexAt], ends: &[crate::EdgeVertices]) {
+    let gap = |p: [f64; 3], q: [f64; 3]| (p[0] - q[0]).powi(2) + (p[1] - q[1]).powi(2) + (p[2] - q[2]).powi(2);
+    let of: HashMap<u32, [u32; 2]> = ends.iter().map(|e| (e.edge, e.ends)).collect();
+    let vertex = |k: u32| (k as usize).checked_sub(1).and_then(|i| vertices.get(i));
+    for e in edges.iter_mut() {
+        let Some(pair) = of.get(&e.id) else { continue };
+        let two: Vec<&crate::VertexAt> = pair.iter().filter_map(|k| vertex(*k)).collect();
+        for (k, end) in [e.a, e.b].into_iter().enumerate() {
+            if let Some(v) = two.iter().min_by(|x, y| gap(x.at, end).total_cmp(&gap(y.at, end))) {
+                e.ends[k] = qymcad_core::names::VertexName { edges: v.edges };
+            }
+        }
+    }
+}
+
 /// The named faces beside each face, by the edges between them.
 fn neighbours(pairs: &[EdgeFaces]) -> HashMap<u32, Vec<u32>> {
     let mut nb: HashMap<u32, Vec<u32>> = HashMap::new();

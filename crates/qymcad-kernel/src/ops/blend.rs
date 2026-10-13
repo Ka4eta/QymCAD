@@ -66,21 +66,36 @@ fn blend_roles(roles: BlendRoles, edges: &[u32], body_edges: &[u32], given: &mut
 /// The edges to blend with the smooth ones taken out - the tangent junctions of earlier blends have nothing left to
 /// round, and the kernel honestly fails on them - and "every edge" of a body with a smooth one read as every sharp
 /// edge by name. `None` when edges were asked and every one is smooth.
-fn sharp(s: &crate::Shape, asked: &[u32]) -> Option<SharpEdges> {
+fn sharp(s: &crate::Shape, asked: &[u32]) -> Result<SharpEdges, CoreError> {
     let smooth = s.smooth_edge_ids();
-    let edges: Vec<u32> = if asked.is_empty() && !smooth.is_empty() { s.sharp_edge_ids() } else { asked.iter().copied().filter(|e| !smooth.contains(e)).collect() };
+    // AN EDGE THE BODY DOES NOT HAVE IS NOT HANDED TO OCCT: a number of another body, or one a rebuild above took away,
+    // was told "the radius is too big", and the model filtered such numbers itself, OCCT having crashed on one
+    let known: std::collections::HashSet<u32> = s.edges_with_ids().1.into_iter().collect();
+    let unknown = asked.iter().filter(|e| !known.contains(e)).count();
+    if !asked.is_empty() && unknown == asked.len() {
+        return Err(CoreError::EdgesNotFound { asked: asked.len() });
+    }
+    let edges: Vec<u32> = if asked.is_empty() && !smooth.is_empty() { s.sharp_edge_ids() } else { asked.iter().copied().filter(|e| known.contains(e) && !smooth.contains(e)).collect() };
     // only when edges were asked for: an empty list asks for every edge, and a body with any smooth one - the seam of a
     // tube - was refused whole, its sharp edges with it
     if !asked.is_empty() && edges.is_empty() {
-        return None;
+        return Err(CoreError::AllEdgesSmooth);
     }
-    Some(SharpEdges { edges, smooth: smooth.len() })
+    Ok(SharpEdges { edges, smooth: smooth.len(), unknown })
 }
 
-/// The edges a blend takes, and how many smooth ones it passed over.
+/// The edges a blend takes, how many smooth ones it passed over, and how many asked the body does not have.
 struct SharpEdges {
     edges: Vec<u32>,
     smooth: usize,
+    unknown: usize,
+}
+
+impl SharpEdges {
+    /// The edges asked, and how many of them were left out when `taken` of those it took were blended.
+    fn left_out(&self, taken: usize) -> DroppedEdges {
+        DroppedEdges { asked: self.edges.len() + self.unknown, dropped: self.edges.len() - taken + self.unknown }
+    }
 }
 
 impl OcctKernel {
@@ -103,6 +118,9 @@ impl OcctKernel {
             r.ok_or(CoreError::OpFailed(Op::Fillet))
         };
         let first = self.run(Operation { kind: Op::Fillet, body, sizing: Sizing::Sized(Retreat::Blend), roles: given.clone(), work: whole });
+        if first.is_ok() && sharp.unknown > 0 {
+            self.dropped.borrow_mut().insert(body, sharp.left_out(sharp.edges.len()));
+        }
         match first {
             Err(CoreError::OpFailed(Op::Fillet)) if edges.is_empty() => Err(refused(Op::Fillet)),
             Err(CoreError::OpFailed(Op::Fillet)) => {
@@ -154,26 +172,30 @@ impl OcctKernel {
         }
         let shape = r.ok_or(CoreError::FilletRadiusTooBig { radius, issues: bad.clone(), smooth_skipped: sharp.smooth })?;
         // what was left out goes on to the node in words
-        self.dropped.borrow_mut().insert(body, DroppedEdges { asked: edges.len(), dropped: edges.len() - taken });
+        self.dropped.borrow_mut().insert(body, sharp.left_out(taken));
         Ok(shape)
     }
 
     /// A FILLET WITH RADII AT THE VERTICES: an edge takes the radii of its ends, matched to 1e-6 - the point comes from a
     /// live rebuild of the same body, so "nearly the same vertex" would be the neighbouring one. Every radius steps back
     /// by one factor, the default and those at the vertices alike.
-    pub(crate) fn fillet_at_vertices_op(&self, ask: BlendAsk<'_>, verts: &[([f64; 3], f64)]) -> Result<Built, CoreError> {
-        let BlendAsk { body, src, size: radius, edges, .. } = ask;
+    pub(crate) fn fillet_at_vertices_op(&self, ask: BlendAsk<'_>, verts: &[qymcad_core::feature::RadiusAt]) -> Result<Built, CoreError> {
+        let BlendAsk { body, src, size: radius, edges, roles } = ask;
+        self.dropped.borrow_mut().remove(&body);
+        let Prepared { sharp, numbers, given } = self.prepare(src, edges, roles)?;
+        let asked: Vec<EdgeRole> = sharp.edges.iter().zip(numbers.surfaces.iter().chain(std::iter::repeat(&0))).map(|(edge, surface)| EdgeRole { edge: *edge, surface: *surface }).collect();
+        let edges = &sharp.edges;
+        let surfaces = numbers.surfaces_of(&asked, edges);
         let work = |b: &Bodies, f: f64| {
-            let scaled: Vec<([f64; 3], f64)> = verts.iter().map(|(at, r)| (*at, r * f)).collect();
-            b.get(src)?.fillet_at_vertices(radius * f, edges, &scaled, 1e-6).ok_or(CoreError::OpFailed(Op::FilletVar))
+            let scaled: Vec<qymcad_core::feature::RadiusAt> = verts.iter().map(|v| qymcad_core::feature::RadiusAt { at: v.at, radius: v.radius * f }).collect();
+            let names = crate::BlendNames { surfaces: &surfaces, corners: &numbers.corners, all: &numbers.all };
+            b.get(src)?.fillet_at_vertices(radius * f, edges, &scaled, names).ok_or(CoreError::OpFailed(Op::FilletVar))
         };
-        self.run(Operation { kind: Op::FilletVar, body, sizing: Sizing::Sized(Retreat::Blend), roles: Roles::default(), work }).map_err(|e| {
-            if e == CoreError::OpFailed(Op::FilletVar) {
-                refused(Op::FilletVar)
-            } else {
-                e
-            }
-        })
+        let done = self.run(Operation { kind: Op::FilletVar, body, sizing: Sizing::Sized(Retreat::Blend), roles: given, work });
+        if done.is_ok() && sharp.unknown > 0 {
+            self.dropped.borrow_mut().insert(body, sharp.left_out(sharp.edges.len()));
+        }
+        done.map_err(|e| if e == CoreError::OpFailed(Op::FilletVar) { refused(Op::FilletVar) } else { e })
     }
 
     /// A SYMMETRIC CHAMFER, stepped back at the limiting case; a leg the faces cannot hold is said as such.
@@ -187,7 +209,11 @@ impl OcctKernel {
             let r = if edges.is_empty() { s.chamfer_all(dist * f) } else { s.chamfer_edges(dist * f, edges, &numbers.surfaces_of(&asked, edges), &numbers.corners, &numbers.all) };
             r.ok_or(CoreError::ChamferTooBig { dist })
         };
-        self.run(Operation { kind: Op::Chamfer, body, sizing: Sizing::Sized(Retreat::Blend), roles: given, work })
+        let done = self.run(Operation { kind: Op::Chamfer, body, sizing: Sizing::Sized(Retreat::Blend), roles: given, work });
+        if done.is_ok() && sharp.unknown > 0 {
+            self.dropped.borrow_mut().insert(body, sharp.left_out(sharp.edges.len()));
+        }
+        done
     }
 
     /// AN ASYMMETRIC CHAMFER - two legs, or a leg and an angle - of edges picked: asymmetry is not defined for "every
@@ -196,19 +222,26 @@ impl OcctKernel {
         use qymcad_core::feature::ChamferMode;
         let ChamferShape { mode, d2, flip, ref_face } = shape;
         if ask.edges.is_empty() || mode == ChamferMode::Symmetric {
-            return self.chamfer_op(BlendAsk { roles: BlendRoles::Unnamed, ..ask });
+            return self.chamfer_op(ask);
         }
-        let BlendAsk { body, src, size: d1, edges, .. } = ask;
-        let m = if mode == ChamferMode::DistAngle { 2 } else { 1 };
-        let second = |f: f64| if mode == ChamferMode::DistAngle { d2 } else { d2 * f };
-        let work = |b: &Bodies, f: f64| b.get(src)?.chamfer_edges_asym(d1 * f, second(f), m, flip, ref_face, edges).ok_or(CoreError::OpFailed(Op::ChamferAsym));
-        self.run(Operation { kind: Op::ChamferAsym, body, sizing: Sizing::Sized(Retreat::Blend), roles: Roles::default(), work }).map_err(|e| {
-            if e == CoreError::OpFailed(Op::ChamferAsym) {
-                refused(Op::ChamferAsym)
-            } else {
-                e
-            }
-        })
+        let BlendAsk { body, src, size: d1, edges, roles } = ask;
+        self.dropped.borrow_mut().remove(&body);
+        let Prepared { sharp, numbers, given } = self.prepare(src, edges, roles)?;
+        let asked: Vec<EdgeRole> = sharp.edges.iter().zip(numbers.surfaces.iter().chain(std::iter::repeat(&0))).map(|(edge, surface)| EdgeRole { edge: *edge, surface: *surface }).collect();
+        let edges = &sharp.edges;
+        let surfaces = numbers.surfaces_of(&asked, edges);
+        let mode = if mode == ChamferMode::DistAngle { 2 } else { 1 };
+        // an angle does not step back with the size; a second leg does
+        let second = |f: f64| if mode == 2 { d2 } else { d2 * f };
+        let work = |b: &Bodies, f: f64| {
+            let names = crate::BlendNames { surfaces: &surfaces, corners: &numbers.corners, all: &numbers.all };
+            b.get(src)?.chamfer_edges_asym(crate::AsymChamfer { a: d1 * f, b: second(f), mode, flip, ref_face }, edges, names).ok_or(CoreError::OpFailed(Op::ChamferAsym))
+        };
+        let done = self.run(Operation { kind: Op::ChamferAsym, body, sizing: Sizing::Sized(Retreat::Blend), roles: given, work });
+        if done.is_ok() && sharp.unknown > 0 {
+            self.dropped.borrow_mut().insert(body, sharp.left_out(sharp.edges.len()));
+        }
+        done.map_err(|e| if e == CoreError::OpFailed(Op::ChamferAsym) { refused(Op::ChamferAsym) } else { e })
     }
 }
 
@@ -224,7 +257,7 @@ impl OcctKernel {
     fn prepare(&self, src: Id, edges: &[u32], roles: BlendRoles) -> Result<Prepared, CoreError> {
         let shapes = self.shapes.borrow();
         let s = shapes.get(&src).ok_or(CoreError::SourceBodyNotBuilt)?;
-        let sharp = sharp(s, edges).ok_or(CoreError::AllEdgesSmooth)?;
+        let sharp = sharp(s, edges)?;
         let mut given = Roles::default();
         let numbers = blend_roles(roles, &sharp.edges, &s.edges_with_ids().1, &mut given);
         Ok(Prepared { sharp, numbers, given })
@@ -239,4 +272,32 @@ struct FilletPart<'a> {
     sharp: &'a SharpEdges,
     numbers: &'a BlendNumbers,
     asked: &'a [EdgeRole],
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use qymcad_core::feature::Kernel;
+
+    /// A kernel holding a block 10 x 10 x 10 as body 1.
+    fn block() -> OcctKernel {
+        let k = OcctKernel::default();
+        k.extrude(1, &[0.0, 0.0, 10.0, 0.0, 10.0, 10.0, 0.0, 10.0], 10.0, qymcad_core::feature::PLACE_IDENTITY).expect("the block");
+        k
+    }
+
+    /// AN EDGE THE BODY DOES NOT HAVE IS NOT HANDED TO OCCT: asked alone it is refused in words, asked beside edges the
+    /// body has the rest are blended and the one left out is said. The model used to filter such numbers itself, the
+    /// kernel "crashing on an edge it does not have".
+    #[test]
+    fn an_edge_the_body_does_not_have_is_said_not_blended() {
+        let k = block();
+        let real = k.shapes.borrow().get(&1).map(|s| s.edges_with_ids().1).expect("the edges of the block")[0];
+        let alone = k.fillet_op(BlendAsk { body: 2, src: 1, size: 1.0, edges: &[987_654], roles: BlendRoles::Unnamed });
+        assert_eq!(alone.err(), Some(CoreError::EdgesNotFound { asked: 1 }), "an edge the body does not have, asked alone");
+        let chamfer = k.chamfer_op(BlendAsk { body: 3, src: 1, size: 1.0, edges: &[987_654], roles: BlendRoles::Unnamed });
+        assert_eq!(chamfer.err(), Some(CoreError::EdgesNotFound { asked: 1 }), "a chamfer of an edge the body does not have");
+        k.fillet_op(BlendAsk { body: 4, src: 1, size: 1.0, edges: &[real, 987_654], roles: BlendRoles::Unnamed }).expect("the edge the body has is rounded");
+        assert_eq!(k.dropped.borrow().get(&4).copied(), Some(DroppedEdges { asked: 2, dropped: 1 }), "the edge left out is not said");
+    }
 }

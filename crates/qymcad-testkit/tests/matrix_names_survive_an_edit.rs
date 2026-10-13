@@ -402,6 +402,8 @@ enum Reference {
     Fillet,
     /// A circle of radius 1 at the spot the row names, sketched on the top face and extruded 2 up as a boss.
     Boss,
+    /// A mate connector of the part on the edge the row names: what a joint of an assembly holds on to.
+    Mate,
 }
 
 /// The lines of the base sketch with both ends at `x` < 0 or on it, by id, and the index of the sketch.
@@ -572,13 +574,38 @@ fn lay(row: &Row, with_between: bool, left: Left, reference: Reference) -> Resul
             let span = qymcad_core::model::CombineSpan { height: 2.0, down: 0.0, extent: qymcad_core::feature::Extent { reach: Reach::Forward, ..Default::default() }, fill: &[] };
             p.add_combine_multi_op(body, sid, c, span, 1)
         }
+        Reference::Mate => {
+            let e = edge_at(&p, body, (row.edge)(BASE)).ok_or_else(|| format!("no edge at {:?} before the edit", (row.edge)(BASE)))?;
+            let owner = part.ok_or("the body stands in no part")?;
+            p.add_connector(owner, qymcad_core::feature::AnchorRef::EdgeMid(body, e))
+        }
     };
     let raised = qymcad_testkit::restore_import_shapes(&p);
     let (report, _) = qymcad_testkit::regenerate_with_shapes(&mut p, raised);
     if let Some((_, err)) = report.errors.iter().find(|(id, _)| *id == fillet) {
         return Err(format!("the reference refused before the edit - {err:?}"));
     }
+    if reference == Reference::Mate && mate_at(&p, fillet).is_none() {
+        return Err("the mate does not stand anywhere before the edit".into());
+    }
     Ok((p, Laid { base: b, between, fillet }))
+}
+
+/// Where the connector `id` stands, in the frame of its part.
+fn mate_at(p: &Project, id: u64) -> Option<[f64; 3]> {
+    let conn = p.connectors.iter().find(|c| c.id == id)?;
+    p.connector_frame(conn).map(|f| f.origin)
+}
+
+/// Where a connector laid now, by the owner of connector `id`, on the edge of its body standing at `at` would stand: on
+/// an arc that is the centre of the arc, not the middle of the edge.
+fn fresh_mate_at(p: &Project, id: u64, at: [f64; 3]) -> Option<[f64; 3]> {
+    let conn = p.connectors.iter().find(|c| c.id == id)?;
+    let qymcad_core::feature::AnchorRef::EdgeMid(body, _) = conn.anchor else { return None };
+    let e = edge_at(p, body, at)?;
+    let mut fresh = p.clone();
+    let laid = fresh.add_connector(conn.owner, qymcad_core::feature::AnchorRef::EdgeMid(body, e));
+    mate_at(&fresh, laid)
 }
 
 /// The body a fillet node works on, and the first edge name it holds.
@@ -622,6 +649,40 @@ fn a_reference_holds_its_edge_through_an_edit_above() {
         }
     }
     assert!(fails.is_empty(), "\nREFERENCES AFTER AN EDIT ABOVE ({}):\n{}", fails.len(), fails.join("\n"));
+}
+
+/// A MATE HOLDS ITS EDGE through an edit above: a connector of the part on an edge of the result stands after the edit
+/// where a connector laid then on that edge would stand - the anchor a joint of an assembly takes, held by the name of
+/// the edge as a rounding is.
+#[test]
+fn a_mate_holds_its_edge_through_an_edit_above() {
+    let mut fails: Vec<String> = Vec::new();
+    for row in &ROWS {
+        for edit in &EDITS {
+            let cell = format!("{} / {}", row.name, edit.name);
+            let (p, laid) = match lay(row, edit.name.contains("suppressed"), edit.left, Reference::Mate) {
+                Ok(v) => v,
+                Err(e) => {
+                    fails.push(format!("{cell}: setup - {e}"));
+                    continue;
+                }
+            };
+            let mut q = (edit.apply)(p, &laid);
+            let raised = qymcad_testkit::restore_import_shapes(&q);
+            let _ = qymcad_testkit::regenerate_with_shapes(&mut q, raised);
+            let edge = (row.edge)(edit.size);
+            let Some(want) = fresh_mate_at(&q, laid.fillet, edge) else {
+                fails.push(format!("{cell}: no edge of the body stands at {edge:?} after the edit"));
+                continue;
+            };
+            match mate_at(&q, laid.fillet) {
+                None => fails.push(format!("{cell}: the mate stands nowhere after the edit, a mate on the edge at {edge:?} stands at {want:?}")),
+                Some(at) if (0..3).any(|i| (at[i] - want[i]).abs() > 1e-3) => fails.push(format!("{cell}: the mate slid to {at:?}, a mate on the edge at {edge:?} stands at {want:?}")),
+                Some(_) => {}
+            }
+        }
+    }
+    assert!(fails.is_empty(), "\nMATES AFTER AN EDIT ABOVE ({}):\n{}", fails.len(), fails.join("\n"));
 }
 
 /// A SKETCH LAID ON A FACE HOLDS THE FACE through an edit above: the boss on it stands on the top face where the top

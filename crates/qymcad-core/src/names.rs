@@ -208,7 +208,7 @@ impl EdgeName {
 /// intersections meet. Taking all of them would change the name as soon as a fourth edge appeared nearby, that
 /// is, lose the reference at exactly the moment the part is being edited. The three smallest descriptors are
 /// taken instead: the set is deterministic, independent of traversal order, and any missing slots are zero.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct VertexName {
     /// descriptors of the edges of the vertex, sorted, with the tail zeroed
     pub edges: [u32; 3],

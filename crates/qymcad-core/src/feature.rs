@@ -1871,6 +1871,20 @@ pub enum BlendRoles {
     Unnamed,
 }
 
+/// A BODY BROUGHT IN, AS THE DOOR LANDED IT: its mesh and faces, and why it was kept as it came when the door could not
+/// clean it (`None`: it passed).
+pub struct ImportLanded {
+    pub built: Built,
+    pub kept: Option<crate::errors::CoreError>,
+}
+
+/// A RADIUS SET AT A VERTEX of a fillet: where the vertex stands and the radius there.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RadiusAt {
+    pub at: [f64; 3],
+    pub radius: f64,
+}
+
 /// HOW MANY OF THE EDGES ASKED A BLEND LEFT OUT, said in yellow on its node.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DroppedEdges {
@@ -2243,8 +2257,8 @@ pub trait Kernel {
     /// kernel interpolates along the edge itself. A shared vertex has one radius for both neighbours, so a
     /// chain meets without a step — a property of the way it is specified rather than of any check. An
     /// endpoint without an entry uses `radius`. The mock default produces a constant fillet.
-    fn fillet_at_vertices(&self, body: Id, src: Id, radius: f64, edges: &[u32], _verts: &[([f64; 3], f64)]) -> Result<Built, crate::errors::CoreError> {
-        self.fillet(body, src, radius, edges, BlendRoles::Unnamed)
+    fn fillet_at_vertices(&self, body: Id, src: Id, radius: f64, edges: &[u32], _verts: &[RadiusAt], roles: BlendRoles) -> Result<Built, crate::errors::CoreError> {
+        self.fillet(body, src, radius, edges, roles)
     }
     /// Copy faces into a separate sheet: the bridge from the parametric model into the surface layer. `names`
     /// holds the names of the copies, whose provenance the model knows. The default is an honest refusal:
@@ -2333,8 +2347,8 @@ pub trait Kernel {
     /// `flip`). `Symmetric` falls through to a plain `chamfer(d1)`. It requires an explicit edge selection,
     /// since asymmetry is not defined for "every edge". The mock default is a symmetric `chamfer(d1)`.
     #[allow(clippy::too_many_arguments)]
-    fn chamfer_ex(&self, body: Id, src: Id, d1: f64, _shape: crate::model::ChamferShape, edges: &[u32]) -> Result<Built, crate::errors::CoreError> {
-        self.chamfer(body, src, d1, edges, BlendRoles::Unnamed)
+    fn chamfer_ex(&self, body: Id, src: Id, d1: f64, _shape: crate::model::ChamferShape, edges: &[u32], roles: BlendRoles) -> Result<Built, crate::errors::CoreError> {
+        self.chamfer(body, src, d1, edges, roles)
     }
     /// Shell body `src`: open the faces named by `face_ids` (persistent ids) and leave walls of `thickness`.
     /// `outward` puts the wall outside instead of inside.
@@ -2402,6 +2416,12 @@ pub trait Kernel {
     fn mirror_plane(&self, body: Id, src: Id, at: PlaneAt, made: Mirrored) -> Result<Built, crate::errors::CoreError>;
     /// Rigid translation and rotation of the B-rep of body `src` by matrix `mat` (3x4), producing `body`.
     fn transform_body(&self, body: Id, src: Id, mat: [f64; 12]) -> Result<Built, crate::errors::CoreError>;
+    /// A BODY BROUGHT IN FROM A FILE, landed through the door without losing it: the shape the kernel holds, cleaned and
+    /// checked as every result is when it passes, kept as it came - and said - when it does not. `None` means the kernel
+    /// does not hold that body.
+    fn land_import(&self, _body: Id) -> Option<ImportLanded> {
+        None
+    }
     /// Re-tessellate the already built or imported shape of body `body` from the kernel cache (an external
     /// STEP solid has no recipe). `None` means the kernel does not hold that body.
     fn tessellate(&self, _body: Id) -> Option<Built> {

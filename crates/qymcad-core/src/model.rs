@@ -2914,13 +2914,15 @@ impl Project {
     /// done here by matching place, because the place of that edge did not change.
     ///
     /// Anything not found is not translated: the reference goes red honestly instead of latching onto
-    /// something similar.
+    /// something similar. Nor is anything that finds two at its place - the wall of a tube and the wall of its bore
+    /// share a centroid on the axis - by the rule `resolve_face_id` keeps for a snapshot: only an unambiguous match.
     fn geom_name_map(&self, from: Id, to: Id) -> std::collections::HashMap<u32, u32> {
         const TOL: f64 = 1e-6;
         let mut map = std::collections::HashMap::new();
         if let (Some(a), Some(b)) = (self.regen_edges.get(&from), self.regen_edges.get(&to)) {
             for e in a.iter().filter(|e| e.id != 0) {
-                if let Some(t) = b.iter().find(|t| t.id != 0 && (t.mid[0] - e.mid[0]).abs() < TOL && (t.mid[1] - e.mid[1]).abs() < TOL && (t.mid[2] - e.mid[2]).abs() < TOL) {
+                let same = |t: &&crate::geom::MeshEdge| t.id != 0 && (0..3).all(|i| (t.mid[i] - e.mid[i]).abs() < TOL);
+                if let Some(t) = the_one(b.iter().filter(same)) {
                     if t.id != e.id {
                         map.insert(e.id, t.id);
                     }
@@ -2929,13 +2931,14 @@ impl Project {
         }
         if let (Some(a), Some(b)) = (self.regen_faces.get(&from), self.regen_faces.get(&to)) {
             for f in a.iter().filter(|f| f.id != 0) {
-                let same = |x: &crate::geom::MeshFace| {
-                    (x.centroid.x - f.centroid.x).abs() < TOL
+                let same = |x: &&crate::geom::MeshFace| {
+                    x.id != 0
+                        && (x.centroid.x - f.centroid.x).abs() < TOL
                         && (x.centroid.y - f.centroid.y).abs() < TOL
                         && (x.centroid.z - f.centroid.z).abs() < TOL
                         && x.normal[0] * f.normal[0] + x.normal[1] * f.normal[1] + x.normal[2] * f.normal[2] > 0.9
                 };
-                if let Some(t) = b.iter().find(|x| x.id != 0 && same(x)) {
+                if let Some(t) = the_one(b.iter().filter(same)) {
                     if t.id != f.id {
                         map.insert(f.id, t.id);
                     }
@@ -3225,53 +3228,33 @@ impl Project {
             .collect()
     }
 
-    /// Every vertex of a body as resolution sees it: a point plus a name derived from its edges.
-    ///
-    /// Built from the live rebuild rather than from a separate kernel channel, because a vertex has nothing
-    /// of its own except its place, while the edges and their names already exist. The edge endpoints that
-    /// meet at one point are the vertex, and the name (`VertexName`) is derived from them the same way an
-    /// edge name is derived from its pair of faces.
-    ///
-    /// The merge tolerance is 1e-6: the endpoints come from one rebuild of one body, that is, from the same
-    /// geometry, so anything looser would merge two neighbouring vertices into one.
+    /// Every vertex of a body as resolution sees it: a point and its name. The names are the bridge's, given with the
+    /// edges (`MeshEdge::ends`: the vertex of the topology an end stands on, named by the edges meeting at it); the
+    /// table holds a name from the first time a vertex is referenced.
     pub fn vertex_pool(&mut self, body: Id) -> Vec<crate::refs::Candidate> {
         self.vertex_spots(body)
             .into_iter()
-            .map(|(p, ids)| {
-                let desc = self.names.intern_vertex(crate::names::VertexName::new(ids));
-                crate::refs::Candidate { desc, centroid: p, normal: [0.0, 0.0, 1.0], area: 0.0, edge: None }
+            .map(|v| {
+                let desc = self.names.intern_vertex(v.name);
+                crate::refs::Candidate { desc, centroid: v.at, normal: [0.0, 0.0, 1.0], area: 0.0, edge: None }
             })
             .collect()
     }
 
-    /// Vertices of a body without names: a point and the edges meeting at it.
+    /// The vertices of a body as the bridge named them, without their descriptors: where each stands and its name.
     ///
-    /// Kept separate from [`Project::vertex_pool`] because this is asked far more often than names are
-    /// created: drawing and hit-testing hold `&self` and have no right to allocate names, and a name is
-    /// allocated exactly when a vertex is actually referenced.
-    pub fn vertex_spots(&self, body: Id) -> Vec<([f64; 3], Vec<u32>)> {
-        const TOL: f64 = 1e-6;
+    /// Kept apart from [`Project::vertex_pool`] because this is asked far more often than names are taken: drawing and
+    /// hit-testing hold `&self` and take no name into the table, and a name goes in exactly when a vertex is referenced.
+    pub fn vertex_spots(&self, body: Id) -> Vec<VertexSpot> {
         let Some(edges) = self.regen_edges.get(&body) else { return Vec::new() };
-        // Group the endpoints: point to the edges meeting there.
-        let mut spots: Vec<([f64; 3], Vec<u32>)> = Vec::new();
+        let mut spots: Vec<VertexSpot> = Vec::new();
         for e in edges {
-            if e.id == 0 {
-                continue;
-            }
-            for p in [e.a, e.b] {
-                let near = |q: &[f64; 3]| (q[0] - p[0]).abs() < TOL && (q[1] - p[1]).abs() < TOL && (q[2] - p[2]).abs() < TOL;
-                match spots.iter_mut().find(|(q, _)| near(q)) {
-                    Some((_, ids)) => {
-                        if !ids.contains(&e.id) {
-                            ids.push(e.id);
-                        }
-                    }
-                    None => spots.push((p, vec![e.id])),
+            for (at, name) in [(e.a, e.ends[0]), (e.b, e.ends[1])] {
+                if name.edges[0] != 0 && !spots.iter().any(|s| s.name == name) {
+                    spots.push(VertexSpot { at, name });
                 }
             }
         }
-        // The order follows the endpoints as encountered, which is determined by the edge order of the live
-        // rebuild; the name does not depend on order at all.
         spots
     }
 
@@ -5100,6 +5083,13 @@ fn remap_point_id(s: &mut Sketch, from: Id, to: Id) {
     }
 }
 
+/// A VERTEX OF A BODY: where it stands and the name the bridge gave it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct VertexSpot {
+    pub at: [f64; 3],
+    pub name: crate::names::VertexName,
+}
+
 /// Serialise a project into a RON string.
 /// Inheritance of the edge translation map: the body of a node carries the edges of its inputs under their
 /// names, so the "old number to new name" mapping applies to it as well.
@@ -5724,5 +5714,41 @@ mod library_extract_insert_tests {
         let ids: Vec<Id> = host.components.iter().map(|c| c.id).collect();
         let uniq: std::collections::HashSet<Id> = ids.iter().copied().collect();
         assert_eq!(ids.len(), uniq.len(), "no component id collisions after two insertions");
+    }
+}
+
+/// The one element a search finds, or none when it finds none or several: a match by place is proof only when nothing
+/// else stands there.
+fn the_one<T>(mut found: impl Iterator<Item = T>) -> Option<T> {
+    let one = found.next()?;
+    found.next().is_none().then_some(one)
+}
+
+#[cfg(test)]
+mod name_map_tests {
+    use super::Project;
+    use crate::geom::{MeshEdge, MeshFace, Point3};
+
+    fn face(id: u32, at: [f64; 3], normal: [f64; 3]) -> MeshFace {
+        MeshFace { triangles: Vec::new(), normal, centroid: Point3::new(at[0], at[1], at[2]), area: 1.0, id }
+    }
+
+    /// NAMES ARE TRANSLATED BY PLACE ONLY WHERE ONE ELEMENT STANDS THERE: the wall of a tube and the wall of its bore
+    /// share a centroid on the axis and an averaged normal, so a face of the deleted body standing at that spot has two
+    /// candidates on the source body. Taking the first gave the bore's reference to the outer wall; with two candidates
+    /// the reference is left untranslated and goes red honestly, as `resolve_face_id` does on an ambiguous snapshot.
+    #[test]
+    fn a_name_is_not_translated_onto_one_of_two_elements_at_its_place() {
+        let mut p = Project::default();
+        p.regen_faces.insert(1, vec![face(10, [0.0, 0.0, 5.0], [0.0, 0.0, 1.0]), face(11, [3.0, 0.0, 0.0], [1.0, 0.0, 0.0])]);
+        p.regen_faces.insert(2, vec![face(20, [0.0, 0.0, 5.0], [0.0, 0.0, 1.0]), face(21, [0.0, 0.0, 5.0], [0.0, 0.0, 1.0]), face(22, [3.0, 0.0, 0.0], [1.0, 0.0, 0.0])]);
+        let edge = |id: u32, mid: [f64; 3]| MeshEdge { id, mid, dir: [0.0, 0.0, 1.0], ..MeshEdge::default() };
+        p.regen_edges.insert(1, vec![edge(30, [1.0, 0.0, 0.0]), edge(31, [2.0, 0.0, 0.0])]);
+        p.regen_edges.insert(2, vec![edge(40, [1.0, 0.0, 0.0]), edge(41, [1.0, 0.0, 0.0]), edge(42, [2.0, 0.0, 0.0])]);
+        let map = p.geom_name_map(1, 2);
+        assert_eq!(map.get(&11), Some(&22), "the face alone at its place was not translated");
+        assert_eq!(map.get(&31), Some(&42), "the edge alone at its place was not translated");
+        assert_eq!(map.get(&10), None, "a face with two candidates at its place was translated onto one of them");
+        assert_eq!(map.get(&30), None, "an edge with two candidates at its place was translated onto one of them");
     }
 }

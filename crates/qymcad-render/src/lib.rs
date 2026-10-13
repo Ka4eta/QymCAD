@@ -3907,13 +3907,13 @@ pub fn draw_fillet_vertices(pn: &Painting, painter: &egui::Painter, rect: Rect) 
         return;
     }
     let basis = pn.cam.basis();
-    for (pt, ids) in pn.project.vertex_spots(body) {
+    for qymcad_core::model::VertexSpot { at: pt, name } in pn.project.vertex_spots(body) {
         let on_picked = picked.iter().flatten().any(|p| (p[0] - pt[0]).abs() < 1e-6 && (p[1] - pt[1]).abs() < 1e-6 && (p[2] - pt[2]).abs() < 1e-6);
         if !on_picked {
             continue;
         }
         // THE NAME IS ASKED FOR, NOT CREATED: drawing has no business adding to the document's table.
-        let own = pn.project.names.vertex_desc(&qymcad_core::names::VertexName::new(ids)).is_some_and(|d| pn.cmd.params.iter().any(|p| p.key == format!("at{d}")));
+        let own = pn.project.names.vertex_desc(&name).is_some_and(|d| pn.cmd.params.iter().any(|p| p.key == format!("at{d}")));
         let sc = qymcad_ui_state::Screen { cam: &pn.cam, set: pn.set, rect, basis: &basis }.at(pt).0;
         let (r, col) = if own { (4.5, pn.scheme.pal.active()) } else { (3.0, pn.scheme.pal.handle_face()) };
         painter.circle_filled(sc, r, col);
