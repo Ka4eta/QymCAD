@@ -952,8 +952,7 @@ pub enum ChamferMode {
 /// test` build, 4 cores, two runs each): 1,000 instances rebuilt in 3.1-3.5 s with 0.22 GB at the peak, 2,000 in
 /// 6.4-7.5 s (0.41 GB), 5,000 in 16 s (0.95 GB), 10,000 in 33-34 s (1.8 GB). Real patterns hold tens to a few hundred
 /// copies; at 10,000 a count typed or computed past real use costs half a minute and memory an ordinary machine has,
-/// not the program. (Before the union kept one record of the names, #136, the rebuild grew with the square of the
-/// size: 10,000 took 11.3 min.)
+/// not the program. The time grows with the size and no faster, which is what lets the limit sit this high.
 pub const MAX_PATTERN_INSTANCES: u32 = 10_000;
 
 /// THE MOST STARTS (separate helices) A THREAD OR AN AUGER MAY HAVE, fixed when the program is built.
