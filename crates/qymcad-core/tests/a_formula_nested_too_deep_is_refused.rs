@@ -36,16 +36,22 @@ fn a_long_flat_formula_is_not_counted_as_deep() {
     assert_eq!(eval_small_stack(format!("{}1", "1+".repeat(100_000))), Ok(100_001.0));
 }
 
+/// A way a formula nests, and a formula nested that way.
+struct Nesting {
+    what: &'static str,
+    src: String,
+}
+
 /// Every way a formula nests is counted, and each is refused well before the stack would be: 20,000 levels, past
 /// where 2 MiB ran out (about 4,375 parentheses).
 #[test]
 fn every_way_of_nesting_is_refused_before_the_stack_runs_out() {
     let deep = 20_000;
-    for (what, src) in [
-        ("parentheses", nested("(", "1", ")", deep)),
-        ("function calls", nested("abs(", "1", ")", deep)),
-        ("signs", format!("{}1", "-".repeat(deep))),
-        ("powers", format!("{}1", "1^".repeat(deep))),
+    for Nesting { what, src } in [
+        Nesting { what: "parentheses", src: nested("(", "1", ")", deep) },
+        Nesting { what: "function calls", src: nested("abs(", "1", ")", deep) },
+        Nesting { what: "signs", src: format!("{}1", "-".repeat(deep)) },
+        Nesting { what: "powers", src: format!("{}1", "1^".repeat(deep)) },
     ] {
         assert_eq!(eval_small_stack(src), Err(ExprError::TooDeep { limit: MAX_FORMULA_DEPTH }), "{deep} levels of {what}");
     }
