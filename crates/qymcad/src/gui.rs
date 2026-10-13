@@ -3901,6 +3901,7 @@ mod described_picks;
 mod a_face_pick_reopens_with_its_face;
 /// A fillet with a radius at a corner reopens with that corner: `gui/a_variable_fillet_reopens_with_its_corners.rs`.
 mod a_variable_fillet_reopens_with_its_corners;
+mod a_fillet_with_its_edges_lost_waits_for_edges;
 mod expand_selection;
 mod sketch_sweep;
 mod input;

@@ -1407,6 +1407,11 @@ pub fn apply_comp_giz(pc: &mut qymcad_ui_state::PartCtx) {
 /// Whether the command is ready to apply (the required selection exists) - for highlighting the button
 /// and the field.
 pub fn cmd_ready(pc: &mut qymcad_ui_state::PartCtx) -> bool {
+    // A FILLET AND A CHAMFER ROUND THE EDGES PICKED, an edited one too: one whose edges were all lost opens with none, and
+    // to the kernel an empty list is every edge - its preview lit the whole part green, and Enter would have rounded it
+    if pc.cmd.edit.is_some() && matches!(pc.armed.cmd_kind(), 4 | 5) {
+        return !pc.gsel.edges.is_empty();
+    }
     if pc.cmd.edit.is_some() {
         return true; // editing an existing feature - the input is already valid
     }
