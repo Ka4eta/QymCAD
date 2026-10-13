@@ -1672,6 +1672,9 @@ impl Project {
     /// be cleared (see `apply_regen`).
     fn prep_box3(&mut self, p: &Pass, dx: f64, dy: f64, dz: f64, body: Id) -> crate::feature::KernelJob {
         let (dx, dy, dz) = (p.dim("dx", dx), p.dim("dy", dy), p.dim("dz", dz));
+        if !above_zero(&[dx, dy, dz]) {
+            return crate::feature::KernelJob::refused(crate::errors::CoreError::PrimitiveSizeNotAboveZero);
+        }
         self.named_prism_job(p.node, &rect_profile(dx, dy), dz, body)
     }
 
@@ -1709,6 +1712,9 @@ impl Project {
     /// the preparation stays on the thread that owns the document, and only the parcel travels.
     fn prep_cylinder(&mut self, p: &Pass, r: f64, h: f64, body: Id) -> crate::feature::KernelJob {
         let (r, h) = (p.dim("r", r), p.dim("h", h));
+        if !above_zero(&[r, h]) {
+            return crate::feature::KernelJob::refused(crate::errors::CoreError::PrimitiveSizeNotAboveZero);
+        }
         let feature = p.node;
         crate::feature::KernelJob::new(Vec::new(), move |k| k.cylinder(body, r, h, feature))
         // Exact B-rep cylinder, three faces.
@@ -1718,6 +1724,9 @@ impl Project {
     /// be cleared (see `apply_regen`).
     fn prep_sphere(&mut self, p: &Pass, r: f64, body: Id) -> crate::feature::KernelJob {
         let r = eval_dim(p.dims, "r", r, p.vars);
+        if !above_zero(&[r]) {
+            return crate::feature::KernelJob::refused(crate::errors::CoreError::PrimitiveSizeNotAboveZero);
+        }
         let feature = p.node;
         crate::feature::KernelJob::new(Vec::new(), move |k| k.sphere(body, r, feature))
         // Exact sphere, one face.
@@ -1727,6 +1736,10 @@ impl Project {
     /// be cleared (see `apply_regen`).
     fn prep_cone(&mut self, p: &Pass, r1: f64, r2: f64, h: f64, body: Id) -> crate::feature::KernelJob {
         let (r1, r2, h) = (p.dim("r1", r1), p.dim("r2", r2), p.dim("h", h));
+        // one end may close to a point, not both, and neither end is narrower than nothing
+        if !above_zero(&[h, r1.max(r2)]) || r1.min(r2) < 0.0 {
+            return crate::feature::KernelJob::refused(crate::errors::CoreError::PrimitiveSizeNotAboveZero);
+        }
         let feature = p.node;
         crate::feature::KernelJob::new(Vec::new(), move |k| k.cone(body, r1, r2, h, feature))
         // Exact cone.
@@ -1736,6 +1749,9 @@ impl Project {
     /// be cleared (see `apply_regen`).
     fn prep_torus(&mut self, p: &Pass, major: f64, minor: f64, body: Id) -> crate::feature::KernelJob {
         let (major, minor) = (p.dim("major", major), p.dim("minor", minor));
+        if !above_zero(&[major, minor]) {
+            return crate::feature::KernelJob::refused(crate::errors::CoreError::PrimitiveSizeNotAboveZero);
+        }
         // a tube as thick as the ring or thicker passes through itself: a ring of 5 and a tube of 5 stood green as a
         // spindle of 2467 mm^3
         if minor >= major {
@@ -1750,6 +1766,9 @@ impl Project {
     /// be cleared (see `apply_regen`).
     fn prep_prism(&mut self, p: &Pass, r: f64, n: u32, h: f64, body: Id) -> crate::feature::KernelJob {
         let (r, h) = (p.dim("r", r), p.dim("h", h));
+        if !above_zero(&[r, h]) {
+            return crate::feature::KernelJob::refused(crate::errors::CoreError::PrimitiveSizeNotAboveZero);
+        }
         self.named_prism_job(p.node, &polygon_profile(r, n), h, body)
     }
 
@@ -2413,7 +2432,21 @@ impl Project {
                 let run = HelixRun { src: *src, edge: *edge, length: *length, lead_in: *lead_in, lead_out: *lead_out, body: *body };
                 (*body, self.prep_thread(p, run, *spec))
             }
-            _ => return None,
+            // BUILT IN PLACE by the walk of the timeline (`None`, see above), or nothing to build: a sketch, a datum, a
+            // piece of a mesh whose mesh is its geometry. Named one by one, not as "everything else": a kind of node
+            // added to `FeatureKind` does not build until it is told here how it builds - under "everything else" it
+            // built nothing and said nothing (found by laying a made-up kind of node).
+            FeatureKind::Sketch { .. }
+            | FeatureKind::Plane { .. }
+            | FeatureKind::DatumPoint { .. }
+            | FeatureKind::DatumAxis { .. }
+            | FeatureKind::SplitBody { .. }
+            | FeatureKind::Import { .. }
+            | FeatureKind::PartInstance { .. }
+            | FeatureKind::ComponentPattern { .. }
+            | FeatureKind::MirrorPart { .. }
+            | FeatureKind::Auger { .. }
+            | FeatureKind::MeshPiece { .. } => return None,
         };
         Some(job)
     }
@@ -2873,6 +2906,13 @@ impl Project {
     fn dim_expr_error(&self, node: Id, vars: &std::collections::HashMap<String, f64>) -> Option<crate::errors::CoreError> {
         self.feat_dims.get(&node)?.values().map(|e| e.trim()).filter(|e| !e.is_empty()).find_map(|e| crate::expr::eval(e, vars).err()).map(crate::errors::CoreError::Expr)
     }
+}
+
+/// WHETHER EVERY SIZE OF A PRIMITIVE IS ABOVE ZERO. A box, a cylinder or a sphere of nothing reached the kernel and came
+/// back as a broken body or as "the operation failed" (measured on all six primitives), where the cause is the size the
+/// person typed.
+fn above_zero(sizes: &[f64]) -> bool {
+    sizes.iter().all(|s| *s > 1e-9)
 }
 
 /// `mesh` made lighter within `simplify` mm, or as it is where that is zero.

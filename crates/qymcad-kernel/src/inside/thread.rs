@@ -7,7 +7,7 @@ fn external_thread_cuts_real_grooves() {
     // thread depth 0.9, length 16.
     let cyl = Shape::cylinder(5.0, 20.0).expect("a Ø10 cylinder of height 20");
     let v0 = cyl.volume();
-    assert!(v0 > 1550.0 && v0 < 1590.0, "the volume of the cylinder is πr²h = π·25·20 ≈ 1571: {v0:.1}");
+    assert!(v0 > 1550.0 && v0 < 1590.0, "the volume of the cylinder is pi r^2 h = pi x 25 x 20 ~ 1571: {v0:.1}");
 
     let thr = cyl
         .thread(crate::ThreadCut {

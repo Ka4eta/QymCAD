@@ -98,6 +98,13 @@ THREAD_TIME = (
     {"QYMCAD_TIER": "time"},
 )
 
+# THE PROBES OF TIME OF A BIG DRAWING, through the window: their budgets hold at this level only, one at a time.
+DRAWING_TIME = (
+    "the probes of time of a big drawing, one at a time",
+    ["cargo", "test", "-p", "qymcad", "--lib", "a_big_drawing_stays_live", "--", "--test-threads=1"],
+    {"QYMCAD_TIER": "time"},
+)
+
 RELEASE_MARK = os.path.join(ROOT, "target", "gate-release.json")
 
 LEVELS = {
@@ -107,6 +114,7 @@ LEVELS = {
         ("every crate's own checks", ["cargo", "test", "--workspace", "--exclude", "qymcad-acceptance", "--no-fail-fast"], {}),
         SKETCH_TIME,
         THREAD_TIME,
+        DRAWING_TIME,
         # EVERY LANGUAGE WHOLE: a string missing in a language falls back to English, so the checks of every change pass
         # with English alone and a contributor is asked for no language they do not know; before a release each
         # language must hold every key of the reference
@@ -131,6 +139,7 @@ LEVELS = {
         ("the probes of time, one at a time", ACCEPTANCE + ["--test-threads=1", TIME], {"QYMCAD_TIER": "fast"}),
         SKETCH_TIME,
         THREAD_TIME,
+        DRAWING_TIME,
     ],
     "fast": [
         # THE LAYOUT IS RUSTFMT'S: the tree was formatted once, and a hand layout coming back would be the next

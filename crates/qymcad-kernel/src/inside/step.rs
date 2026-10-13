@@ -454,7 +454,7 @@ fn draft_tilts_side_face_about_neutral_plane() {
     let top_w = span_x(9.5, 10.5);
     let expect = 10.0 * (10.0_f64).to_radians().tan(); // ≈1.763
     assert!((bottom_w - 10.0).abs() < 0.2, "the bottom along X is unchanged, being the neutral plane: {bottom_w}");
-    assert!(((bottom_w - top_w).abs() - expect).abs() < 0.3, "the top moved by 10·tan(10°) ≈ {expect:.3}: bottom={bottom_w}, top={top_w}");
+    assert!(((bottom_w - top_w).abs() - expect).abs() < 0.3, "the top moved by 10 x tan(10 deg) ~ {expect:.3}: bottom={bottom_w}, top={top_w}");
     // a non-existent face gives None, and so does an empty list
     assert!(sq(10.0).draft_faces(&[99999], 10.0, pull, np_o, np_n, &[]).is_none(), "no such face gives None");
     assert!(sq(10.0).draft_faces(&[], 10.0, pull, np_o, np_n, &[]).is_none(), "an empty list of faces gives None");

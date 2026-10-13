@@ -263,6 +263,8 @@ pub enum CoreError {
     DraftAngleZero,
     /// A torus whose tube is as thick as its ring or thicker passes through itself.
     TorusThroughItself,
+    /// A primitive with a size of zero or below: a box, a prism, a cylinder or a sphere of nothing has no body.
+    PrimitiveSizeNotAboveZero,
     /// A pattern of one copy is the body alone.
     ArrayOfOne,
     /// A pattern asks for `asked` instances, more than `MAX_PATTERN_INSTANCES` (`limit`).
@@ -456,6 +458,7 @@ impl CoreError {
             ThickenAddedNothing => "error-thicken-added-nothing".into(),
             DraftAngleZero => "error-draft-angle-zero".into(),
             TorusThroughItself => "error-torus-through-itself".into(),
+            PrimitiveSizeNotAboveZero => "error-primitive-size-not-above-zero".into(),
             ArrayOfOne => "error-array-of-one".into(),
             PatternTooLarge { .. } => "error-pattern-too-large".into(),
             TooManyStarts { .. } => "error-too-many-starts".into(),
@@ -576,6 +579,7 @@ impl std::fmt::Display for CoreError {
             ThickenAddedNothing => write!(f, "the plate went into the body and added nothing"),
             DraftAngleZero => write!(f, "a draft of 0 degrees tilts nothing"),
             TorusThroughItself => write!(f, "the tube is as thick as the ring: the torus passes through itself"),
+            PrimitiveSizeNotAboveZero => write!(f, "a size of the primitive is zero or below"),
             ArrayOfOne => write!(f, "a pattern of one copy is the body alone"),
             PatternTooLarge { asked, limit } => write!(f, "a pattern of {asked} instances is past the limit of {limit}"),
             TooManyStarts { starts, limit } => write!(f, "{starts} starts is too many (at most {limit})"),

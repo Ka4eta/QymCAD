@@ -2,6 +2,7 @@
 error-thicken-added-nothing = The plate went into the body and added nothing — give the thickness above zero
 error-draft-angle-zero = A draft of 0 degrees tilts nothing — give an angle other than zero
 error-torus-through-itself = The tube is as thick as the ring or thicker — such a torus passes through itself; make the tube radius smaller than the ring radius
+error-primitive-size-not-above-zero = A size of the primitive is zero or below, and there is no body of nothing; give every size above zero
 error-array-of-one = A pattern of one copy is the body alone — give two copies or more
 error-pattern-too-large = A pattern of { $asked } instances is past the limit of { $limit } — lower the counts
 error-too-many-starts = { $starts } starts is too many — at most { $limit }

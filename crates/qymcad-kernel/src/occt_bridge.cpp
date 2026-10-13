@@ -3226,13 +3226,24 @@ extern "C" size_t qym_shape_edge_face_pairs(const QymShape* s, unsigned* out, si
             if (!s->eids.IsBound(e)) continue;
             // a free edge of a sheet pairs its one face with the face that stood beside it in the body it came from
             const bool free_edge = fs.Extent() == 1 && s->ebeside.IsBound(e);
-            if (fs.Extent() != 2 && !free_edge) continue;
+            // AN EDGE LYING INSIDE ONE FACE - internal to it, the face on both of its sides - pairs the face with
+            // itself, as a seam does. An auger flight welded flush with the end of its shaft leaves one in the end
+            // face (0.5 mm, from r = 4.5 to 5): it has one face above it, no pair, and it stayed on a positional
+            // number while every other edge of the body had a name.
+            bool inside_one = false;
+            if (fs.Extent() == 1 && !free_edge) {
+                for (TopExp_Explorer ex(fs.First(), TopAbs_EDGE); ex.More() && !inside_one; ex.Next())
+                    inside_one = ex.Current().IsSame(e) && (ex.Current().Orientation() == TopAbs_INTERNAL || ex.Current().Orientation() == TopAbs_EXTERNAL);
+            }
+            if (fs.Extent() != 2 && !free_edge && !inside_one) continue;
             TopTools_ListIteratorOfListOfShape it(fs);
             const TopoDS_Shape& f1 = it.Value();
             if (!s->fids.IsBound(f1)) continue;
             int second = 0;
             if (free_edge) {
                 second = s->ebeside.Find(e);
+            } else if (inside_one) {
+                second = s->fids.Find(f1);
             } else {
                 it.Next();
                 if (!s->fids.IsBound(it.Value())) continue;

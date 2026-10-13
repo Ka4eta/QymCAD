@@ -258,11 +258,14 @@ enum Expect {
     Builds { volume: f64, faces: Option<u32> },
     /// Nothing to build, said in words: an error of the node other than a broken body.
     Refused,
+    /// Nothing to build, said in these words.
+    Says(qymcad_core::errors::CoreError),
 }
 
 /// AN OPERATION ON THE BLOCK 40 x 30 x 10 landing on its boundary: `apply` lays the node and gives its id.
 struct OnTheBlock {
     name: &'static str,
+    kind: &'static str,
     apply: fn(&mut Project, u64) -> u64,
     expect: Expect,
 }
@@ -280,10 +283,28 @@ fn face_id(p: &Project, body: u64, normal: [f64; 3]) -> u32 {
 
 const UP: [f64; 3] = [0.0, 0.0, 1.0];
 
-const ON_THE_BLOCK: [OnTheBlock; 5] = [
+/// A sketch on XY holding a rectangle, and its closed profiles.
+fn rect_sketch(p: &mut Project, from: Point2, to: Point2) -> (u64, Vec<u64>) {
+    let si = p.new_sketch("Rect");
+    let sid = p.sketches[si].id;
+    p.add_sketch_node(sid, "Rect");
+    p.add_rect_entity(si, from.x, from.y, to.x, to.y, qymcad_core::feature::Purpose::Real);
+    p.regen_sketch(si);
+    (sid, p.sketches[si].contour_ids.iter().copied().filter(|c| p.contour_profile_xy(*c).is_some()).collect())
+}
+
+/// The round edge of `body` that stands highest: the rim a thread or an auger starts from.
+fn top_rim(p: &mut Project, body: u64) -> u32 {
+    let _ = qymcad_testkit::regenerate(p);
+    let rims = p.regen_edges.get(&body).into_iter().flatten().filter(|e| e.radius > 1e-6);
+    rims.max_by(|a, b| a.mid[2].total_cmp(&b.mid[2])).map(|e| e.id).expect("a round edge")
+}
+
+const ON_THE_BLOCK: [OnTheBlock; 38] = [
     // a hole 10 across exactly as deep as the block: through, no cap of the bottom left in it
     OnTheBlock {
         name: "a hole exactly as deep as the block",
+        kind: "Hole",
         apply: |p, b| {
             let key = face_key(p, b, UP);
             p.add_hole(b, key, 10.0, 10.0)
@@ -291,10 +312,16 @@ const ON_THE_BLOCK: [OnTheBlock; 5] = [
         expect: Expect::Builds { volume: BLOCK_VOLUME - std::f64::consts::PI * 25.0 * 10.0, faces: Some(7) },
     },
     // three copies of the block 40 apart: each touches the next along a face, and together they are one bar 120 long
-    OnTheBlock { name: "copies touching face to face", apply: |p, b| p.add_linear_array(b, 40.0, 0.0, 0.0, 3), expect: Expect::Builds { volume: 3.0 * BLOCK_VOLUME, faces: Some(6) } },
+    OnTheBlock {
+        name: "copies touching face to face",
+        kind: "LinearArray",
+        apply: |p, b| p.add_linear_array(b, 40.0, 0.0, 0.0, 3),
+        expect: Expect::Builds { volume: 3.0 * BLOCK_VOLUME, faces: Some(6) },
+    },
     // walls 15 thick inside a block 30 wide meet in the middle: nothing is left hollow
     OnTheBlock {
         name: "a shell as thick as half the width",
+        kind: "Shell",
         apply: |p, b| {
             let top = face_id(p, b, UP);
             p.add_shell(b, 15.0, vec![top], false)
@@ -304,6 +331,7 @@ const ON_THE_BLOCK: [OnTheBlock; 5] = [
     // a floor as thick as the block is tall: nothing is left hollow
     OnTheBlock {
         name: "a shell as thick as the block is tall",
+        kind: "Shell",
         apply: |p, b| {
             let top = face_id(p, b, UP);
             p.add_shell(b, 10.0, vec![top], false)
@@ -311,7 +339,306 @@ const ON_THE_BLOCK: [OnTheBlock; 5] = [
         expect: Expect::Refused,
     },
     // the plane of the split lies on the bottom face: there is nothing on one side of it
-    OnTheBlock { name: "a split on the plane of the bottom face", apply: |p, b| p.add_split_body(b, 0, 0, 0.0, 2)[0], expect: Expect::Refused },
+    OnTheBlock { name: "a split on the plane of the bottom face", kind: "SplitBody", apply: |p, b| p.add_split_body(b, 0, 0, 0.0, 2)[0], expect: Expect::Refused },
+    // a size of zero: nothing to build, for every primitive
+    OnTheBlock { name: "a box of no height", kind: "Box3", apply: |p, _| p.add_box(10.0, 10.0, 0.0), expect: Expect::Says(qymcad_core::errors::CoreError::PrimitiveSizeNotAboveZero) },
+    OnTheBlock { name: "a cylinder of no radius", kind: "Cylinder", apply: |p, _| p.add_cylinder(0.0, 10.0), expect: Expect::Says(qymcad_core::errors::CoreError::PrimitiveSizeNotAboveZero) },
+    OnTheBlock { name: "a sphere of no radius", kind: "Sphere", apply: |p, _| p.add_sphere(0.0), expect: Expect::Says(qymcad_core::errors::CoreError::PrimitiveSizeNotAboveZero) },
+    OnTheBlock { name: "a prism of no height", kind: "Prism", apply: |p, _| p.add_prism(10.0, 6, 0.0), expect: Expect::Says(qymcad_core::errors::CoreError::PrimitiveSizeNotAboveZero) },
+    // a cone closed to a point at the top: a base and the cone, a third of the cylinder
+    OnTheBlock {
+        name: "a cone closed to a point",
+        kind: "Cone",
+        apply: |p, _| p.add_cone(10.0, 0.0, 10.0),
+        expect: Expect::Builds { volume: std::f64::consts::PI * 100.0 * 10.0 / 3.0, faces: Some(2) },
+    },
+    OnTheBlock { name: "a cone of no height", kind: "Cone", apply: |p, _| p.add_cone(10.0, 5.0, 0.0), expect: Expect::Says(qymcad_core::errors::CoreError::PrimitiveSizeNotAboveZero) },
+    OnTheBlock { name: "a torus whose tube has no thickness", kind: "Torus", apply: |p, _| p.add_torus(10.0, 0.0), expect: Expect::Says(qymcad_core::errors::CoreError::PrimitiveSizeNotAboveZero) },
+    // a tube as thick as the ring passes through the axis
+    OnTheBlock { name: "a torus whose tube is as thick as its ring", kind: "Torus", apply: |p, _| p.add_torus(10.0, 10.0), expect: Expect::Refused },
+    // a profile extruded by nothing
+    OnTheBlock {
+        name: "a profile extruded by nothing",
+        kind: "Extrude",
+        apply: |p, _| {
+            let (sid, c) = rect_sketch(p, p2(0.0, 0.0), p2(10.0, 10.0));
+            p.add_extrude_multi(sid, c, 0.0, Reach::Forward, 0.0, vec![])
+        },
+        expect: Expect::Refused,
+    },
+    // a profile whose side lies on the axis it turns about: a solid cylinder with no hole along the axis
+    OnTheBlock {
+        name: "a profile turned about its own side",
+        kind: "Revolve",
+        apply: |p, _| {
+            let (sid, c) = rect_sketch(p, p2(0.0, 0.0), p2(10.0, 10.0));
+            p.add_revolve_axis(sid, c, 1, 360.0, 0, 0)
+        },
+        expect: Expect::Builds { volume: std::f64::consts::PI * 100.0 * 10.0, faces: Some(3) },
+    },
+    // two equal squares, one above the other: the loft is the prism between them
+    OnTheBlock {
+        name: "a loft between equal sections",
+        kind: "Loft",
+        apply: |p, _| {
+            let (low, lows) = rect_sketch(p, p2(-10.0, -10.0), p2(10.0, 10.0));
+            let pl = p.add_plane(qymcad_core::model::WorkPlane {
+                id: 0,
+                name: "z10".into(),
+                origin: [0.0, 0.0, 10.0],
+                normal: [0.0, 0.0, 1.0],
+                rot_deg: 0.0,
+                tilt: Default::default(),
+                def: Default::default(),
+            });
+            let si = p.new_sketch("High");
+            let high = p.sketches[si].id;
+            p.sketches[si].plane = qymcad_core::feature::SketchPlane::Datum(pl);
+            p.add_sketch_node(high, "High");
+            p.add_rect_entity(si, -10.0, -10.0, 10.0, 10.0, qymcad_core::feature::Purpose::Real);
+            p.regen_sketch(si);
+            let highs: Vec<u64> = p.sketches[si].contour_ids.iter().copied().filter(|c| p.contour_profile_xy(*c).is_some()).collect();
+            p.add_loft(vec![low, high], vec![lows[0], highs[0]], true, 0, 0, false)
+        },
+        expect: Expect::Builds { volume: 4000.0, faces: Some(6) },
+    },
+    // a square swept along a straight path square to it: the prism
+    OnTheBlock {
+        name: "a sweep along a straight path",
+        kind: "Sweep",
+        apply: |p, _| {
+            let (prof, profiles) = rect_sketch(p, p2(-3.0, -3.0), p2(3.0, 3.0));
+            let si = p.new_sketch("Path");
+            let path = p.sketches[si].id;
+            p.sketches[si].plane = qymcad_core::feature::SketchPlane::World(qymcad_core::feature::BasePlane::XZ);
+            p.add_sketch_node(path, "Path");
+            p.add_line_entity(si, 0.0, 0.0, 0.0, 40.0, qymcad_core::feature::Purpose::Real);
+            p.regen_sketch(si);
+            let line = p.sketches[si].contour_ids.first().copied().expect("the path");
+            p.add_sweep(prof, profiles, path, line)
+        },
+        expect: Expect::Builds { volume: 36.0 * 40.0, faces: Some(6) },
+    },
+    // A TOOL ENDING EXACTLY ON A FACE OF THE BODY IT CUTS, for every kind of profile tool, not only an extrusion: OCCT
+    // does not cut through a face it only touches, and leaves a skin over the hole
+    // a square 4 x 4 swept from the bottom face exactly to the top: a hole through
+    OnTheBlock {
+        name: "a sweep cut from the bottom exactly to the top",
+        kind: "Sweep",
+        apply: |p, b| {
+            let (prof, profiles) = rect_sketch(p, p2(-2.0, -2.0), p2(2.0, 2.0));
+            let si = p.new_sketch("Path");
+            let path = p.sketches[si].id;
+            p.sketches[si].plane = qymcad_core::feature::SketchPlane::World(qymcad_core::feature::BasePlane::XZ);
+            p.add_sketch_node(path, "Path");
+            p.add_line_entity(si, 0.0, 0.0, 0.0, 10.0, qymcad_core::feature::Purpose::Real);
+            p.regen_sketch(si);
+            let line = p.sketches[si].contour_ids.first().copied().expect("the path");
+            p.add_sweep_multi_op(prof, profiles, path, line, b, 0)
+        },
+        expect: Expect::Builds { volume: BLOCK_VOLUME - 160.0, faces: Some(10) },
+    },
+    // two squares 4 x 4, on the bottom face and on the top: the loft between them cuts a hole through
+    OnTheBlock {
+        name: "a loft cut between the bottom and the top",
+        kind: "Loft",
+        apply: |p, b| {
+            let (low, lows) = rect_sketch(p, p2(-2.0, -2.0), p2(2.0, 2.0));
+            let pl = p.add_plane(qymcad_core::model::WorkPlane {
+                id: 0,
+                name: "z10".into(),
+                origin: [0.0, 0.0, 10.0],
+                normal: [0.0, 0.0, 1.0],
+                rot_deg: 0.0,
+                tilt: Default::default(),
+                def: Default::default(),
+            });
+            let si = p.new_sketch("High");
+            let high = p.sketches[si].id;
+            p.sketches[si].plane = qymcad_core::feature::SketchPlane::Datum(pl);
+            p.add_sketch_node(high, "High");
+            p.add_rect_entity(si, -2.0, -2.0, 2.0, 2.0, qymcad_core::feature::Purpose::Real);
+            p.regen_sketch(si);
+            let highs: Vec<u64> = p.sketches[si].contour_ids.iter().copied().filter(|c| p.contour_profile_xy(*c).is_some()).collect();
+            p.add_loft(vec![low, high], vec![lows[0], highs[0]], true, b, 0, false)
+        },
+        expect: Expect::Builds { volume: BLOCK_VOLUME - 160.0, faces: Some(10) },
+    },
+    // a ring groove turned into the top: the profile x 5..8 along its height from z = 6 up to the top face exactly
+    OnTheBlock {
+        name: "a groove turned down from the top face exactly",
+        kind: "Revolve",
+        apply: |p, b| {
+            let si = p.new_sketch("Groove");
+            let sid = p.sketches[si].id;
+            p.sketches[si].plane = qymcad_core::feature::SketchPlane::World(qymcad_core::feature::BasePlane::XZ);
+            p.add_sketch_node(sid, "Groove");
+            p.add_rect_entity(si, 5.0, 6.0, 8.0, 10.0, qymcad_core::feature::Purpose::Real);
+            let axis = p.add_line_entity(si, 0.0, -5.0, 0.0, 20.0, qymcad_core::feature::Purpose::Construction);
+            p.regen_sketch(si);
+            let c: Vec<u64> = p.sketches[si].contour_ids.iter().copied().filter(|c| p.contour_profile_xy(*c).is_some()).collect();
+            let ax = qymcad_core::model::RevolveAxis { axis: 0, datum: 0, line: axis };
+            p.add_revolve_multi_op(sid, c, ax, qymcad_core::model::RevolveTurn { angle: 360.0, reach: Reach::Forward }, b, 0)
+        },
+        // the top is two faces now - outside the groove and the island inside it - beside the bottom, four sides and
+        // the two walls and the floor of the groove
+        expect: Expect::Builds { volume: BLOCK_VOLUME - std::f64::consts::PI * (64.0 - 25.0) * 4.0, faces: Some(10) },
+    },
+    // a draft of no angle tilts nothing
+    OnTheBlock {
+        name: "a draft of no angle",
+        kind: "Draft",
+        apply: |p, b| {
+            let (front, bottom) = (face_id(p, b, [0.0, -1.0, 0.0]), face_id(p, b, [0.0, 0.0, -1.0]));
+            p.add_draft(b, vec![front], bottom, 0.0, false)
+        },
+        expect: Expect::Refused,
+    },
+    // the top pushed down onto the bottom: no thickness left
+    OnTheBlock {
+        name: "the top pushed down onto the bottom",
+        kind: "PushFace",
+        apply: |p, b| {
+            let key = face_key(p, b, UP);
+            p.add_push_face(b, key, -10.0)
+        },
+        expect: Expect::Refused,
+    },
+    // the top thickened into the body: the plate adds nothing
+    OnTheBlock {
+        name: "the top thickened into the body",
+        kind: "Thicken",
+        apply: |p, b| {
+            let top = face_id(p, b, UP);
+            p.add_thicken(b, top, -2.0)
+        },
+        expect: Expect::Refused,
+    },
+    // the faces divided by the plane of the top face: nothing to divide
+    OnTheBlock { name: "faces divided on the plane of the top", kind: "SplitFace", apply: |p, b| p.add_split_face(b, 0, 0, 10.0), expect: Expect::Refused },
+    // the top of the block taken off: nothing closes it again
+    OnTheBlock {
+        name: "the top of the block taken off",
+        kind: "RemoveFace",
+        apply: |p, b| {
+            let key = face_key(p, b, UP);
+            p.add_remove_face(b, vec![key])
+        },
+        expect: Expect::Refused,
+    },
+    // two copies half a turn apart about Z: the block is centred on the axis, the copies coincide
+    OnTheBlock { name: "two copies standing in one place", kind: "CircularArray", apply: |p, b| p.add_circular_array(b, 2, 360.0), expect: Expect::Builds { volume: BLOCK_VOLUME, faces: Some(6) } },
+    // the image across the plane through the middle: the image is the block itself
+    OnTheBlock { name: "a mirror onto itself", kind: "Mirror", apply: |p, b| p.add_mirror(b, 2, true, 0), expect: Expect::Builds { volume: BLOCK_VOLUME, faces: Some(6) } },
+    // the part mirrored across its own right face: the image touches it face to face, a part of its own
+    OnTheBlock {
+        name: "a part mirrored across its own face",
+        kind: "MirrorPart",
+        apply: |p, b| {
+            let part = p.body_owner(b).expect("the part of the block");
+            p.add_mirror_part(part, [20.0, 0.0, 0.0], [1.0, 0.0, 0.0])
+        },
+        expect: Expect::Builds { volume: BLOCK_VOLUME, faces: Some(6) },
+    },
+    // moved by nothing
+    OnTheBlock { name: "a move by nothing", kind: "Move", apply: |p, b| p.add_move(b, qymcad_core::feature::PLACE_IDENTITY), expect: Expect::Builds { volume: BLOCK_VOLUME, faces: Some(6) } },
+    // two blocks touching face to face have nothing in common
+    OnTheBlock {
+        name: "an intersection of blocks touching face to face",
+        kind: "BodyBoolean",
+        apply: |p, b| {
+            let other = p.add_box(40.0, 30.0, 10.0);
+            let moved = p.add_move(other, [1.0, 0.0, 0.0, 40.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0]);
+            let _ = qymcad_testkit::regenerate(p);
+            p.add_body_boolean(b, moved, 2)
+        },
+        expect: Expect::Refused,
+    },
+    // the top and the front replaced by a copy of the top alone: the front is left open
+    OnTheBlock {
+        name: "a sheet that does not close what it replaces",
+        kind: "SurfaceReplace",
+        apply: |p, b| {
+            let (top, front) = (face_id(p, b, UP), face_id(p, b, [0.0, -1.0, 0.0]));
+            let sheet = p.add_face_copy(b, Ref::picks(&[top]));
+            let _ = qymcad_testkit::regenerate(p);
+            p.add_surface_replace(b, Ref::picks(&[top, front]), sheet)
+        },
+        expect: Expect::Refused,
+    },
+    // a copy of no face
+    OnTheBlock { name: "a copy of no face", kind: "FaceCopy", apply: |p, b| p.add_face_copy(b, Ref::picks(&[])), expect: Expect::Refused },
+    // the side of a cylinder of radius 10 moved 10 in: it closes to its axis
+    OnTheBlock {
+        name: "a round face offset in by its radius",
+        kind: "OffsetSurface",
+        apply: |p, _| {
+            let c = p.add_cylinder(10.0, 10.0);
+            let _ = qymcad_testkit::regenerate(p);
+            let side = p.regen_faces[&c].iter().find(|f| f.normal[2].abs() < 0.5).map(|f| f.id).expect("the side of the cylinder");
+            p.add_offset_surface(c, Ref::picks(&[side]), -10.0)
+        },
+        expect: Expect::Refused,
+    },
+    // one straight edge is no opening to close
+    OnTheBlock {
+        name: "a patch over one edge",
+        kind: "Patch",
+        apply: |p, b| {
+            let e = p.regen_edges[&b].iter().find(|e| e.a[2] > 9.99 && e.b[2] > 9.99).map(|e| e.id).expect("an edge of the top");
+            p.add_patch(b, Ref::picks(&[e]), false)
+        },
+        expect: Expect::Refused,
+    },
+    // the top and the bottom are 10 apart: nothing to sew
+    OnTheBlock {
+        name: "sheets that do not touch stitched",
+        kind: "Stitch",
+        apply: |p, b| {
+            let (top, bottom) = (face_id(p, b, UP), face_id(p, b, [0.0, 0.0, -1.0]));
+            let a = p.add_face_copy(b, Ref::picks(&[top]));
+            let c = p.add_face_copy(b, Ref::picks(&[bottom]));
+            let _ = qymcad_testkit::regenerate(p);
+            p.add_stitch(vec![a, c], 1e-4)
+        },
+        expect: Expect::Refused,
+    },
+    // a sheet trimmed by a body that does not reach it
+    OnTheBlock {
+        name: "a sheet trimmed by a body apart from it",
+        kind: "Trim",
+        apply: |p, b| {
+            let top = face_id(p, b, UP);
+            let sheet = p.add_face_copy(b, Ref::picks(&[top]));
+            let far = p.add_box(10.0, 10.0, 10.0);
+            let tool = p.add_move(far, [1.0, 0.0, 0.0, 200.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0]);
+            let _ = qymcad_testkit::regenerate(p);
+            p.add_trim(sheet, tool, [0.0, 0.0, 10.0])
+        },
+        expect: Expect::Refused,
+    },
+    // a thread longer than the round face it is cut in
+    OnTheBlock {
+        name: "a thread longer than its face",
+        kind: "Thread",
+        apply: |p, _| {
+            let c = p.add_cylinder(10.0, 10.0);
+            let rim = top_rim(p, c);
+            p.add_thread(c, rim, qymcad_core::thread::ThreadSpec { nominal_d: 20.0, ..Default::default() }, 20.0, 0.0, 0.0)
+        },
+        expect: Expect::Refused,
+    },
+    // a flight no wider than its shaft
+    OnTheBlock {
+        name: "an auger flight no wider than its shaft",
+        kind: "Auger",
+        apply: |p, _| {
+            let c = p.add_cylinder(5.0, 40.0);
+            let rim = top_rim(p, c);
+            p.add_auger(c, rim, qymcad_core::thread::AugerSpec { outer_d: 10.0, ..Default::default() }, 20.0, 0.0, 0.0)
+        },
+        expect: Expect::Refused,
+    },
 ];
 
 #[test]
@@ -323,11 +650,18 @@ fn an_operation_lands_on_the_boundary_of_the_block() {
         let block = p.add_box(40.0, 30.0, 10.0);
         let _ = qymcad_testkit::regenerate(&mut p);
         let node = (cell.apply)(&mut p, block);
+        let made = qymcad_testkit::kind_making(&p, node);
+        if made.as_deref() != Some(cell.kind) {
+            fails.push(format!("{}: the cell says it lays {}, the node of its body is {made:?}", cell.name, cell.kind));
+        }
         let (report, shapes) = qymcad_testkit::regenerate(&mut p);
         let error = report.errors.iter().find(|(id, _)| *id == node).map(|(_, e)| e.clone());
         match (&cell.expect, error) {
             (Expect::Refused, Some(qymcad_core::errors::CoreError::BrokenSolid)) => fails.push(format!("{}: a broken body instead of a refusal in words", cell.name)),
             (Expect::Refused, Some(_)) => {}
+            (Expect::Says(want), Some(e)) if e == *want => {}
+            (Expect::Says(want), Some(e)) => fails.push(format!("{}: refused as {e:?}, the words should be {want:?}", cell.name)),
+            (Expect::Says(want), None) => fails.push(format!("{}: built where it should say {want:?}", cell.name)),
             (Expect::Refused, None) => {
                 let v = shapes.get(&node).map(|s| s.volume()).unwrap_or(0.0);
                 fails.push(format!("{}: built ({v:.3} mm^3) where nothing can be", cell.name));
@@ -356,4 +690,33 @@ fn an_operation_lands_on_the_boundary_of_the_block() {
         }
     }
     assert!(fails.is_empty(), "\nOPERATIONS ON THE BOUNDARY OF THE BLOCK ({}):\n{}", fails.len(), fails.join("\n"));
+}
+
+/// THE KINDS THE TABLES OF BLENDS AND OF CUTS LAY: the blends on the step, the cuts and bosses from the bottom.
+const LAID_BY_THE_OTHER_TABLES: [&str; 3] = ["Fillet", "Chamfer", "Combine"];
+
+/// THE KINDS THIS MATRIX HAS NO CELL FOR, and why.
+const NOT_HERE: [qymcad_testkit::Uncovered; 11] = [
+    qymcad_testkit::Uncovered { kind: "Sketch", why: "a sketch builds no body" },
+    qymcad_testkit::Uncovered { kind: "Plane", why: "a datum plane builds no body" },
+    qymcad_testkit::Uncovered { kind: "DatumPoint", why: "a datum point builds no body" },
+    qymcad_testkit::Uncovered { kind: "DatumAxis", why: "a datum axis builds no body" },
+    qymcad_testkit::Uncovered { kind: "PartInstance", why: "a copy of a part placed in an assembly repeats the body of the part as it is" },
+    qymcad_testkit::Uncovered { kind: "ComponentPattern", why: "the copies of a pattern of parts repeat the body of the part as it is" },
+    qymcad_testkit::Uncovered { kind: "Piece", why: "making a piece a part moves a built body as it is: it has no size to land on a boundary" },
+    qymcad_testkit::Uncovered { kind: "Import", why: "an import has no operation to land on a boundary: what it reads is what the file holds" },
+    qymcad_testkit::Uncovered { kind: "MeshPiece", why: "a piece of a mesh has no B-rep and no operation" },
+    qymcad_testkit::Uncovered {
+        kind: "MeshSolid",
+        why: "the limits of a mesh - a hole in it, a triangle of no area - are the matrices of meshes (a_mesh_becomes_a_solid, a_small_triangle_of_a_mesh_is_no_crack)",
+    },
+    qymcad_testkit::Uncovered { kind: "MeshRecognised", why: "the limits of a mesh are the matrices of the recognition (qymcad-meshfit)" },
+];
+
+/// EVERY KIND OF NODE HAS A CELL HERE, or a reason for none.
+#[test]
+fn every_kind_of_node_has_a_cell() {
+    let kinds: Vec<&str> = ON_THE_BLOCK.iter().map(|c| c.kind).chain(LAID_BY_THE_OTHER_TABLES).collect();
+    let gaps = qymcad_testkit::coverage_gaps(&kinds, &NOT_HERE);
+    assert!(gaps.is_empty(), "the matrix of limits leaves kinds of node unseen:\n{}", gaps.join("\n"));
 }

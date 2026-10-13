@@ -62,10 +62,32 @@ fn face_id(p: &Project, body: u64, normal: [f64; 3]) -> u32 {
     p.regen_faces.get(&body).and_then(|fs| fs.iter().find(|f| (0..3).all(|i| (f.normal[i] - normal[i]).abs() < 1e-6))).map(|f| f.id).expect("the face of that normal")
 }
 
+/// The key of the face of `body` facing `normal`.
+fn face_key(p: &Project, body: u64, normal: [f64; 3]) -> qymcad_core::feature::FaceKey {
+    let f = p.regen_faces.get(&body).and_then(|fs| fs.iter().find(|f| (0..3).all(|i| (f.normal[i] - normal[i]).abs() < 1e-6))).cloned().expect("the face of that normal");
+    qymcad_core::feature::FaceKey { index: 0, centroid: [f.centroid.x, f.centroid.y, f.centroid.z], normal: f.normal, id: f.id }
+}
+
+/// A post of radius 5 at (20, 15) on `src`, `tall` from the bottom, and its rim at the top: the body and the rim.
+fn post_of(p: &mut Project, src: u64, tall: f64) -> (u64, u32) {
+    let si = p.new_sketch("Post");
+    let sid = p.sketches[si].id;
+    p.add_sketch_node(sid, "Post");
+    p.add_circle_entity(si, 20.0, 15.0, 5.0, Purpose::Real);
+    p.regen_sketch(si);
+    let c: Vec<u64> = p.sketches[si].contour_ids.iter().copied().filter(|c| p.contour_profile_xy(*c).is_some()).collect();
+    let span = qymcad_core::model::CombineSpan { height: tall, down: 0.0, extent: qymcad_core::feature::Extent { reach: Reach::Forward, ..Default::default() }, fill: &[] };
+    let post = p.add_combine_multi_op(src, sid, c, span, 1);
+    let _ = qymcad_testkit::regenerate(p);
+    let rim = p.regen_edges.get(&post).into_iter().flatten().filter(|e| e.radius > 1e-6).max_by(|a, b| a.mid[2].total_cmp(&b.mid[2])).map(|e| e.id).expect("the rim of the post");
+    (post, rim)
+}
+
 /// AN OPERATION ON THE BASE and the edge of its result a reference is laid on: `build` lays the node on `src` and gives
 /// the body of the result, `edge` says where the edge lies for a base of a size.
 struct Row {
     name: &'static str,
+    kind: &'static str,
     build: fn(&mut Project, u64) -> u64,
     edge: fn(Size) -> [f64; 3],
     top: Option<Top>,
@@ -77,12 +99,13 @@ struct Top {
     z: fn(Size) -> f64,
 }
 
-const ROWS: [Row; 12] = [
+const ROWS: [Row; 25] = [
     // the top edge at the back, carried from the sketch
-    Row { name: "the block itself", build: |_, src| src, edge: |s| [s.w / 2.0, 30.0, s.h], top: Some(Top { at: [5.0, 5.0], z: |s| s.h }) },
+    Row { name: "the block itself", kind: "Extrude", build: |_, src| src, edge: |s| [s.w / 2.0, 30.0, s.h], top: Some(Top { at: [5.0, 5.0], z: |s| s.h }) },
     // the arc where the rounding of the front right corner meets the top, its middle at 45 deg
     Row {
         name: "a fillet of a corner",
+        kind: "Fillet",
         build: |p, src| {
             let _ = qymcad_testkit::regenerate(p);
             let e = edge_at(p, src, [BASE.w, 0.0, BASE.h / 2.0]).expect("the front right upright edge");
@@ -93,6 +116,7 @@ const ROWS: [Row; 12] = [
     },
     Row {
         name: "a chamfer of a corner",
+        kind: "Chamfer",
         build: |p, src| {
             let _ = qymcad_testkit::regenerate(p);
             let e = edge_at(p, src, [BASE.w, 0.0, BASE.h / 2.0]).expect("the front right upright edge");
@@ -104,6 +128,7 @@ const ROWS: [Row; 12] = [
     // the upright inner corner at the front right of a shell open at the top, walls 2 thick, floor 2 thick
     Row {
         name: "a shell open at the top",
+        kind: "Shell",
         build: |p, src| {
             let _ = qymcad_testkit::regenerate(p);
             let top = face_id(p, src, [0.0, 0.0, 1.0]);
@@ -115,6 +140,7 @@ const ROWS: [Row; 12] = [
     // the upright edge of a pocket cut 5 up from the bottom
     Row {
         name: "a pocket cut from the bottom",
+        kind: "Combine",
         build: |p, src| {
             let si = p.new_sketch("Pocket");
             let sid = p.sketches[si].id;
@@ -129,12 +155,19 @@ const ROWS: [Row; 12] = [
         top: Some(Top { at: [25.0, 5.0], z: |s| s.h }),
     },
     // the top edge at the back of the second copy, 100 along
-    Row { name: "a linear pattern", build: |p, src| p.add_linear_array(src, 100.0, 0.0, 0.0, 2), edge: |s| [100.0 + s.w / 2.0, 30.0, s.h], top: Some(Top { at: [5.0, 5.0], z: |s| s.h }) },
+    Row {
+        name: "a linear pattern",
+        kind: "LinearArray",
+        build: |p, src| p.add_linear_array(src, 100.0, 0.0, 0.0, 2),
+        edge: |s| [100.0 + s.w / 2.0, 30.0, s.h],
+        top: Some(Top { at: [5.0, 5.0], z: |s| s.h }),
+    },
     // the front upright edge at the far end of the mirror image across YZ: the image and the original join at x = 0
-    Row { name: "a mirror kept with its original", build: |p, src| p.add_mirror(src, 2, true, 0), edge: |s| [-s.w, 0.0, s.h / 2.0], top: Some(Top { at: [5.0, 5.0], z: |s| s.h }) },
+    Row { name: "a mirror kept with its original", kind: "Mirror", build: |p, src| p.add_mirror(src, 2, true, 0), edge: |s| [-s.w, 0.0, s.h / 2.0], top: Some(Top { at: [5.0, 5.0], z: |s| s.h }) },
     // the top face thickened 2 up: the top edge of the plate at the back
     Row {
         name: "the top face thickened",
+        kind: "Thicken",
         build: |p, src| {
             let _ = qymcad_testkit::regenerate(p);
             let top = face_id(p, src, [0.0, 0.0, 1.0]);
@@ -144,11 +177,18 @@ const ROWS: [Row; 12] = [
         top: Some(Top { at: [5.0, 5.0], z: |s| s.h + 2.0 }),
     },
     // split by the plane z = 3: the top edge at the back of the upper piece
-    Row { name: "the upper piece of a split", build: |p, src| p.add_split_body(src, 0, 0, 3.0, 2)[1], edge: |s| [s.w / 2.0, 30.0, s.h], top: Some(Top { at: [5.0, 5.0], z: |s| s.h }) },
+    Row {
+        name: "the upper piece of a split",
+        kind: "SplitBody",
+        build: |p, src| p.add_split_body(src, 0, 0, 3.0, 2)[1],
+        edge: |s| [s.w / 2.0, 30.0, s.h],
+        top: Some(Top { at: [5.0, 5.0], z: |s| s.h }),
+    },
     // a groove turned into the bottom: a rectangle 10 long and 4 high revolved about a line of its sketch along x at
     // y = 10; the half circle where the groove meets its end at x = 10 tops out at (10, 10, 4)
     Row {
         name: "a groove revolved into the bottom",
+        kind: "Revolve",
         build: |p, src| {
             let si = p.new_sketch("Groove");
             let sid = p.sketches[si].id;
@@ -164,10 +204,11 @@ const ROWS: [Row; 12] = [
         top: Some(Top { at: [30.0, 25.0], z: |s| s.h }),
     },
     // the box primitive beside the base, centred on (0, 0) in plan: its top edge at the back
-    Row { name: "the box primitive", build: |p, _| p.add_box(20.0, 10.0, 4.0), edge: |_| [0.0, 5.0, 4.0], top: Some(Top { at: [5.0, 2.0], z: |_| 4.0 }) },
+    Row { name: "the box primitive", kind: "Box3", build: |p, _| p.add_box(20.0, 10.0, 4.0), edge: |_| [0.0, 5.0, 4.0], top: Some(Top { at: [5.0, 2.0], z: |_| 4.0 }) },
     // a block brought in from a STEP file, apart from the base: its top edge at the back
     Row {
         name: "a body brought in from a STEP file",
+        kind: "Import",
         build: |p, _| {
             let dir = std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/names-survive-an-edit"));
             std::fs::create_dir_all(&dir).expect("a folder for the check");
@@ -184,6 +225,156 @@ const ROWS: [Row; 12] = [
         },
         edge: |_| [210.0, 10.0, 4.0],
         top: Some(Top { at: [205.0, 5.0], z: |_| 4.0 }),
+    },
+    // a hole drilled into the middle of the top: the bottom edge at the front
+    Row {
+        name: "a hole in the top",
+        kind: "Hole",
+        build: |p, src| {
+            let _ = qymcad_testkit::regenerate(p);
+            let key = face_key(p, src, [0.0, 0.0, 1.0]);
+            p.add_hole(src, key, 6.0, 5.0)
+        },
+        edge: |s| [s.w / 2.0, 0.0, 0.0],
+        top: Some(Top { at: [5.0, 5.0], z: |s| s.h }),
+    },
+    // the front drafted 5 deg about the bottom: its edge on the bottom, where the draft turns it, stays put
+    Row {
+        name: "a draft of the front",
+        kind: "Draft",
+        build: |p, src| {
+            let _ = qymcad_testkit::regenerate(p);
+            let (front, bottom) = (face_id(p, src, [0.0, -1.0, 0.0]), face_id(p, src, [0.0, 0.0, -1.0]));
+            p.add_draft(src, vec![front], bottom, 5.0, false)
+        },
+        edge: |s| [s.w / 2.0, 0.0, 0.0],
+        top: Some(Top { at: [5.0, 25.0], z: |s| s.h }),
+    },
+    // the top pushed 3 up: the top edge at the front
+    Row {
+        name: "the top pushed up",
+        kind: "PushFace",
+        build: |p, src| {
+            let _ = qymcad_testkit::regenerate(p);
+            let key = face_key(p, src, [0.0, 0.0, 1.0]);
+            p.add_push_face(src, key, 3.0)
+        },
+        edge: |s| [s.w / 2.0, 0.0, s.h + 3.0],
+        top: Some(Top { at: [5.0, 5.0], z: |s| s.h + 3.0 }),
+    },
+    // the sides divided by the plane z = 5: the upper piece of the front right upright edge it cut in two (the line it
+    // leaves on a side has the same plane on both of its sides, and no rounding takes it)
+    Row {
+        name: "the faces divided at z = 5",
+        kind: "SplitFace",
+        build: |p, src| p.add_split_face(src, 0, 0, 5.0),
+        edge: |s| [s.w, 0.0, (5.0 + s.h) / 2.0],
+        top: Some(Top { at: [5.0, 5.0], z: |s| s.h }),
+    },
+    // the front right corner rounded and the rounding taken off again: the upright edge is back
+    Row {
+        name: "a rounding taken off again",
+        kind: "RemoveFace",
+        build: |p, src| {
+            let _ = qymcad_testkit::regenerate(p);
+            let e = edge_at(p, src, [BASE.w, 0.0, BASE.h / 2.0]).expect("the front right upright edge");
+            let f = p.add_fillet(src, 2.0, vec![e]);
+            let _ = qymcad_testkit::regenerate(p);
+            let round = p.regen_faces[&f].iter().find(|x| x.centroid.x > BASE.w - 2.0 && x.centroid.y < 2.0).cloned().expect("the rounding");
+            let key = qymcad_core::feature::FaceKey { index: 0, centroid: [round.centroid.x, round.centroid.y, round.centroid.z], normal: round.normal, id: round.id };
+            p.add_remove_face(f, vec![key])
+        },
+        edge: |s| [s.w, 0.0, s.h / 2.0],
+        top: Some(Top { at: [5.0, 5.0], z: |s| s.h }),
+    },
+    // four copies about Z: the top edge of the copy turned half a turn, at its far side
+    Row {
+        name: "a circular pattern of four",
+        kind: "CircularArray",
+        build: |p, src| p.add_circular_array(src, 4, 360.0),
+        edge: |s| [-s.w / 2.0, -30.0, s.h],
+        top: Some(Top { at: [5.0, 5.0], z: |s| s.h }),
+    },
+    // moved 15 along x and 5 along y: the top edge at the front
+    Row {
+        name: "the block moved",
+        kind: "Move",
+        build: |p, src| p.add_move(src, [1.0, 0.0, 0.0, 15.0, 0.0, 1.0, 0.0, 5.0, 0.0, 0.0, 1.0, 0.0]),
+        edge: |s| [s.w / 2.0 + 15.0, 5.0, s.h],
+        top: Some(Top { at: [20.0, 10.0], z: |s| s.h }),
+    },
+    // a cylinder of radius 5 on the origin cut out of the corner, body from body: the top edge at the back
+    Row {
+        name: "a cylinder cut out, body from body",
+        kind: "BodyBoolean",
+        build: |p, src| {
+            let c = p.add_cylinder(5.0, 30.0);
+            let _ = qymcad_testkit::regenerate(p);
+            p.add_body_boolean(src, c, 0)
+        },
+        edge: |s| [s.w / 2.0, 30.0, s.h],
+        top: Some(Top { at: [25.0, 15.0], z: |s| s.h }),
+    },
+    // the top replaced by its own copy: the top edge at the front
+    Row {
+        name: "the top replaced by its copy",
+        kind: "SurfaceReplace",
+        build: |p, src| {
+            let _ = qymcad_testkit::regenerate(p);
+            let top = face_id(p, src, [0.0, 0.0, 1.0]);
+            let sheet = p.add_face_copy(src, qymcad_core::refs::Ref::picks(&[top]));
+            let _ = qymcad_testkit::regenerate(p);
+            p.add_surface_replace(src, qymcad_core::refs::Ref::picks(&[top]), sheet)
+        },
+        edge: |s| [s.w / 2.0, 0.0, s.h],
+        top: Some(Top { at: [5.0, 5.0], z: |s| s.h }),
+    },
+    // the part mirrored across YZ: the top edge at the front of the image
+    Row {
+        name: "the part mirrored",
+        kind: "MirrorPart",
+        build: |p, src| {
+            let part = p.body_owner(src).expect("the part of the base");
+            p.add_mirror_part(part, [0.0; 3], [1.0, 0.0, 0.0])
+        },
+        edge: |s| [-s.w / 2.0, 0.0, s.h],
+        top: Some(Top { at: [-5.0, 5.0], z: |s| s.h }),
+    },
+    // split at z = 3 and the upper piece made a part of its own: its top edge at the back
+    Row {
+        name: "the upper piece made a part",
+        kind: "Piece",
+        build: |p, src| {
+            let pieces = p.add_split_body(src, 0, 0, 3.0, 2);
+            let _ = qymcad_testkit::regenerate(p);
+            p.piece_to_part(pieces[1], "Upper".into()).expect("the piece made a part").1
+        },
+        edge: |s| [s.w / 2.0, 30.0, s.h],
+        top: Some(Top { at: [5.0, 5.0], z: |s| s.h }),
+    },
+    // a post of radius 5 on the block, 30 tall from the bottom, threaded M10 for 8 from its top: the top edge of the
+    // block at the front; the sketch stands on the end of the post, the highest face
+    Row {
+        name: "a thread on a post of the block",
+        kind: "Thread",
+        build: |p, src| {
+            let (post, rim) = post_of(p, src, 30.0);
+            p.add_thread(post, rim, qymcad_core::thread::ThreadSpec { nominal_d: 10.0, ..Default::default() }, 8.0, 0.0, 0.0)
+        },
+        edge: |s| [s.w / 2.0, 0.0, s.h],
+        top: Some(Top { at: [20.0, 15.0], z: |_| 30.0 }),
+    },
+    // a post of radius 5, 50 tall, an auger flight on its upper 20: the top edge of the block at the front; the sketch
+    // stands on the end of the post
+    Row {
+        name: "an auger flight on a post of the block",
+        kind: "Auger",
+        build: |p, src| {
+            let (post, rim) = post_of(p, src, 50.0);
+            p.add_auger(post, rim, qymcad_core::thread::AugerSpec::default(), 20.0, 0.0, 0.0)
+        },
+        edge: |s| [s.w / 2.0, 0.0, s.h],
+        top: Some(Top { at: [20.0, 15.0], z: |_| 50.0 }),
     },
 ];
 
@@ -345,6 +536,11 @@ fn lay(row: &Row, with_between: bool, left: Left, reference: Reference) -> Resul
         src = cut;
     }
     let body = (row.build)(&mut p, src);
+    // a row that lays nothing works on the base itself
+    let made = if body == src { p.timeline.iter().find(|n| n.id == b.node).map(|n| qymcad_testkit::kind_name(&n.kind)) } else { qymcad_testkit::kind_making(&p, body) };
+    if made.as_deref() != Some(row.kind) {
+        return Err(format!("the row says it lays {}, the node of its body is {made:?}", row.kind));
+    }
     let raised = qymcad_testkit::restore_import_shapes(&p);
     let _ = qymcad_testkit::regenerate_with_shapes(&mut p, raised);
     // laid in the part the body stands in, as a person stepped into it lays it
@@ -496,4 +692,38 @@ fn a_rescaled_import_holds_its_names_through_opening() {
     let want = (row.edge)(BASE).map(|v| v * 2.0);
     let at = q.regen_edges.get(&on).and_then(|es| es.iter().find(|e| e.id == name)).map(|e| e.mid);
     assert!(at.is_some_and(|m| (0..3).all(|i| (m[i] - want[i]).abs() < 1e-3)), "after opening at twice the scale the fillet holds an edge at {at:?}, the edge stands at {want:?}");
+}
+
+/// THE KINDS THIS MATRIX HAS NO ROW FOR, and why: no edit of the base above reaches them, or neither of the two
+/// references it lays stands on what they build.
+const NOT_HERE: [qymcad_testkit::Uncovered; 21] = [
+    qymcad_testkit::Uncovered { kind: "Sketch", why: "a sketch builds no body" },
+    qymcad_testkit::Uncovered { kind: "Plane", why: "a datum plane builds no body" },
+    qymcad_testkit::Uncovered { kind: "DatumPoint", why: "a datum point builds no body" },
+    qymcad_testkit::Uncovered { kind: "DatumAxis", why: "a datum axis builds no body" },
+    qymcad_testkit::Uncovered { kind: "PartInstance", why: "a copy of a part placed in an assembly repeats the body of the part, its names with it" },
+    qymcad_testkit::Uncovered { kind: "ComponentPattern", why: "the copies of a pattern of parts repeat the body of the part, its names with it" },
+    qymcad_testkit::Uncovered { kind: "MeshPiece", why: "a piece of a mesh has no B-rep and no node above it" },
+    qymcad_testkit::Uncovered { kind: "Cylinder", why: "a primitive is built from its sizes alone: an edit of the base reaches nothing of it" },
+    qymcad_testkit::Uncovered { kind: "Sphere", why: "a primitive is built from its sizes alone: an edit of the base reaches nothing of it" },
+    qymcad_testkit::Uncovered { kind: "Cone", why: "a primitive is built from its sizes alone: an edit of the base reaches nothing of it" },
+    qymcad_testkit::Uncovered { kind: "Torus", why: "a primitive is built from its sizes alone: an edit of the base reaches nothing of it" },
+    qymcad_testkit::Uncovered { kind: "Prism", why: "a primitive is built from its sizes alone: an edit of the base reaches nothing of it" },
+    qymcad_testkit::Uncovered { kind: "Loft", why: "a loft is built from its own sections: an edit of the base reaches nothing of it" },
+    qymcad_testkit::Uncovered { kind: "Sweep", why: "a sweep is built from its own profile and path: an edit of the base reaches nothing of it" },
+    qymcad_testkit::Uncovered { kind: "MeshSolid", why: "a body of a mesh is built from the mesh: an edit of the base reaches nothing of it" },
+    qymcad_testkit::Uncovered { kind: "MeshRecognised", why: "a body of a mesh is built from the mesh: an edit of the base reaches nothing of it" },
+    qymcad_testkit::Uncovered { kind: "FaceCopy", why: "a sheet: neither a rounding nor a boss, the two references laid here, stands on it" },
+    qymcad_testkit::Uncovered { kind: "OffsetSurface", why: "a sheet: neither a rounding nor a boss, the two references laid here, stands on it" },
+    qymcad_testkit::Uncovered { kind: "Patch", why: "a sheet: neither a rounding nor a boss, the two references laid here, stands on it" },
+    qymcad_testkit::Uncovered { kind: "Stitch", why: "a sheet: neither a rounding nor a boss, the two references laid here, stands on it" },
+    qymcad_testkit::Uncovered { kind: "Trim", why: "a sheet: neither a rounding nor a boss, the two references laid here, stands on it" },
+];
+
+/// EVERY KIND OF NODE HAS A ROW HERE, or a reason for none.
+#[test]
+fn every_kind_of_node_has_a_row() {
+    let kinds: Vec<&str> = ROWS.iter().map(|r| r.kind).collect();
+    let gaps = qymcad_testkit::coverage_gaps(&kinds, &NOT_HERE);
+    assert!(gaps.is_empty(), "the matrix of edits leaves kinds of node unseen:\n{}", gaps.join("\n"));
 }
