@@ -78,9 +78,20 @@ fn placed(s: crate::Shape, place: [f64; 12]) -> Result<crate::Shape, qymcad_core
 /// The cost is nothing: the application rebuilds a document one at a time anyway — there is one background
 /// rebuild and its result is awaited. The lock merely makes that a rule rather than a coincidence.
 pub fn kernel_gate() -> std::sync::MutexGuard<'static, ()> {
-    static GATE: std::sync::Mutex<()> = std::sync::Mutex::new(());
     GATE.lock().unwrap_or_else(|e| e.into_inner())
 }
+
+/// The lock of the kernel if nobody holds it: a question the window asks every frame is not worth waiting minutes for
+/// a rebuild, and asked beside one it would race it inside OCCT. `None` while a rebuild runs.
+pub fn try_kernel_gate() -> Option<std::sync::MutexGuard<'static, ()>> {
+    match GATE.try_lock() {
+        Ok(g) => Some(g),
+        Err(std::sync::TryLockError::Poisoned(e)) => Some(e.into_inner()),
+        Err(std::sync::TryLockError::WouldBlock) => None,
+    }
+}
+
+static GATE: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 impl OcctKernel {
     /// The names of the faces of body `src`, none when it is not built.

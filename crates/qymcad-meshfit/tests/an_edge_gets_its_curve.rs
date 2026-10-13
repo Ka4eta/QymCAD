@@ -7,7 +7,7 @@ use qymcad_meshfit::{boundaries, curves, prepare, regions, weld_tolerance, Bound
 use qymcad_kernel::specimen::Specimen as _;
 
 fn curves_of(shape: &Shape, deflection: f64) -> (Boundaries, Vec<Curve>) {
-    let qymcad_core::geom::Built { mesh, .. } = shape.tessellate(deflection).into_iter().next().expect("a body");
+    let qymcad_core::geom::Built { mesh, .. } = qymcad_kernel::specimen::mesh(shape, deflection).into_iter().next().expect("a body");
     let p = prepare(&mesh, weld_tolerance(&mesh));
     let tol = Tolerance::for_mesh(&p);
     let found = regions(&p, &tol);

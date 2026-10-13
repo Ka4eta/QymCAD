@@ -741,7 +741,7 @@ fn a_rescaled_import_holds_its_names_through_opening() {
     let (_, mut shapes) = qymcad_testkit::regenerate_with_shapes(&mut p, shapes);
     let named = shapes.remove(&body).expect("the live body named");
     p.set_import_scale(body, 2.0);
-    shapes.insert(body, named.transformed(&[2.0, 0.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 2.0, 0.0]).expect("scaled"));
+    shapes.insert(body, qymcad_kernel::specimen::placed(&named, &[2.0, 0.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 2.0, 0.0]).expect("scaled"));
     let (report, _) = qymcad_testkit::regenerate_with_shapes(&mut p, shapes);
     assert!(report.errors.iter().all(|(id, _)| *id != laid.fillet), "the fillet refused at the new scale: {:?}", report.errors);
     let q = (EDITS.iter().find(|e| e.name.contains("saved")).expect("the edit of saving").apply)(p, &laid);

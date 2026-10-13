@@ -60,7 +60,7 @@ fn probe_top(shape: &qymcad_kernel::Shape, ztop: f64) -> f64 {
     place[3] = 10.0; // the centre of the box (the box is 0..20)
     place[7] = 10.0;
     place[11] = ztop - 5.0;
-    let probe = probe.transformed(&place).expect("moving the probe");
+    let probe = qymcad_kernel::specimen::placed(&probe, &place).expect("moving the probe");
     shape.combined(&probe, 2).map(|s| s.volume()).unwrap_or(-1.0)
 }
 

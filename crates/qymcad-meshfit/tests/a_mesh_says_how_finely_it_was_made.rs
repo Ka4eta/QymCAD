@@ -37,13 +37,13 @@ fn the_chord_deflection_is_read_off_the_mesh() {
         ("a cylinder of 40", qymcad_kernel::specimen::cylinder(40.0, 80.0).expect("a cylinder"), 40.0, false),
     ] {
         for made in [0.1, 0.03, 0.01, 0.003] {
-            let qymcad_core::geom::Built { mesh, .. } = shape.tessellate(made).into_iter().next().expect("a mesh");
+            let qymcad_core::geom::Built { mesh, .. } = qymcad_kernel::specimen::mesh(&shape, made).into_iter().next().expect("a mesh");
             let (read, truth) = (chord_deflection(&prepare(&mesh, weld_tolerance(&mesh)), 30.0), true_sag(&mesh, r, ball));
             assert!(read > 0.3 * truth && read < 1.5 * truth, "{name} meshed at {made}: the mesh stands {truth} off its surface and reads {read}");
         }
     }
     // A MESH WITH NO CURVE HAS NO DEFLECTION TO READ: a box is its corners and its planes
     let block = qymcad_kernel::specimen::extrude(&[0.0, 0.0, 40.0, 0.0, 40.0, 30.0, 0.0, 30.0], 10.0).expect("a block");
-    let qymcad_core::geom::Built { mesh, .. } = block.tessellate(0.01).into_iter().next().expect("a mesh");
+    let qymcad_core::geom::Built { mesh, .. } = qymcad_kernel::specimen::mesh(&block, 0.01).into_iter().next().expect("a mesh");
     assert_eq!(chord_deflection(&prepare(&mesh, weld_tolerance(&mesh)), 30.0), 0.0, "a block has no curve and read a deflection");
 }

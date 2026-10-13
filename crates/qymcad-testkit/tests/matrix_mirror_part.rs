@@ -20,9 +20,9 @@ fn probe_box(s: &qymcad_kernel::Shape, wt: [f64; 12], x0: f64, x1: f64) -> f64 {
     let bx = qymcad_kernel::specimen::extrude_profile(&prof, 40.0).unwrap();
     let mut pl = qymcad_core::feature::PLACE_IDENTITY;
     pl[11] = -5.0;
-    let bx = bx.transformed(&pl).unwrap();
+    let bx = qymcad_kernel::specimen::placed(&bx, &pl).unwrap();
     // the body is in LOCAL space — bring it into the world for the probe
-    let sw = s.transformed(&wt).unwrap();
+    let sw = qymcad_kernel::specimen::placed(s, &wt).unwrap();
     sw.combined(&bx, 2).map(|c| c.volume()).unwrap_or(0.0)
 }
 

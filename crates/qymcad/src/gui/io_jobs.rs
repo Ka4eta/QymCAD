@@ -663,10 +663,8 @@ pub(crate) fn spawn_project_load(regen: &mut super::Rebuilding, path: String) {
                                            // model is already on screen.
                                            // LIVE BODIES ARE PARSED RIGHT HERE, IN THE THREAD: on the UI thread this would be a
                                            // freeze of exactly the kind we are getting away from.
-                let shapes = {
-                    let _gate = qymcad_kernel::kernel_gate();
-                    breps.into_iter().filter_map(|(id, b)| qymcad_kernel::Shape::from_brep_bytes(&b).map(|s| (id, s))).collect()
-                };
+                let saved = breps.into_iter().map(|(body, bytes)| qymcad_kernel::imports::SavedBody { body, bytes }).collect();
+                let shapes = qymcad_kernel::imports::restore(saved).into_iter().map(|r| (r.body, r.shape)).collect();
                 JobResult::ProjectLoaded { path, project: Box::new(project), shapes }
             }
             Err(e) => JobResult::Failed(crate::i18n::tr1("io-open-error", "error", &crate::i18n::name(&e.to_string()))),
@@ -840,7 +838,7 @@ pub(crate) fn write_mesh_to(ed: qymcad_ui_state::Editing, live: &mut LiveGeom, p
             let mut own: Vec<Placed> = Vec::new();
             let mut failed = 0usize; // a body whose tessellation failed is NOT dropped silently but reported
             for (id, s, m) in &moved {
-                if let Some(qymcad_core::geom::Built { mesh, faces }) = s.tessellate_merged(deflection) {
+                if let Some(qymcad_core::geom::Built { mesh, faces }) = qymcad_kernel::ask::export_mesh(s, deflection) {
                     let tri = tri_colours(&tree, *id, &mesh, &faces);
                     own.push(Placed { own: qymcad_core::model::ExportMesh { body: *id, mesh, tri_colors: tri }, place: *m });
                 } else {

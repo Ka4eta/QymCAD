@@ -3,6 +3,33 @@
 //! source as STEP and knew nothing of the scale a file came in at.
 use qymcad_core::model::{Id, Project};
 
+/// A BODY AS A PROJECT SAVED IT: which body, and the bytes the bridge wrote it as (its shape and the names of its faces
+/// and edges).
+pub struct SavedBody {
+    pub body: Id,
+    pub bytes: Vec<u8>,
+}
+
+/// A BODY READ BACK.
+pub struct ReadBody {
+    pub body: Id,
+    pub shape: crate::Shape,
+}
+
+/// THE BODIES OF A PROJECT READ BACK from the bytes it saved them as, each with the names it was saved with, under the
+/// lock of the kernel. A body whose bytes do not read is left out: the document holds its mesh, and a rebuild asks for it.
+pub fn restore(saved: Vec<SavedBody>) -> Vec<ReadBody> {
+    let _gate = crate::kernel::kernel_gate();
+    saved.into_iter().filter_map(|s| crate::Shape::from_brep_bytes(&s.bytes).map(|shape| ReadBody { body: s.body, shape })).collect()
+}
+
+/// A BODY BROUGHT IN, AT `factor` from the numbers of its file, about the origin of the file: its faces and edges keep
+/// their names. `None` when the shape cannot be scaled.
+pub fn scaled(body: &crate::Shape, factor: f64) -> Option<crate::Shape> {
+    let _gate = crate::kernel::kernel_gate();
+    body.transformed(&[factor, 0.0, 0.0, 0.0, 0.0, factor, 0.0, 0.0, 0.0, 0.0, factor, 0.0])
+}
+
 /// Restore the B-rep shapes of the imported solids from the embedded sources (`sources/`): each source is read once and
 /// its solids laid out across the bodies, at the scale each came in at, with the names its faces and edges were given
 /// when it came in.

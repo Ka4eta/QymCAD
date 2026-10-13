@@ -8,6 +8,18 @@
 mod tests {
     use super::super::{App, Workbench};
 
+    /// The window asks again on every frame until the kernel is free of a rebuild and answers: here, until it answered, or 30 s.
+    fn asked_until_answered(app: &mut App) {
+        let t = std::time::Instant::now();
+        while app.interference.rev == u64::MAX && t.elapsed().as_secs() < 30 {
+            crate::gui::refresh_interference(qymcad_ui_state::body_view_of!(app), qymcad_ui_state::scene_drag_of!(app), &mut app.interference, &app.live, &app.set, app.workbench);
+            if app.interference.rev == u64::MAX {
+                std::thread::sleep(std::time::Duration::from_millis(20));
+            }
+        }
+        assert_ne!(app.interference.rev, u64::MAX, "the kernel did not come free to ask the clash in 30 s");
+    }
+
     /// Two parts that certainly overlap are found; separated ones are not.
     #[test]
     fn overlapping_parts_are_found_and_separated_ones_are_not() {
@@ -20,7 +32,7 @@ mod tests {
         qymcad_ui_state::rebuild_if_dirty(&mut app.rebuild_ctx());
         app.set.show_interference = true;
         app.interference.rev = u64::MAX; // the cache is stale, so compute
-        crate::gui::refresh_interference(qymcad_ui_state::body_view_of!(app), qymcad_ui_state::scene_drag_of!(app), &mut app.interference, &app.live, &app.set, app.workbench);
+        asked_until_answered(&mut app);
         assert!(!app.interference.pairs.is_empty(), "the parts overlap and no interference was found: the checkbox does nothing again");
 
         // separate them: the second part moves far away
@@ -28,7 +40,7 @@ mod tests {
         let owner = app.project.body_owner(bodies[1]).expect("the owner");
         app.project.set_component_transform(owner, [1.0, 0.0, 0.0, 500.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0]);
         app.interference.rev = u64::MAX;
-        crate::gui::refresh_interference(qymcad_ui_state::body_view_of!(app), qymcad_ui_state::scene_drag_of!(app), &mut app.interference, &app.live, &app.set, app.workbench);
+        asked_until_answered(&mut app);
         assert!(app.interference.pairs.is_empty(), "separated parts do not overlap, yet a pair is still listed");
     }
 

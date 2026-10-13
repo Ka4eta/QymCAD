@@ -3862,36 +3862,21 @@ pub(crate) fn refresh_interference(bv: qymcad_ui_state::BodyView, drag: qymcad_u
     if interference.rev == bv.regen.geom_rev {
         return;
     }
-    interference.rev = bv.regen.geom_rev;
     let ctx = current_ctx_id(bv.active_path, bv.project);
-    // the visible bodies that have an owning component become shapes in the context's frame (transformed once)
-    let mut placed: Vec<(Id, Id, qymcad_kernel::Shape)> = Vec::new();
-    for mi in 0..bv.project.bodies.len() {
-        if !body_shown(bv, mi) {
-            continue;
-        }
-        let Some(body) = bv.project.mesh_id(mi) else { continue };
-        let Some(owner) = bv.project.body_owner(body) else { continue };
-        let wt = bv.project.body_display_transform(body, ctx);
-        if let Some(ws) = live.shapes.get(&body).and_then(|s| s.transformed(&wt)) {
-            placed.push((body, owner, ws));
-        }
-    }
-    let mut pairs = Vec::new();
-    for i in 0..placed.len() {
-        for j in (i + 1)..placed.len() {
-            if placed[i].1 == placed[j].1 {
-                continue; // bodies of the same part: their overlap is normal, not interference
-            }
-            // A PAIR THE KERNEL CANNOT MEASURE IS FLAGGED TOO. "Could not measure" is not "they are
-            // clear of each other", and treating it as the second is how a part ends up sitting inside
-            // another one with nothing said about it.
-            if placed[i].2.interference_volume(&placed[j].2).is_none_or(|v| v > 1e-3) {
-                pairs.push((placed[i].0, placed[j].0));
-            }
-        }
-    }
-    interference.pairs = pairs;
+    // the visible bodies that have an owning component, each where it stands in the context; the bridge asks the clash
+    let placed: Vec<qymcad_kernel::ask::PlacedBody<'_>> = (0..bv.project.bodies.len())
+        .filter(|&mi| body_shown(bv, mi))
+        .filter_map(|mi| bv.project.mesh_id(mi))
+        .filter_map(|body| {
+            let part = bv.project.body_owner(body)?;
+            let shape = live.shapes.get(&body)?;
+            Some(qymcad_kernel::ask::PlacedBody { body, part, shape, place: bv.project.body_display_transform(body, ctx) })
+        })
+        .collect();
+    // a rebuild holding the kernel: the pairs as they were, asked again on a later frame
+    let Some(clashes) = qymcad_kernel::ask::clashes(&placed) else { return };
+    interference.pairs = clashes.into_iter().map(|c| (c.a, c.b)).collect();
+    interference.rev = bv.regen.geom_rev;
 }
 
 #[cfg(test)]

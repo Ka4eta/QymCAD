@@ -8,7 +8,7 @@ use qymcad_kernel::specimen::Specimen as _;
 /// Splits the tessellation of `shape` and checks it against the faces: as many regions as faces, each within one
 /// face. Returns how many planes, cylinders and spheres were found.
 fn split_as_faces(name: &str, shape: &Shape, deflection: f64) -> [usize; 3] {
-    let bodies = shape.tessellate(deflection);
+    let bodies = qymcad_kernel::specimen::mesh(shape, deflection);
     let qymcad_core::geom::Built { mesh, faces } = bodies.into_iter().next().expect("a body");
     let mut face_of = vec![u32::MAX; mesh.tris.len()];
     for (k, f) in faces.iter().enumerate() {
@@ -124,9 +124,9 @@ fn a_thread_drawn_as_rings_splits_into_its_faces() {
 fn a_wall_cut_by_a_boolean_is_one_region() {
     let post = qymcad_kernel::specimen::cylinder(10.0, 30.0).expect("a cylinder");
     let up = [1.0, 0.0, 0.0, 0.1, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 30.0];
-    let knob = qymcad_kernel::specimen::sphere(10.5).expect("a sphere").transformed(&up).expect("the sphere on the top");
+    let knob = qymcad_kernel::specimen::placed(&qymcad_kernel::specimen::sphere(10.5).expect("a sphere"), &up).expect("the sphere on the top");
     let both = qymcad_kernel::specimen::fuse(&[&post, &knob]).expect("the knob on the post");
-    let qymcad_core::geom::Built { mesh, .. } = both.tessellate(0.02).into_iter().next().expect("a body");
+    let qymcad_core::geom::Built { mesh, .. } = qymcad_kernel::specimen::mesh(&both, 0.02).into_iter().next().expect("a body");
     let p = prepare(&mesh, weld_tolerance(&mesh));
     let tol = Tolerance::for_mesh(&p);
     let found = regions(&p, &tol);

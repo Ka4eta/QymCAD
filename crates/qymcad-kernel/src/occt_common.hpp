@@ -84,6 +84,7 @@
 #include <Geom2d_Curve.hxx>
 #include <BRepTools_ReShape.hxx>
 #include <BRepTools_Modification.hxx>
+#include <BRepOffset_MakeSimpleOffset.hxx>
 #include <BRepTools_Modifier.hxx>
 #include <ShapeFix_ShapeTolerance.hxx>
 #include <ShapeFix_FixSmallFace.hxx>
@@ -185,6 +186,8 @@
 #include <TopoDS_Wire.hxx>
 #include <Geom_Curve.hxx>
 #include <Standard_Failure.hxx>
+#include <Standard_ErrorHandler.hxx>
+#include <OSD.hxx>
 #include <gp_Pnt.hxx>
 #include <gp_Vec.hxx>
 #include <gp_Ax1.hxx>
@@ -310,7 +313,7 @@ struct QymShape {
 
 /// Note, for every edge of `taken` (a face cut out of the body `s` as `source`, the same edges in the same order), the
 /// name of the face across its source edge in `s`, into `ebeside`. Nothing is noted where the order does not hold.
-void note_beside(const QymShape* s, const TopoDS_Shape& source, const TopoDS_Shape& taken, TopTools_DataMapOfShapeInteger& ebeside);
+void note_beside(const QymShape* s, const TopoDS_Shape& source, struct QymHistory& made, TopTools_DataMapOfShapeInteger& ebeside);
 
 // AN ASSEMBLY AS ITS FILE BUILDS IT: every subassembly and part a node - its name in UTF-8, where it stands in its
 // parent, its colour where the file gives one - and every part's solids an index into the list of solids read.
@@ -365,6 +368,15 @@ void why(const char* where, const char* what);
 /// OCCT throws `Standard_Failure` with a message that names the actual trouble ("BRepAlgoAPI: the operands
 /// are self-intersecting" and the like); 71 places in this file used to catch it as `...` and drop every word
 /// of it on the floor.
+/// A FAULT INSIDE OCCT IS A REFUSAL, NOT THE END OF THE PROGRAM. A rounding of R9.9999998 on the arc of an R10 rounding
+/// ending in the corners of two chamfers that ate their faces reads memory it does not own inside `BRepFilletAPI` and
+/// took the whole process down with it. With the handlers of `OSD` set (`qym_signals_here`) and a jump point in every
+/// `try` of the bridge, such a fault comes back as a `Standard_Failure` the `catch` beside it turns into words.
+void qym_signals_here();
+#define QYM_SIGNALS                                                      \
+    qym_signals_here();                                                  \
+    OCC_CATCH_SIGNALS
+
 #define QYM_WHY_CATCH(where)                                            \
     catch (Standard_Failure const& e) { why(where, e.GetMessageString()); } \
     catch (std::exception const& e) { why(where, e.what()); }           \
@@ -423,7 +435,7 @@ enum class QymRepairAsk { Value, Apply };
 /// pieces of its type in what replaced it, none when it stayed itself; it is removed when nothing replaced it. A
 /// repair generates nothing.
 struct QymRepairHistory : QymHistory {
-    QymRepairHistory(const Handle(ShapeBuild_ReShape)& c, QymRepairAsk a) : ctx(c), ask(a) {}
+    QymRepairHistory(const Handle(BRepTools_ReShape)& c, QymRepairAsk a) : ctx(c), ask(a) {}
     /// What stands for `s` after the repair: itself when the record holds nothing for it.
     TopoDS_Shape Image(const TopoDS_Shape& s) {
         if (ctx.IsNull()) return s;
@@ -438,7 +450,7 @@ struct QymRepairHistory : QymHistory {
     }
     const TopTools_ListOfShape& Generated(const TopoDS_Shape&) override { return none; }
     bool Removed(const TopoDS_Shape& s) override { return Image(s).IsNull(); }
-    Handle(ShapeBuild_ReShape) ctx;
+    Handle(BRepTools_ReShape) ctx;
     QymRepairAsk ask;
     TopTools_ListOfShape images;
     TopTools_ListOfShape none;
@@ -472,6 +484,108 @@ struct QymCounters {
 /// moved face as itself. Called after the names of the operands are carried and before what is left gets positional
 /// numbers: a name the recipe gives is then never taken by a number first.
 using QymRecipe = std::function<void(QymShape& made, QymCounters& next)>;
+
+/// The record of a modifier of shapes (`BRepTools_Modifier`): every element has one image, itself where the modification
+/// left it as it was. A modifier removes and generates nothing.
+struct QymModifierHistory : QymHistory {
+    explicit QymModifierHistory(BRepTools_Modifier& m) : mod(m) {}
+    const TopTools_ListOfShape& Modified(const TopoDS_Shape& s) override {
+        images.Clear();
+        TopoDS_Shape now;
+        try {
+            QYM_SIGNALS;
+            now = mod.ModifiedShape(s);
+        } catch (...) {
+            return images; // an element the modifier never met has no image of its own
+        }
+        if (!now.IsNull() && !now.IsSame(s)) images.Append(now);
+        return images;
+    }
+    const TopTools_ListOfShape& Generated(const TopoDS_Shape&) override { return none; }
+    bool Removed(const TopoDS_Shape&) override { return false; }
+    BRepTools_Modifier& mod;
+    TopTools_ListOfShape images;
+    TopTools_ListOfShape none;
+};
+
+/// A CHANGE THAT KEEPS THE TOPOLOGY ONE FOR ONE AND ANSWERS NO HISTORY: the simple offset of a sheet - a modifier of the
+/// geometry, every face and edge moved and none added or lost, whose `Modified` gives nothing (measured: null for every
+/// face of a block's top lifted 5, both through `BRepOffsetAPI_MakeOffsetShape` and `BRepOffset_MakeSimpleOffset`). The
+/// n-th element of a type in `after` is the image of the n-th in `before`; nothing is answered when the counts differ.
+/// A caller holds it only after checking the images: each face of an offset gone the distance.
+struct QymTwinHistory : QymHistory {
+    QymTwinHistory(const TopoDS_Shape& before, const TopoDS_Shape& after) {
+        for (TopAbs_ShapeEnum ty : {TopAbs_FACE, TopAbs_EDGE}) {
+            TopTools_IndexedMapOfShape a, b;
+            TopExp::MapShapes(before, ty, a);
+            TopExp::MapShapes(after, ty, b);
+            if (a.Extent() != b.Extent()) continue;
+            for (int i = 1; i <= a.Extent(); ++i) twin.Bind(a(i), b(i));
+        }
+    }
+    const TopTools_ListOfShape& Modified(const TopoDS_Shape& s) override {
+        images.Clear();
+        if (twin.IsBound(s) && !twin.Find(s).IsSame(s)) images.Append(twin.Find(s));
+        return images;
+    }
+    const TopTools_ListOfShape& Generated(const TopoDS_Shape&) override { return none; }
+    bool Removed(const TopoDS_Shape&) override { return false; }
+    TopTools_DataMapOfShapeShape twin;
+    TopTools_ListOfShape images;
+    TopTools_ListOfShape none;
+};
+
+/// WHERE AN OPERATION MOVES NOTHING, THE PLACE IS ITS HISTORY: an element of `after` lying exactly where one of `before`
+/// lay - the same centre and the same length or area, to 1e-6 - is its image; for the rest `rest` answers. For a change
+/// that keeps every element where it was and only re-describes some: the seam of a round face turned half a turn, whose
+/// cutting and gluing rebuild the seam edge and its neighbours without saying what became of them.
+struct QymSamePlaceHistory : QymHistory {
+    QymSamePlaceHistory(const TopoDS_Shape& after, QymHistory& r) : rest(r) {
+        for (TopAbs_ShapeEnum ty : {TopAbs_FACE, TopAbs_EDGE}) {
+            TopTools_IndexedMapOfShape all;
+            TopExp::MapShapes(after, ty, all);
+            for (int i = 1; i <= all.Extent(); ++i) placed.push_back({ty, Key(all(i)), all(i)});
+        }
+    }
+    struct Spot {
+        TopAbs_ShapeEnum ty;
+        std::array<double, 4> key;
+        TopoDS_Shape shape;
+    };
+    static std::array<double, 4> Key(const TopoDS_Shape& s) {
+        GProp_GProps g;
+        if (s.ShapeType() == TopAbs_EDGE) BRepGProp::LinearProperties(s, g); else BRepGProp::SurfaceProperties(s, g);
+        const gp_Pnt c = g.CentreOfMass();
+        return {c.X(), c.Y(), c.Z(), g.Mass()};
+    }
+    /// The element of `after` lying where `s` lies; null when none does.
+    TopoDS_Shape There(const TopoDS_Shape& s) {
+        if (s.ShapeType() != TopAbs_FACE && s.ShapeType() != TopAbs_EDGE) return {};
+        const auto k = Key(s);
+        for (const Spot& p : placed) {
+            if (p.ty != s.ShapeType()) continue;
+            bool same = true;
+            for (int j = 0; j < 4 && same; ++j) same = std::abs(p.key[j] - k[j]) < 1e-6;
+            if (same) return p.shape;
+        }
+        return {};
+    }
+    const TopTools_ListOfShape& Modified(const TopoDS_Shape& s) override {
+        images.Clear();
+        const TopoDS_Shape now = There(s);
+        if (now.IsNull()) {
+            for (TopTools_ListIteratorOfListOfShape it(rest.Modified(s)); it.More(); it.Next()) images.Append(it.Value());
+        } else if (!now.IsSame(s)) {
+            images.Append(now);
+        }
+        return images;
+    }
+    const TopTools_ListOfShape& Generated(const TopoDS_Shape& s) override { return rest.Generated(s); }
+    bool Removed(const TopoDS_Shape& s) override { return There(s).IsNull() && rest.Removed(s); }
+    QymHistory& rest;
+    std::vector<Spot> placed;
+    TopTools_ListOfShape images;
+};
 
 /// The record of a sewing (`BRepBuilderAPI_Sewing`): a face or an edge it replaced has that one image, one it left as
 /// it was has none; one it found degenerate is removed. A sewing generates nothing.
@@ -537,6 +651,13 @@ struct QymChainHistory : QymHistory {
     TopTools_ListOfShape made;
 };
 
+/// WHO KEEPS AN IMAGE TWO ELEMENTS BECAME; the other is recorded as yielded to it either way, so a reference to it still
+/// finds the element. `First`: the first carried, as an operation hands its elements on - two edges of a base and a tool
+/// lying together in a boolean, the base's first; the two long sides of a strip taken out, the first side. `ByName`: in
+/// the monolith, coplanar faces glued - a name beats a positional number and the smaller name wins. Measured: the name
+/// rule over every operation, the strips included, made a rounding of R2 on a sample leave two of its four corners out.
+enum class QymMerge { First, ByName };
+
 /// WHAT THE RESULT OF AN OPERATION IS MADE OF.
 struct QymResultSpec {
     std::vector<QymOperand> operands;
@@ -547,6 +668,8 @@ struct QymResultSpec {
     bool unify = false;
     /// What the recipe names itself, between the names carried and the numbers handed out; empty when nothing.
     QymRecipe recipe = {};
+    /// Who keeps an image two elements became.
+    QymMerge merge = QymMerge::First;
 };
 
 /// THE RESULT OF AN OPERATION WITH ITS NAMES, built from `res` by `history` as `spec` says. Null when `res` is null.
@@ -554,6 +677,8 @@ QymShape* qym_result(QymHistory& history, const TopoDS_Shape& res, const QymResu
 
 int next_local(const TopTools_DataMapOfShapeInteger& m);
 void fill_unnamed(const TopoDS_Shape& res, TopAbs_ShapeEnum ty, TopTools_DataMapOfShapeInteger& out, int& next);
+/// Only the elements of type `ty` that stand in `res` kept in `ids`: the carrying binds a source element too, gone or not.
+void keep_standing(const TopoDS_Shape& res, TopAbs_ShapeEnum ty, TopTools_DataMapOfShapeInteger& ids);
 void carry_ids(BRepBuilderAPI_MakeShape& algo, const TopoDS_Shape& a, TopAbs_ShapeEnum ty, const TopTools_DataMapOfShapeInteger& aid, TopTools_DataMapOfShapeInteger& out, int& next, bool named_only = false, TopTools_DataMapOfShapeInteger* splits_of = nullptr, TopTools_DataMapOfShapeInteger* splits_idx = nullptr, const std::map<int,int>* gen_names = nullptr);
 void carry_ids(QymHistory& history, const TopoDS_Shape& a, TopAbs_ShapeEnum ty, const TopTools_DataMapOfShapeInteger& aid, TopTools_DataMapOfShapeInteger& out, int& next, TopTools_DataMapOfShapeInteger* splits_of = nullptr, TopTools_DataMapOfShapeInteger* splits_idx = nullptr);
 void classify_unnamed(BRepBuilderAPI_MakeShape& algo, const TopoDS_Shape& src, const QymShape* q, const char* tag, const TopTools_DataMapOfShapeInteger* src_ids = nullptr);

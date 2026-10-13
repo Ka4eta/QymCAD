@@ -9,7 +9,7 @@ mod tests {
 
     /// The face ids a live body holds, sorted.
     fn held(s: &qymcad_kernel::Shape) -> Vec<u32> {
-        let mut ids: Vec<u32> = s.face_places().iter().map(|f| f.id).collect();
+        let mut ids: Vec<u32> = qymcad_kernel::specimen::face_places(s).iter().map(|f| f.id).collect();
         ids.sort_unstable();
         ids
     }

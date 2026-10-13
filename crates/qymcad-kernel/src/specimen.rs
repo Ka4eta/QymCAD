@@ -85,3 +85,39 @@ impl Specimen for Shape {
         self.helical_profile(cut)
     }
 }
+
+/// WHAT A PROBE ASKS OF A BODY that the program never asks outside the bridge: its triangles at a deflection, at a
+/// deflection fitted to its size, the body placed elsewhere, read back from saved bytes, the places of its faces.
+pub fn mesh(s: &Shape, deflection: f64) -> Vec<qymcad_core::geom::Built> {
+    s.tessellate(deflection)
+}
+
+/// The triangles at a deflection fitted to the size of the body.
+pub fn mesh_auto(s: &Shape, k: f64) -> Vec<qymcad_core::geom::Built> {
+    s.tessellate_auto(k)
+}
+
+/// The triangles of the body as one mesh.
+pub fn mesh_merged(s: &Shape, deflection: f64) -> Option<qymcad_core::geom::Built> {
+    s.tessellate_merged(deflection)
+}
+
+/// The body moved by the 3x4 matrix `m`, its names kept.
+pub fn placed(s: &Shape, m: &[f64; 12]) -> Option<Shape> {
+    s.transformed(m)
+}
+
+/// A body read back from the bytes it was saved as.
+pub fn read(bytes: &[u8]) -> Option<Shape> {
+    Shape::from_brep_bytes(bytes)
+}
+
+/// The places of the faces of the body, by their names.
+pub fn face_places(s: &Shape) -> Vec<qymcad_core::feature::FacePlace> {
+    s.face_places()
+}
+
+/// The common volume of two bodies; `None` when it cannot be measured.
+pub fn common_volume(a: &Shape, b: &Shape) -> Option<f64> {
+    a.interference_volume(b)
+}

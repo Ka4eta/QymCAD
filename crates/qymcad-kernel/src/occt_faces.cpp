@@ -212,6 +212,7 @@ static thread_local std::unordered_map<std::string, std::pair<TopoDS_Face, doubl
 
 extern "C" void qym_faces_cache(int on) {
     try {
+        QYM_SIGNALS;
         delete face_cache;
         face_cache = on ? new std::unordered_map<std::string, std::pair<TopoDS_Face, double>>() : nullptr;
     } QYM_WHY_CATCH("faces_cache")
@@ -220,6 +221,7 @@ extern "C" void qym_faces_cache(int on) {
 // Does a loop of `face` cross itself on the face?
 static bool crosses_itself(const TopoDS_Face& face) {
     try {
+        QYM_SIGNALS;
         for (TopExp_Explorer wx(face, TopAbs_WIRE); wx.More(); wx.Next()) {
             BRepCheck_Wire loop(TopoDS::Wire(wx.Current()));
             loop.InContext(face);
@@ -246,6 +248,7 @@ extern "C" QymShape* qym_shape_from_faces(size_t ns, const int* skind, const dou
     if ((ns == 0 || nf == 0) && nloose == 0) return why("faces/asked", "there is no face to build"), nullptr;
     if (ns > nf) return why("faces/asked", "more surfaces than faces to take a point amid each from"), nullptr;
     try {
+        QYM_SIGNALS;
         // how much of its surface a face took, into `out_area`: a face that took a wrong piece shows it here first
         auto measured = [&](size_t f, const TopoDS_Face& face) {
             if (!out_area) return;
@@ -449,6 +452,7 @@ extern "C" QymShape* qym_shape_from_faces(size_t ns, const int* skind, const dou
             struct Loop { std::vector<Laid> edges; gp_Pnt2d start, end; TopoDS_Vertex first; };
             std::vector<Loop> loops;
             try {
+                QYM_SIGNALS;
                 for (size_t l = floops[f]; l < floops[f + 1]; ++l) {
                     Loop loop;
                     bool first = true;
@@ -648,6 +652,7 @@ extern "C" QymShape* qym_shape_from_faces(size_t ns, const int* skind, const dou
                 if (!whole) continue;
                 for (size_t k = fpstart[f]; k < fpstart[f + 1]; ++k) fill.Add(pnt(fpts + 3 * k));
                 try {
+                    QYM_SIGNALS;
                     fill.Build();
                 } catch (...) {
                     continue;
@@ -689,6 +694,7 @@ extern "C" QymShape* qym_shape_from_faces(size_t ns, const int* skind, const dou
                 TopoDS_Face face;
                 bool whole = true;
                 try {
+                QYM_SIGNALS;
                 B.MakeFace(face, S[si], step);
                 for (size_t l = floops[f]; l < floops[f + 1] && whole; ++l) {
                     TopoDS_Wire w;

@@ -388,7 +388,7 @@ fn matrix_revolve_direction_and_symmetry() {
         // required side; the solid of revolution lives in coordinates (x, sketch y -> the Y axis, z)
         // and the probe is built in those same world axes
         place[11] = if sign > 0.0 { 2.0 } else { -28.0 };
-        let bx = bx.transformed(&place).unwrap();
+        let bx = qymcad_kernel::specimen::placed(&bx, &place).unwrap();
         s.combined(&bx, 2).map(|c| c.volume()).unwrap_or(0.0)
     };
     use qymcad_core::feature::Reach;

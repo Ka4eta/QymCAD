@@ -16,12 +16,31 @@ use qymcad_core::geom::Built;
 use qymcad_core::model::Id;
 
 /// WHETHER AN OPERATION HAS A SIZE that is stepped back on a refusal, and how far.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Sizing {
     /// No size the limiting case lies in: a refusal is the answer.
     Unsized,
     /// A size, stepped back by the steps of its kind.
-    Sized(Retreat),
+    Sized(StepBack),
+}
+
+/// HOW AN OPERATION STEPS BACK: by the steps of its kind, from its largest length.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct StepBack {
+    pub retreat: Retreat,
+    /// The largest length the work scales: a radius, a leg.
+    pub size: f64,
+}
+
+impl StepBack {
+    /// THE STRIPS A STEP BACK LEAVES. The asked size eats a face whole - a chamfer of 10 x 30 across the top of a step 30
+    /// deep and 10 high - and is refused; a hair smaller it builds and leaves that face standing as a strip as wide as
+    /// the step: 3e-4 mm at 1 - 1e-5 of 30. Such a strip is no face: nameless after no history, renamed by every
+    /// rebuild, it lit a preview of the next tool all over the part, and a rounding beside it took no radius. Taken out,
+    /// its neighbours meet where the asked size put them. The width allows four steps; a crack is never under 1e-5.
+    pub fn strip(self, factor: f64) -> f64 {
+        (4.0 * self.size.abs() * (1.0 - factor)).max(1e-5)
+    }
 }
 
 /// THE NAMES AN OPERATION GIVES THE FACES IT MAKES, as values: the rule of the operation says what a face is (the
@@ -182,7 +201,16 @@ impl crate::kernel::OcctKernel {
         match (asked, op.sizing) {
             (Ok(shape), _) => Ok(shape),
             (Err(e), Sizing::Unsized) => Err(e),
-            (Err(e), Sizing::Sized(retreat)) => retreat.steps().iter().find_map(|f| (op.work)(&bodies, *f).ok()).ok_or(e),
+            (Err(e), Sizing::Sized(back)) => back
+                .retreat
+                .steps()
+                .iter()
+                .find_map(|f| {
+                    let shape = (op.work)(&bodies, *f).ok()?;
+                    shape.drop_slivers_under(back.strip(*f));
+                    Some(shape)
+                })
+                .ok_or(e),
         }
     }
 }
@@ -204,7 +232,7 @@ mod tests {
         let op = Operation {
             kind: Op::Fillet,
             body: 7,
-            sizing: Sizing::Sized(Retreat::Blend),
+            sizing: Sizing::Sized(StepBack { retreat: Retreat::Blend, size: 10.0 }),
             roles: Roles::default(),
             work: |_: &Bodies, f: f64| if f < 1.0 { block(f) } else { Err(CoreError::OpFailed(Op::Fillet)) },
         };

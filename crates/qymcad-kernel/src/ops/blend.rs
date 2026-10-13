@@ -1,7 +1,7 @@
 //! FILLETS AND CHAMFERS through the door: what is their own - which edges, at what size, what the faces they make are
 //! called - and nothing of what the door does for every operation.
 
-use crate::door::{Bodies, Operation, Retreat, Roles, Sizing};
+use crate::door::{Bodies, Operation, Retreat, Roles, Sizing, StepBack};
 use crate::kernel::{refused, OcctKernel};
 use qymcad_core::errors::{CoreError, FilletEdgeIssue, Op};
 use qymcad_core::feature::{BlendRoles, DroppedEdges};
@@ -117,7 +117,7 @@ impl OcctKernel {
             };
             r.ok_or(CoreError::OpFailed(Op::Fillet))
         };
-        let first = self.run(Operation { kind: Op::Fillet, body, sizing: Sizing::Sized(Retreat::Blend), roles: given.clone(), work: whole });
+        let first = self.run(Operation { kind: Op::Fillet, body, sizing: Sizing::Sized(StepBack { retreat: Retreat::Blend, size: radius }), roles: given.clone(), work: whole });
         if first.is_ok() && sharp.unknown > 0 {
             self.dropped.borrow_mut().insert(body, sharp.left_out(sharp.edges.len()));
         }
@@ -191,7 +191,8 @@ impl OcctKernel {
             let names = crate::BlendNames { surfaces: &surfaces, corners: &numbers.corners, all: &numbers.all };
             b.get(src)?.fillet_at_vertices(radius * f, edges, &scaled, names).ok_or(CoreError::OpFailed(Op::FilletVar))
         };
-        let done = self.run(Operation { kind: Op::FilletVar, body, sizing: Sizing::Sized(Retreat::Blend), roles: given, work });
+        let largest = verts.iter().map(|v| v.radius).fold(radius, f64::max);
+        let done = self.run(Operation { kind: Op::FilletVar, body, sizing: Sizing::Sized(StepBack { retreat: Retreat::Blend, size: largest }), roles: given, work });
         if done.is_ok() && sharp.unknown > 0 {
             self.dropped.borrow_mut().insert(body, sharp.left_out(sharp.edges.len()));
         }
@@ -209,7 +210,7 @@ impl OcctKernel {
             let r = if edges.is_empty() { s.chamfer_all(dist * f) } else { s.chamfer_edges(dist * f, edges, &numbers.surfaces_of(&asked, edges), &numbers.corners, &numbers.all) };
             r.ok_or(CoreError::ChamferTooBig { dist })
         };
-        let done = self.run(Operation { kind: Op::Chamfer, body, sizing: Sizing::Sized(Retreat::Blend), roles: given, work });
+        let done = self.run(Operation { kind: Op::Chamfer, body, sizing: Sizing::Sized(StepBack { retreat: Retreat::Blend, size: dist }), roles: given, work });
         if done.is_ok() && sharp.unknown > 0 {
             self.dropped.borrow_mut().insert(body, sharp.left_out(sharp.edges.len()));
         }
@@ -237,7 +238,8 @@ impl OcctKernel {
             let names = crate::BlendNames { surfaces: &surfaces, corners: &numbers.corners, all: &numbers.all };
             b.get(src)?.chamfer_edges_asym(crate::AsymChamfer { a: d1 * f, b: second(f), mode, flip, ref_face }, edges, names).ok_or(CoreError::OpFailed(Op::ChamferAsym))
         };
-        let done = self.run(Operation { kind: Op::ChamferAsym, body, sizing: Sizing::Sized(Retreat::Blend), roles: given, work });
+        let largest = if mode == 2 { d1.max(d1 * d2.to_radians().tan().abs()) } else { d1.max(d2) };
+        let done = self.run(Operation { kind: Op::ChamferAsym, body, sizing: Sizing::Sized(StepBack { retreat: Retreat::Blend, size: largest }), roles: given, work });
         if done.is_ok() && sharp.unknown > 0 {
             self.dropped.borrow_mut().insert(body, sharp.left_out(sharp.edges.len()));
         }

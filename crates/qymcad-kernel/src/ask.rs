@@ -40,6 +40,51 @@ pub fn boolean_gives_body(a: &Shape, b: &Shape, op: u8) -> Result<(), BoolVerdic
     a.boolean_checked(&b, op).map(|_| ())
 }
 
+/// THE TRIANGLES OF A BODY TO WRITE INTO A FILE, at `deflection` mm, its faces as one mesh. Asked under the lock of the
+/// kernel: the mesher writes its triangles into the body, and a rebuild beside it may be reading the same geometry.
+/// `None` when the body does not tessellate.
+pub fn export_mesh(body: &Shape, deflection: f64) -> Option<qymcad_core::geom::Built> {
+    let _gate = crate::kernel::kernel_gate();
+    body.tessellate_merged(deflection)
+}
+
+/// A BODY PLACED FOR A QUESTION OF CLASH: which body, the part it belongs to, its live shape and where it stands.
+pub struct PlacedBody<'a> {
+    pub body: qymcad_core::model::Id,
+    pub part: qymcad_core::model::Id,
+    pub shape: &'a Shape,
+    pub place: [f64; 12],
+}
+
+/// TWO BODIES OF DIFFERENT PARTS THAT GO INTO EACH OTHER, or that could not be measured.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Clash {
+    pub a: qymcad_core::model::Id,
+    pub b: qymcad_core::model::Id,
+}
+
+/// THE PAIRS OF BODIES OF DIFFERENT PARTS THAT GO INTO EACH OTHER by more than 1e-3 mm^3. Bodies of one part overlap as
+/// they are made, and are not asked about. A pair the kernel cannot measure is told too: "could not measure" is not
+/// "clear of each other", and taking it for the second is how a part ends up inside another with nothing said. Each
+/// body is placed on a copy, and the common part is asked under the lock of the kernel - `None` while a rebuild holds
+/// it: the window asks again on a later frame instead of waiting the rebuild out.
+pub fn clashes(bodies: &[PlacedBody<'_>]) -> Option<Vec<Clash>> {
+    let _gate = crate::kernel::try_kernel_gate()?;
+    let placed: Vec<(&PlacedBody<'_>, Shape)> = bodies.iter().filter_map(|b| b.shape.transformed(&b.place).map(|s| (b, s))).collect();
+    let mut out = Vec::new();
+    for i in 0..placed.len() {
+        for j in (i + 1)..placed.len() {
+            if placed[i].0.part == placed[j].0.part {
+                continue;
+            }
+            if placed[i].1.interference_volume(&placed[j].1).is_none_or(|v| v > 1e-3) {
+                out.push(Clash { a: placed[i].0.body, b: placed[j].0.body });
+            }
+        }
+    }
+    Some(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -50,6 +95,19 @@ mod tests {
             .expect("the block")
             .transformed(&[1.0, 0.0, 0.0, x, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0])
             .expect("the block moved into place")
+    }
+
+    /// A CLASH ASKED WHILE A REBUILD HOLDS THE KERNEL is not waited for: there is no answer, and the window asks again on a
+    /// later frame. With the kernel free it is answered: two overlapping blocks of two parts clash.
+    #[test]
+    fn a_clash_is_not_asked_beside_a_rebuild() {
+        let (a, b) = (block(0.0), block(5.0));
+        let bodies = [PlacedBody { body: 1, part: 10, shape: &a, place: PLACE_IDENTITY }, PlacedBody { body: 2, part: 20, shape: &b, place: PLACE_IDENTITY }];
+        {
+            let _rebuild = crate::kernel::kernel_gate();
+            assert_eq!(clashes(&bodies), None, "a clash was asked while a rebuild held the kernel");
+        }
+        assert_eq!(clashes(&bodies), Some(vec![Clash { a: 1, b: 2 }]), "two overlapping blocks of two parts do not clash");
     }
 
     /// THE ANSWERS ARE THOSE OF THE OPERATIONS, and the body asked about is left as it was, byte for byte.

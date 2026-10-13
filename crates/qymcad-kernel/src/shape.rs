@@ -230,6 +230,7 @@ extern "C" {
     ) -> *mut QymShape;
     fn qym_shape_volume(s: *const QymShape) -> c_double;
     fn qym_shape_bbox(s: *const QymShape, out: *mut f64) -> i32;
+    fn qym_shape_bbox_exact(s: *const QymShape, out: *mut f64) -> i32;
     fn qym_shape_is_valid(s: *const QymShape) -> i32;
     fn qym_shape_min_round_radius(s: *const QymShape) -> f64;
     fn qym_shape_solid_count(s: *const QymShape) -> i32;
@@ -252,7 +253,7 @@ extern "C" {
     fn qym_shape_from_brep(data: *const u8, len: usize) -> *mut QymShape;
     fn qym_bytes_free(p: *mut u8);
     fn qym_shape_heal_pinched_faces(s: *mut QymShape) -> i32;
-    fn qym_shape_drop_slivers(s: *mut QymShape) -> i32;
+    fn qym_shape_drop_slivers(s: *mut QymShape, width: c_double) -> i32;
     fn qym_shape_sliver_count(s: *const QymShape) -> i32;
     fn qym_step_solids(path: *const c_char) -> *mut QymShapeList;
     fn qym_shapelist_count(l: *const QymShapeList) -> usize;
@@ -478,7 +479,7 @@ impl Shape {
     }
 
     /// The read back. `None` means the blob is foreign or damaged; there is nothing to guess at silently.
-    pub fn from_brep_bytes(data: &[u8]) -> Option<Shape> {
+    pub(crate) fn from_brep_bytes(data: &[u8]) -> Option<Shape> {
         let p = unsafe { qym_shape_from_brep(data.as_ptr(), data.len()) };
         (!p.is_null()).then(|| Shape { ptr: p })
     }
@@ -1051,7 +1052,12 @@ impl Shape {
         unsafe { qym_shape_sliver_count(self.ptr) }
     }
     pub(crate) fn drop_slivers(&self) -> i32 {
-        unsafe { qym_shape_drop_slivers(self.ptr) }
+        self.drop_slivers_under(1e-5)
+    }
+    /// The same for strips up to `width` wide - those a step back of that much leaves where the asked size eats a face
+    /// whole.
+    pub(crate) fn drop_slivers_under(&self, width: f64) -> i32 {
+        unsafe { qym_shape_drop_slivers(self.ptr, width) }
     }
     /// A copy of faces as a separate sheet: `idx` says which to copy and `names` how to name the copies.
     pub(crate) fn copy_faces(&self, idx: &[u32], names: &[u32]) -> Option<Shape> {
@@ -1149,7 +1155,7 @@ impl Shape {
         }
     }
     /// The solid number `index` of the shape, in the order of `solids_info`, keeping its face and edge ids.
-    pub fn solid_at(&self, index: usize) -> Option<Shape> {
+    pub(crate) fn solid_at(&self, index: usize) -> Option<Shape> {
         unsafe { Self::wrap(qym_shape_solid_at(self.ptr, index as i32)) }
     }
     /// The faces by the kind of surface they lie on: plane, cylinder, cone, sphere, torus, free form, any other.
@@ -1168,16 +1174,48 @@ impl Shape {
     /// A rigid transformation, as a row-major 3x4 of the X, Y and N axes plus the origin, giving a placed
     /// shape. Open to the window, unlike the operations: a placement (or a scale of an import) makes no element and
     /// unmakes none, so there is nothing for the door to clean or to name - the faces and edges keep their names.
-    pub fn transformed(&self, m: &[f64; 12]) -> Option<Shape> {
+    pub(crate) fn transformed(&self, m: &[f64; 12]) -> Option<Shape> {
         unsafe { Self::wrap(qym_shape_transform(self.ptr, m.as_ptr())) }
     }
     /// Fillet every edge with radius `r`, giving a new shape.
     pub(crate) fn fillet_all(&self, r: f64) -> Option<Shape> {
-        unsafe { Self::wrap_valid(qym_shape_fillet_all(self.ptr, r)) }
+        self.blended(unsafe { Self::wrap_valid(qym_shape_fillet_all(self.ptr, r)) }, r)
     }
     /// Chamfer every edge by `d`, giving a new shape.
     pub(crate) fn chamfer_all(&self, d: f64) -> Option<Shape> {
-        unsafe { Self::wrap_valid(qym_shape_chamfer_all(self.ptr, d)) }
+        self.blended(unsafe { Self::wrap_valid(qym_shape_chamfer_all(self.ptr, d)) }, d)
+    }
+
+    /// THE BOX OF THE GEOMETRY ITSELF, not of the poles of its curves and surfaces: the box `bbox` gives of a variable
+    /// fillet of R1 to R2 on a plate stood 2.9 mm past the plate, and of a chamfer on a loft 14 mm past it, both bodies
+    /// sound and inside it.
+    pub(crate) fn bbox_exact(&self) -> Option<[f64; 6]> {
+        let mut out = [0.0f64; 6];
+        (unsafe { qym_shape_bbox_exact(self.ptr, out.as_mut_ptr()) } == 1).then_some(out)
+    }
+
+    /// A BLEND OF EDGES STAYS IN ITS BODY. A fillet or a chamfer takes material off a convex edge and puts it into a
+    /// concave corner: either way the result stands inside the box of the body it was made from - give or take `reach`,
+    /// the size of the blend - and its volume stays above zero and
+    /// within that box. OCCT answers some limiting cases with a body that does neither and that its check calls valid:
+    /// a rounding of R1.99999996 on the arc of an R10 rounding ending in the corners of two chamfers that ate their
+    /// faces came back 3.6e6 mm^3 reaching 590 mm out of a block of 48,916 mm^3. Such a body is refused, in words.
+    fn blended(&self, got: Option<Shape>, reach: f64) -> Option<Shape> {
+        let got = got?;
+        let (Some(a), Some(b)) = (self.bbox_exact(), got.bbox_exact()) else { return Some(got) };
+        let span = [a[3] - a[0], a[4] - a[1], a[5] - a[2]];
+        let diag = span.iter().map(|x| x * x).sum::<f64>().sqrt();
+        let past = (0..3).map(|i| (a[i] - b[i]).max(b[i + 3] - a[i + 3])).fold(0.0f64, f64::max);
+        if past > reach.abs() + 1e-3 * diag.max(1.0) {
+            return refuse("blend/check", &format!("the kernel gave a body standing {past:.1} mm past the body it blends"));
+        }
+        let before = self.volume();
+        let after = got.volume();
+        // a sheet has no volume to keep
+        if before > 0.0 && (after <= 0.0 || after > span[0] * span[1] * span[2]) {
+            return refuse("blend/check", &format!("the kernel gave a body of {after:.1} mm^3 from one of {before:.1} mm^3"));
+        }
+        Some(got)
     }
     /// The edges of the body as polylines, in the kernel's own edge order, for drawing and picking.
     pub fn edges(&self) -> Vec<Vec<[f32; 3]>> {
@@ -1235,14 +1273,14 @@ impl Shape {
     }
 
     /// The two vertices of every edge with an id, by their places in [`Shape::vertices`] counted from 1 (0: none).
-    pub fn edge_vertices(&self) -> Vec<EdgeVertices> {
+    pub(crate) fn edge_vertices(&self) -> Vec<EdgeVertices> {
         let n = unsafe { qym_shape_edge_vertices(self.ptr, std::ptr::null_mut(), std::ptr::null_mut(), 0) };
         let (mut ids, mut ends) = (vec![0u32; n], vec![0u32; n * 2]);
         let got = unsafe { qym_shape_edge_vertices(self.ptr, ids.as_mut_ptr(), ends.as_mut_ptr(), n) }.min(n);
         (0..got).map(|k| EdgeVertices { edge: ids[k], ends: [ends[2 * k], ends[2 * k + 1]] }).collect()
     }
     /// The vertices of the shape and the edges meeting at each - the three smallest ids - from its topology.
-    pub fn vertices(&self) -> Vec<VertexAt> {
+    pub(crate) fn vertices(&self) -> Vec<VertexAt> {
         let n = unsafe { qym_shape_vertices(self.ptr, std::ptr::null_mut(), std::ptr::null_mut(), 0) };
         let (mut pts, mut ids) = (vec![0.0f64; n * 3], vec![0u32; n * 3]);
         let got = unsafe { qym_shape_vertices(self.ptr, pts.as_mut_ptr(), ids.as_mut_ptr(), n) }.min(n);
@@ -1297,7 +1335,9 @@ impl Shape {
 
     /// `names` gives the name of the fillet surface for each selected edge, in parallel with `idx`.
     pub(crate) fn fillet_edges_named(&self, r: f64, idx: &[u32], names: &[u32], corners: &[u32], all_names: &[u32]) -> Option<Shape> {
-        unsafe { Self::wrap_valid(qym_shape_fillet_edges(self.ptr, r, idx.as_ptr(), idx.len(), Self::opt_ptr(names), Self::opt_ptr(corners), Self::opt_ptr(all_names), all_names.len() / 2)) }
+        let got =
+            unsafe { Self::wrap_valid(qym_shape_fillet_edges(self.ptr, r, idx.as_ptr(), idx.len(), Self::opt_ptr(names), Self::opt_ptr(corners), Self::opt_ptr(all_names), all_names.len() / 2)) };
+        self.blended(got, r)
     }
     /// A variable fillet of the selected edges: the radius runs linearly from `r1` at the start to `r2` at
     /// the end.
@@ -1311,7 +1351,8 @@ impl Shape {
         // the point of a vertex comes from a live rebuild of the same body: "nearly the same vertex" would be the next one
         let tol = 1e-6;
         let BlendNames { surfaces, corners, all } = names;
-        unsafe {
+        let reach = rads.iter().copied().fold(r_default, f64::max);
+        let got = unsafe {
             Self::wrap_valid(qym_shape_fillet_at_vertices(
                 self.ptr,
                 r_default,
@@ -1326,12 +1367,13 @@ impl Shape {
                 Self::opt_ptr(all),
                 all.len() / 2,
             ))
-        }
+        };
+        self.blended(got, reach)
     }
 
     #[cfg(test)]
     pub(crate) fn fillet_var(&self, r1: f64, r2: f64, idx: &[u32]) -> Option<Shape> {
-        unsafe { Self::wrap_valid(qym_shape_fillet_var(self.ptr, r1, r2, idx.as_ptr(), idx.len())) }
+        self.blended(unsafe { Self::wrap_valid(qym_shape_fillet_var(self.ptr, r1, r2, idx.as_ptr(), idx.len())) }, r1.max(r2))
     }
     /// An empty slice is not a null pointer. `[].as_ptr()` returns an aligned but invalid address, and a
     /// `if (ptr)` check on the C++ side lets it through, after which rubbish is read. That is how a chamfer
@@ -1351,7 +1393,9 @@ impl Shape {
     /// `corners` the name of the corner patch. The same recipe as for a fillet: these faces have no source
     /// other than the edge and the vertex that produced them.
     pub(crate) fn chamfer_edges(&self, d: f64, idx: &[u32], names: &[u32], corners: &[u32], all_names: &[u32]) -> Option<Shape> {
-        unsafe { Self::wrap_valid(qym_shape_chamfer_edges(self.ptr, d, idx.as_ptr(), idx.len(), Self::opt_ptr(names), Self::opt_ptr(corners), Self::opt_ptr(all_names), all_names.len() / 2)) }
+        let got =
+            unsafe { Self::wrap_valid(qym_shape_chamfer_edges(self.ptr, d, idx.as_ptr(), idx.len(), Self::opt_ptr(names), Self::opt_ptr(corners), Self::opt_ptr(all_names), all_names.len() / 2)) };
+        self.blended(got, d)
     }
     /// An asymmetric chamfer. Mode 1 takes two distances, `a` on the reference face and `b` on the adjacent
     /// one; mode 2 takes the leg `a` and the angle `b` in degrees from the reference face. `flip` chooses
@@ -1360,7 +1404,9 @@ impl Shape {
     pub(crate) fn chamfer_edges_asym(&self, how: AsymChamfer, idx: &[u32], names: BlendNames<'_>) -> Option<Shape> {
         let AsymChamfer { a, b, mode, flip, ref_face } = how;
         let BlendNames { surfaces, corners, all } = names;
-        unsafe {
+        // the second leg: given, or the one the angle makes from the first
+        let reach = if mode == 2 { a.max(a * b.to_radians().tan().abs()) } else { a.max(b) };
+        let got = unsafe {
             Self::wrap_valid(qym_shape_chamfer_edges_asym(
                 self.ptr,
                 a,
@@ -1375,7 +1421,8 @@ impl Shape {
                 Self::opt_ptr(all),
                 all.len() / 2,
             ))
-        }
+        };
+        self.blended(got, reach)
     }
     /// A shell: remove the faces with the persistent ids `face_ids`, stable across a rebuild, and build walls
     /// by the signed `offset` — negative inward, which is the default, positive outward.
@@ -1505,7 +1552,7 @@ impl Shape {
     /// A shell centred on the surface: a wall of thickness `t` is centred on the original surface, with the
     /// faces `face_ids` left open. The body grows by +t/2 and is then hollowed by −t. `None` means the offset
     /// failed.
-    pub fn shell_center(&self, t: f64, face_ids: &[u32]) -> Option<Shape> {
+    pub(crate) fn shell_center(&self, t: f64, face_ids: &[u32]) -> Option<Shape> {
         unsafe { Self::wrap_valid(qym_shape_shell_center(self.ptr, t, face_ids.as_ptr(), face_ids.len())) }
     }
     /// The axis of a cylindrical or conical face by its persistent id, as an origin and a direction in the
@@ -1560,7 +1607,7 @@ impl Shape {
     /// of named faces meeting at its ends, excluding its own two; a zero means there is no such face. This
     /// exists so that the rank of an edge within a pair is not assigned by traversal order; see
     /// the naming of edges in `naming.rs`.
-    pub fn edge_end_faces(&self) -> Vec<qymcad_core::feature::EdgeEnds> {
+    pub(crate) fn edge_end_faces(&self) -> Vec<qymcad_core::feature::EdgeEnds> {
         unsafe {
             let n = qym_shape_edge_end_faces(self.ptr, std::ptr::null_mut(), 0);
             if n == 0 {
@@ -1573,7 +1620,7 @@ impl Shape {
         }
     }
 
-    pub fn absorbed_names(&self) -> Vec<qymcad_core::feature::Absorbed> {
+    pub(crate) fn absorbed_names(&self) -> Vec<qymcad_core::feature::Absorbed> {
         unsafe {
             let n = qym_shape_absorbed(self.ptr, std::ptr::null_mut(), 0);
             if n == 0 {
@@ -1594,7 +1641,7 @@ impl Shape {
         unsafe { qym_shape_clear_face_splits(self.ptr) }
     }
 
-    pub fn face_splits(&self) -> Vec<qymcad_core::feature::FaceSplit> {
+    pub(crate) fn face_splits(&self) -> Vec<qymcad_core::feature::FaceSplit> {
         unsafe {
             let n = qym_shape_face_splits(self.ptr, std::ptr::null_mut(), 0);
             if n == 0 {
@@ -1619,7 +1666,7 @@ impl Shape {
 
     /// Pairs of an edge and its two faces, by name: the id of the edge and the names of faces A and B. Only
     /// edges with exactly two adjacent faces appear, those being the ones an edge name is derived from.
-    pub fn edge_face_pairs(&self) -> Vec<qymcad_core::feature::EdgeFaces> {
+    pub(crate) fn edge_face_pairs(&self) -> Vec<qymcad_core::feature::EdgeFaces> {
         unsafe {
             let n = qym_shape_edge_face_pairs(self.ptr, std::ptr::null_mut(), 0);
             if n == 0 {
@@ -1633,7 +1680,7 @@ impl Shape {
     }
 
     /// Where every named face lies: the point of its surface at the middle of its parametric bounds, and the normal there.
-    pub fn face_places(&self) -> Vec<qymcad_core::feature::FacePlace> {
+    pub(crate) fn face_places(&self) -> Vec<qymcad_core::feature::FacePlace> {
         unsafe {
             let n = qym_shape_face_places(self.ptr, std::ptr::null_mut(), std::ptr::null_mut(), 0);
             if n == 0 {
@@ -1677,7 +1724,7 @@ impl Shape {
     /// `None` means the kernel could not measure — which is NOT the same as "they are clear of each other",
     /// and must never be treated as one. Whoever reads this decides what an unknown is worth; for an
     /// assembly it is worth a warning, because an unmeasurable pair is exactly the pair worth looking at.
-    pub fn interference_volume(&self, other: &Shape) -> Option<f64> {
+    pub(crate) fn interference_volume(&self, other: &Shape) -> Option<f64> {
         let mut v = 0.0f64;
         (unsafe { qym_shape_interference_volume(self.ptr, other.ptr, &mut v) } == 1).then_some(v)
     }
@@ -1844,25 +1891,26 @@ impl Shape {
     }
 
     /// Tessellate into bodies, for drawing and for machining.
-    pub fn tessellate(&self, deflection: f64) -> Vec<Built> {
+    pub(crate) fn tessellate(&self, deflection: f64) -> Vec<Built> {
         let defl = if deflection > 0.0 { deflection } else { 0.5 };
         unsafe { doc_to_bodies(qym_shape_tessellate(self.ptr, defl)) }
     }
 
-    /// Tessellation with a deflection adapted to the size of the body; see [`adaptive_deflection`].
-    pub fn tessellate_auto(&self, k: f64) -> Vec<Built> {
+    /// Tessellation with a deflection adapted to the size of the body; see [`adaptive_deflection`]. For probes.
+    #[cfg(any(test, feature = "specimens"))]
+    pub(crate) fn tessellate_auto(&self, k: f64) -> Vec<Built> {
         self.tessellate(adaptive_deflection(self.bbox_diag(), k))
     }
 
     /// [`Shape::tessellate_merged`] with an adaptive deflection: the working path for drawing.
-    pub fn tessellate_merged_auto(&self, k: f64) -> Option<Built> {
+    pub(crate) fn tessellate_merged_auto(&self, k: f64) -> Option<Built> {
         self.tessellate_merged(adaptive_deflection(self.bbox_diag(), k))
     }
 
     /// Tessellation of the whole shape into one mesh: the solids of a compound are merged — a pattern, a
     /// mirror together with its original, a cut that fell into pieces. Otherwise one body node would show only
     /// the first solid. `None` means empty.
-    pub fn tessellate_merged(&self, deflection: f64) -> Option<Built> {
+    pub(crate) fn tessellate_merged(&self, deflection: f64) -> Option<Built> {
         let bodies = self.tessellate(deflection);
         if bodies.is_empty() {
             return None;

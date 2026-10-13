@@ -21,11 +21,6 @@ const LARGEST_MM: f64 = 10_000.0;
 /// The factors offered as buttons, beside the field for any other.
 const FACTORS: [f64; 7] = [0.001, 0.01, 0.1, 1.0, 10.0, 100.0, 1000.0];
 
-/// A uniform scale about the origin as a 3x4 row-major matrix, the form the kernel takes a placement in.
-pub(crate) fn scale_matrix(f: f64) -> [f64; 12] {
-    [f, 0.0, 0.0, 0.0, 0.0, f, 0.0, 0.0, 0.0, 0.0, f, 0.0]
-}
-
 /// Lay in the meshes read from `path`, then ask about their scale or keep them as they are.
 pub(crate) fn land_mesh(wc: &mut WinCtx, path: String, format: MeshFormat, pieces: Vec<qymcad_ui_state::MeshPiece>) {
     keep_pending(wc);
@@ -151,7 +146,7 @@ pub(crate) fn land_exact(
         wc.live.faces.insert(bid, fs.clone()); // a face cache keyed by body Id, for quick access
         wc.project.set_body_faces(bid, fs);
         if let Some(s) = shapes.next() {
-            if let Some(copy) = s.transformed(&scale_matrix(1.0)) {
+            if let Some(copy) = qymcad_kernel::imports::scaled(&s, 1.0) {
                 read.push((bid, copy)); // the shape as read, which every factor is taken from
             }
             wc.live.shapes.insert(bid, s);
@@ -244,7 +239,7 @@ fn apply(wc: &mut WinCtx, ask: &mut ImportScale) {
         wc.project.set_body_faces(*id, fs);
     }
     for (id, shape) in &ask.solids {
-        if let Some(s) = shape.transformed(&scale_matrix(f)) {
+        if let Some(s) = qymcad_kernel::imports::scaled(shape, f) {
             wc.live.shapes.insert(*id, s);
         }
         wc.project.set_import_scale(*id, f);
@@ -300,7 +295,7 @@ pub(crate) fn rescale(wc: &mut WinCtx, nid: Id) {
         } else {
             // a solid's factor is taken from its live shape; one still being read back from its file after opening
             // has none yet
-            let Some(s) = wc.live.shapes.get(&b).and_then(|s| s.transformed(&scale_matrix(back))) else {
+            let Some(s) = wc.live.shapes.get(&b).and_then(|s| qymcad_kernel::imports::scaled(s, back)) else {
                 *wc.status = crate::i18n::tr("import-scale-wait");
                 return;
             };
@@ -387,7 +382,7 @@ pub(crate) fn import_scale_window(wc: &mut WinCtx, ctx: &egui::Context) {
         // is put back at the factor it stood at
         if let Some(was) = ask.again {
             for (id, shape) in &ask.solids {
-                if let Some(s) = shape.transformed(&scale_matrix(was)) {
+                if let Some(s) = qymcad_kernel::imports::scaled(shape, was) {
                     wc.live.shapes.insert(*id, s);
                 }
             }

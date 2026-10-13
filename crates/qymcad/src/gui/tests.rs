@@ -294,7 +294,7 @@ mod command_flow_tests {
     /// measured with it.
     fn live_volume(app: &App) -> f64 {
         let consumed = qymcad_ui_state::consumed_bodies(&app.project);
-        app.live.shapes.iter().filter(|(b, _)| !consumed.contains(b)).map(|(_, s)| s.tessellate(0.02).iter().map(|b| b.mesh.volume()).sum::<f64>()).sum()
+        app.live.shapes.iter().filter(|(b, _)| !consumed.contains(b)).map(|(_, s)| qymcad_kernel::specimen::mesh(s, 0.02).iter().map(|b| b.mesh.volume()).sum::<f64>()).sum()
     }
 
     /// Run the thread command on a shaft through the FULL GUI flow and return the volume removed.

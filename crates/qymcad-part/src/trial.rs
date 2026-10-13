@@ -242,14 +242,9 @@ fn run_trial(job: TrialJob) -> (Option<String>, Vec<[[f64; 3]; 3]>) {
     } = job;
     let before: std::collections::HashSet<Id> = project.timeline.iter().map(|n| n.id).collect();
     let mut live = qymcad_ui_state::LiveGeom { ready: true, ..Default::default() };
-    {
-        let _gate = qymcad_kernel::kernel_gate(); // the kernel is not safe across threads: the bodies are read under its lock
-        for (id, bytes) in bodies {
-            if let Some(copy) = qymcad_kernel::Shape::from_brep_bytes(&bytes) {
-                live.shapes.insert(id, copy);
-            }
-        }
-    }
+    // the copies of the bodies, read back by the bridge under the lock of the kernel
+    let saved = bodies.into_iter().map(|(body, bytes)| qymcad_kernel::imports::SavedBody { body, bytes }).collect();
+    live.shapes.extend(qymcad_kernel::imports::restore(saved).into_iter().map(|r| (r.body, r.shape)));
     // a rebuild outside a running window happens at once, here, rather than being handed to a thread of its own
     let (mut regen, mut edits, mut status, mut cmd_failed) = (qymcad_ui_state::Rebuilding::default(), qymcad_ui_state::Edits::default(), String::new(), false);
     let (mut recognise, mut trim, mut edges, mut cache, mut win) = (Default::default(), Default::default(), Default::default(), Default::default(), Default::default());
