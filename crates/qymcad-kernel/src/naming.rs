@@ -11,6 +11,8 @@
 //! The rules are functions of the facts of a body and of the table of the document (`NameMint`), and give the renames
 //! as values; the table is the document's, and it gives the descriptors on the thread of the document, in the order of
 //! its tree - so the same document gives the same names on every rebuild.
+//!
+//! The rules as a whole, with the contract that the bridge alone names: `crates/qymcad-kernel/NAMING.md`.
 
 use qymcad_core::feature::{EdgeEnds, EdgeFaces, FacePlace, FaceSplit, NamedAfter, Rename, SilentNaming};
 use qymcad_core::model::Id;

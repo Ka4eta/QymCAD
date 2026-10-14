@@ -11,6 +11,8 @@
 //! across sessions. A tag in the high bits separates a structural name from the positional number the kernel
 //! hands out for geometry whose origin is not derived yet — those operations are moved onto recipes one at a
 //! time.
+//!
+//! The names are given by the bridge alone (`qymcad-kernel`); the rules: `crates/qymcad-kernel/NAMING.md`.
 
 use crate::model::Id;
 use serde::{Deserialize, Serialize};
