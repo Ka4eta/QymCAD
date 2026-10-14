@@ -59,7 +59,19 @@ pub(crate) const PANELS: &str = concat!(
         include_str!("../../../qymcad-sketch/src/lib.rs")
     ),
     "\n",
-    include_str!("../../../qymcad-assembly/src/lib.rs"),
+    concat!(
+        include_str!("../../../qymcad-assembly/src/bars.rs"),
+        "\n",
+        include_str!("../../../qymcad-assembly/src/gizmo.rs"),
+        "\n",
+        include_str!("../../../qymcad-assembly/src/picks.rs"),
+        "\n",
+        include_str!("../../../qymcad-assembly/src/popup.rs"),
+        "\n",
+        include_str!("../../../qymcad-assembly/src/slots.rs"),
+        "\n",
+        include_str!("../../../qymcad-assembly/src/lib.rs")
+    ),
     "\n",
     include_str!("panels_tree.rs"),
     "\n",
@@ -228,7 +240,19 @@ const CTX_USERS: &str = concat!(
         include_str!("../../../qymcad-sketch/src/lib.rs")
     ),
     "\n",
-    include_str!("../../../qymcad-assembly/src/lib.rs"),
+    concat!(
+        include_str!("../../../qymcad-assembly/src/bars.rs"),
+        "\n",
+        include_str!("../../../qymcad-assembly/src/gizmo.rs"),
+        "\n",
+        include_str!("../../../qymcad-assembly/src/picks.rs"),
+        "\n",
+        include_str!("../../../qymcad-assembly/src/popup.rs"),
+        "\n",
+        include_str!("../../../qymcad-assembly/src/slots.rs"),
+        "\n",
+        include_str!("../../../qymcad-assembly/src/lib.rs")
+    ),
     "\n",
     include_str!("panels_tree.rs"),
     "\n",

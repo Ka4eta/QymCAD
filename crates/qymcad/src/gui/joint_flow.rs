@@ -273,7 +273,19 @@ pub(in crate::gui) mod tests {
         use qymcad_core::feature::JointKind;
         let kinds = [JointKind::Rigid, JointKind::Revolute, JointKind::Slider, JointKind::Cylindrical, JointKind::Planar, JointKind::Ball, JointKind::PinSlot];
         // ALL seven are offered in the creation bar
-        let src = include_str!("../../../qymcad-assembly/src/lib.rs");
+        let src = concat!(
+            include_str!("../../../qymcad-assembly/src/bars.rs"),
+            "\n",
+            include_str!("../../../qymcad-assembly/src/gizmo.rs"),
+            "\n",
+            include_str!("../../../qymcad-assembly/src/picks.rs"),
+            "\n",
+            include_str!("../../../qymcad-assembly/src/popup.rs"),
+            "\n",
+            include_str!("../../../qymcad-assembly/src/slots.rs"),
+            "\n",
+            include_str!("../../../qymcad-assembly/src/lib.rs")
+        );
         let a = src.find("joint_bar_kind").expect("the kind combo of the creation bar is in place");
         let b = src[a..].find("});").map(|i| a + i).unwrap_or(src.len());
         for k in kinds {

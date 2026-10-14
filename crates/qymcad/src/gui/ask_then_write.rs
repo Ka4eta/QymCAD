@@ -79,7 +79,22 @@ mod tests {
                 include_str!("../../../qymcad-sketch/src/lib.rs")
             ),
         ),
-        ("Assembly", include_str!("../../../qymcad-assembly/src/lib.rs")),
+        (
+            "Assembly",
+            concat!(
+                include_str!("../../../qymcad-assembly/src/bars.rs"),
+                "\n",
+                include_str!("../../../qymcad-assembly/src/gizmo.rs"),
+                "\n",
+                include_str!("../../../qymcad-assembly/src/picks.rs"),
+                "\n",
+                include_str!("../../../qymcad-assembly/src/popup.rs"),
+                "\n",
+                include_str!("../../../qymcad-assembly/src/slots.rs"),
+                "\n",
+                include_str!("../../../qymcad-assembly/src/lib.rs")
+            ),
+        ),
         ("bars", include_str!("panels_bars.rs")),
         ("tree", include_str!("panels_tree.rs")),
         ("properties", include_str!("panels_props.rs")),
@@ -213,7 +228,19 @@ mod tests {
             "\n",
             include_str!("../../../qymcad-part/src/lib.rs")
         ),
-        include_str!("../../../qymcad-assembly/src/lib.rs"),
+        concat!(
+            include_str!("../../../qymcad-assembly/src/bars.rs"),
+            "\n",
+            include_str!("../../../qymcad-assembly/src/gizmo.rs"),
+            "\n",
+            include_str!("../../../qymcad-assembly/src/picks.rs"),
+            "\n",
+            include_str!("../../../qymcad-assembly/src/popup.rs"),
+            "\n",
+            include_str!("../../../qymcad-assembly/src/slots.rs"),
+            "\n",
+            include_str!("../../../qymcad-assembly/src/lib.rs")
+        ),
     ];
 
     /// EVERY NAME A PATH GOES THROUGH, past the thing it starts from.

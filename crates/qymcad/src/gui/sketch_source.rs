@@ -49,7 +49,19 @@ pub(crate) const SKETCH: &str = concat!(
 
 /// The picking, whole: the module crate plus the remnant in the application.
 #[cfg(test)]
-pub(crate) const PICK: &str = concat!(include_str!("../../../qymcad-pick/src/lib.rs"), "\n", include_str!("pick.rs"),);
+pub(crate) const PICK: &str = concat!(
+    concat!(
+        include_str!("../../../qymcad-pick/src/body_hits.rs"),
+        "\n",
+        include_str!("../../../qymcad-pick/src/infer.rs"),
+        "\n",
+        include_str!("../../../qymcad-pick/src/sketch_hits.rs"),
+        "\n",
+        include_str!("../../../qymcad-pick/src/lib.rs")
+    ),
+    "\n",
+    include_str!("pick.rs"),
+);
 
 /// The Part, whole: the workbench crate plus what stayed with the application.
 #[cfg(test)]

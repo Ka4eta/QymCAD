@@ -218,7 +218,15 @@ mod tests {
         // THE SHADING MOVED TO THE PICKING CRATE with the questions it answers; the rule did not move -
         // both knobs still have to be read where a part is painted. The needle names the PALETTE by type
         // and not by the path it is reached through: the path changed twice already.
-        let src = include_str!("../../../qymcad-pick/src/lib.rs");
+        let src = concat!(
+            include_str!("../../../qymcad-pick/src/body_hits.rs"),
+            "\n",
+            include_str!("../../../qymcad-pick/src/infer.rs"),
+            "\n",
+            include_str!("../../../qymcad-pick/src/sketch_hits.rs"),
+            "\n",
+            include_str!("../../../qymcad-pick/src/lib.rs")
+        );
         assert!(src.contains("pal.shade_floor_body"), "the floor of the shading must come from the scheme");
         assert!(
             src.contains("pal.body_lighten") && src.contains("pal.body_saturate"),
