@@ -37,6 +37,7 @@ mod comment_ratchet;
 mod dependency_ratchet;
 mod file_size_ratchet;
 mod god_object_ratchet;
+mod named_groups_ratchet;
 // The macOS bundling script, run here with the mac-only tools stubbed out. Unix only: it is a shell script.
 #[cfg(all(test, unix))]
 mod packaging_macos;

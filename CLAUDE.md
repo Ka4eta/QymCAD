@@ -96,8 +96,9 @@ Mandatory, for every line written, test code included.
   `#[allow(clippy::...)]`, and no tuple or alias to get a type under a threshold - that is the same remark
   hidden.
 
-Guards: `wide_signature_ratchet.rs` (the width of signatures and the aliases of tuples), `file_size_ratchet.rs`
-(the length of a file), the gate steps "the layout is rustfmt's" and "clippy has nothing to say".
+Guards: `wide_signature_ratchet.rs` (the width of signatures and the aliases of tuples), `named_groups_ratchet.rs`
+(runs of one type, tuples and `bool` parameters, per file, only going down), `file_size_ratchet.rs` (the length
+of a file), the gate steps "the layout is rustfmt's" and "clippy has nothing to say".
 
 ## Workbenches, modules, resources
 
