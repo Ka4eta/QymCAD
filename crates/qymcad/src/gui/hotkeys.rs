@@ -549,7 +549,21 @@ mod tests {
     ];
 
     fn handler_sources() -> [(&'static str, &'static str, &'static str, bool); 4] {
-        let gui = include_str!("../gui.rs");
+        let gui = concat!(
+            include_str!("file_doors.rs"),
+            "\n",
+            include_str!("gizmo_math.rs"),
+            "\n",
+            include_str!("look.rs"),
+            "\n",
+            include_str!("panel_bits.rs"),
+            "\n",
+            include_str!("startup.rs"),
+            "\n",
+            include_str!("view_anim.rs"),
+            "\n",
+            include_str!("../gui.rs")
+        );
         let sketching = crate::gui::sketch_source::SKETCH;
         [
             (HANDLERS[0].0, HANDLERS[0].1, gui, HANDLERS[0].2),
@@ -650,7 +664,25 @@ mod tests {
     fn the_window_is_reachable_from_the_menu() {
         let panels = crate::gui::panels_source::PANELS;
         assert!(panels.contains(".win.open(WinKind::Hotkeys);"), "the window must open from the Help menu");
-        assert!(include_str!("../gui.rs").contains("self.hotkeys_window(ctx);"), "the window must be drawn in the frame");
+        assert!(
+            concat!(
+                include_str!("file_doors.rs"),
+                "\n",
+                include_str!("gizmo_math.rs"),
+                "\n",
+                include_str!("look.rs"),
+                "\n",
+                include_str!("panel_bits.rs"),
+                "\n",
+                include_str!("startup.rs"),
+                "\n",
+                include_str!("view_anim.rs"),
+                "\n",
+                include_str!("../gui.rs")
+            )
+            .contains("self.hotkeys_window(ctx);"),
+            "the window must be drawn in the frame"
+        );
     }
 }
 

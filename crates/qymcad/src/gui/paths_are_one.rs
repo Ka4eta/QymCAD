@@ -44,7 +44,21 @@ mod tests {
     /// `AppData\Roaming\qymis\qymcad\data` side by side, and macOS `qymcad` beside `tech.qymis.qymcad`.
     #[test]
     fn the_framework_is_not_left_to_pick_the_folder() {
-        let src = include_str!("../gui.rs");
+        let src = concat!(
+            include_str!("file_doors.rs"),
+            "\n",
+            include_str!("gizmo_math.rs"),
+            "\n",
+            include_str!("look.rs"),
+            "\n",
+            include_str!("panel_bits.rs"),
+            "\n",
+            include_str!("startup.rs"),
+            "\n",
+            include_str!("view_anim.rs"),
+            "\n",
+            include_str!("../gui.rs")
+        );
         let code: String = src.lines().map(|l| l.split("//").next().unwrap_or("")).collect::<Vec<_>>().join("\n");
         assert!(
             !code.contains("eframe::storage_dir("),

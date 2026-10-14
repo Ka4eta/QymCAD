@@ -273,7 +273,21 @@ mod tests {
         let mut heard: Vec<String> = Vec::new();
         for src in [
             include_str!("input.rs"),
-            include_str!("../gui.rs"),
+            concat!(
+                include_str!("file_doors.rs"),
+                "\n",
+                include_str!("gizmo_math.rs"),
+                "\n",
+                include_str!("look.rs"),
+                "\n",
+                include_str!("panel_bits.rs"),
+                "\n",
+                include_str!("startup.rs"),
+                "\n",
+                include_str!("view_anim.rs"),
+                "\n",
+                include_str!("../gui.rs")
+            ),
             concat!(
                 include_str!("../../../qymcad-ui-state/src/contexts.rs"),
                 "\n",

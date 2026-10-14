@@ -163,7 +163,21 @@ mod tests {
     #[test]
     fn the_feature_is_in_the_tree_and_editable() {
         assert!(crate::gui::render_source::has(crate::gui::panels_source::PANELS, "FeatureKind::Thicken { thickness, .. } =>"), "the row in the tree");
-        let gui = include_str!("../gui.rs");
+        let gui = concat!(
+            include_str!("file_doors.rs"),
+            "\n",
+            include_str!("gizmo_math.rs"),
+            "\n",
+            include_str!("look.rs"),
+            "\n",
+            include_str!("panel_bits.rs"),
+            "\n",
+            include_str!("startup.rs"),
+            "\n",
+            include_str!("view_anim.rs"),
+            "\n",
+            include_str!("../gui.rs")
+        );
         assert!(crate::gui::render_source::has(gui, "FK::Thicken { .. } => ph::"), "the icon");
         assert!(!crate::i18n::tr("feat-name-thicken").is_empty() && crate::i18n::tr("feat-name-thicken") != "feat-name-thicken", "the default name of the feature must have a translation");
         let cmds = crate::gui::sketch_source::PART;

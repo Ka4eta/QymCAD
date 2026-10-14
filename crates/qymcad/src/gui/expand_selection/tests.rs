@@ -562,7 +562,15 @@ fn the_right_button_still_orbits_the_camera() {
     // right button, which has turned it here since the beginning. Caught by this guard, which is what it is
     // for.
     assert!(qymcad_ui_state::MouseNav::QymCad.rotate().any_button, "our layout must orbit on ANY drag, or the right button loses the camera it has always turned");
-    let turns = std::fs::read_to_string(qymcad_i18n::ratchet::crates_root().join("qymcad-ui-state/src/lib.rs")).expect("the ui state reads");
+    // every file of the ui state, its modules with it: the view went to a module of its own
+    let dir = qymcad_i18n::ratchet::crates_root().join("qymcad-ui-state/src");
+    let turns: String = std::fs::read_dir(&dir)
+        .expect("the ui state reads")
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.extension().is_some_and(|x| x == "rs"))
+        .map(|p| std::fs::read_to_string(p).expect("a file of the ui state reads"))
+        .collect();
     assert!(turns.contains("cam.yaw -= d.x as f64 * 0.01;"), "and really turn the camera");
     // and the menu must not dare open in response to a drag
     assert!(!render.contains("resp.dragged() && self.expansion_accepts()"), "a menu on the drag would take the camera rotation away");

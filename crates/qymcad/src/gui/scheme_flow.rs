@@ -96,7 +96,21 @@ mod tests {
     #[test]
     fn the_canvas_and_toolbar_ask_the_scheme() {
         use crate::gui::render_source::dense;
-        let gui = dense(include_str!("../gui.rs"));
+        let gui = dense(concat!(
+            include_str!("file_doors.rs"),
+            "\n",
+            include_str!("gizmo_math.rs"),
+            "\n",
+            include_str!("look.rs"),
+            "\n",
+            include_str!("panel_bits.rs"),
+            "\n",
+            include_str!("startup.rs"),
+            "\n",
+            include_str!("view_anim.rs"),
+            "\n",
+            include_str!("../gui.rs")
+        ));
         assert!(gui.contains(&dense("pal.viewport_bg()")), "the background of the canvas must come from the scheme");
         assert!(!gui.contains(&dense("rect_filled(rect, 0.0, Color32::from_gray(26))")), "there must be no literal background left");
         // IT TAKES THE SCHEME OUTRIGHT NOW, which is what "sees it" was always about. It used to be a

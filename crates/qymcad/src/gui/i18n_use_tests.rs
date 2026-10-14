@@ -232,7 +232,21 @@ fn the_settings_window_offers_the_catalogue() {
 /// THE LANGUAGE IS APPLIED AT STARTUP and survives a restart.
 #[test]
 fn the_language_setting_survives_a_restart_and_is_applied() {
-    let gui = include_str!("../gui.rs");
+    let gui = concat!(
+        include_str!("file_doors.rs"),
+        "\n",
+        include_str!("gizmo_math.rs"),
+        "\n",
+        include_str!("look.rs"),
+        "\n",
+        include_str!("panel_bits.rs"),
+        "\n",
+        include_str!("startup.rs"),
+        "\n",
+        include_str!("view_anim.rs"),
+        "\n",
+        include_str!("../gui.rs")
+    );
     // THROUGH THE SHARED HANDLE: the settings take effect by one path (`adopt_settings`), and the startup
     // goes by it too. Checking for a literal call at startup here would mean forbidding that handle to
     // exist.

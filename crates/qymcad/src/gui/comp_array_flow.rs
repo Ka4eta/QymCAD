@@ -139,7 +139,24 @@ pub(super) mod tests {
         // carries it out - so a single needle would guard only one end of a road that has two.
         assert!(crate::gui::panels_source::PANELS.contains("TreeAsk::EditCompArray(pid)"), "the tree must offer the editing of an array");
         assert!(
-            crate::gui::render_source::has(include_str!("../gui.rs"), "TreeAsk::EditCompArray(pid) => self.start_comp_array_edit(pid)"),
+            crate::gui::render_source::has(
+                concat!(
+                    include_str!("file_doors.rs"),
+                    "\n",
+                    include_str!("gizmo_math.rs"),
+                    "\n",
+                    include_str!("look.rs"),
+                    "\n",
+                    include_str!("panel_bits.rs"),
+                    "\n",
+                    include_str!("startup.rs"),
+                    "\n",
+                    include_str!("view_anim.rs"),
+                    "\n",
+                    include_str!("../gui.rs")
+                ),
+                "TreeAsk::EditCompArray(pid) => self.start_comp_array_edit(pid)"
+            ),
             "the request must be carried out - a request nobody performs is a dead menu item"
         );
         app.start_comp_array_edit(pid);
@@ -182,7 +199,21 @@ pub(super) mod tests {
     #[test]
     fn the_instance_is_visible_in_the_tree() {
         assert!(crate::gui::render_source::has(crate::gui::panels_source::PANELS, "FeatureKind::PartInstance { src_comp, .. } =>"), "the row in the tree");
-        let gui = include_str!("../gui.rs");
+        let gui = concat!(
+            include_str!("file_doors.rs"),
+            "\n",
+            include_str!("gizmo_math.rs"),
+            "\n",
+            include_str!("look.rs"),
+            "\n",
+            include_str!("panel_bits.rs"),
+            "\n",
+            include_str!("startup.rs"),
+            "\n",
+            include_str!("view_anim.rs"),
+            "\n",
+            include_str!("../gui.rs")
+        );
         assert!(crate::gui::render_source::has(gui, "FK::PartInstance { .. } => ph::"), "the icon");
         assert!(!crate::i18n::tr("feat-name-instance").is_empty() && crate::i18n::tr("feat-name-instance") != "feat-name-instance", "the default name of the feature must have a translation");
     }
@@ -196,7 +227,21 @@ pub(super) mod tests {
     #[test]
     fn a_part_copy_does_not_wear_the_assembly_icon() {
         let panels = crate::gui::panels_source::PANELS;
-        let gui = include_str!("../gui.rs");
+        let gui = concat!(
+            include_str!("file_doors.rs"),
+            "\n",
+            include_str!("gizmo_math.rs"),
+            "\n",
+            include_str!("look.rs"),
+            "\n",
+            include_str!("panel_bits.rs"),
+            "\n",
+            include_str!("startup.rs"),
+            "\n",
+            include_str!("view_anim.rs"),
+            "\n",
+            include_str!("../gui.rs")
+        );
         let sub_assembly_icon = {
             // "the assembly icon" is not a letter in the code but THE ONE ON THE NEW-SUBASSEMBLY BUTTON:
             // it is asked of the button, otherwise the check would drift from the interface at the very

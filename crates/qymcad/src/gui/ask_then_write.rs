@@ -88,7 +88,21 @@ mod tests {
 
     /// Where the requests are carried out, and where the functions they delegate to live.
     const HANDLERS: [&str; 16] = [
-        include_str!("../gui.rs"),
+        concat!(
+            include_str!("file_doors.rs"),
+            "\n",
+            include_str!("gizmo_math.rs"),
+            "\n",
+            include_str!("look.rs"),
+            "\n",
+            include_str!("panel_bits.rs"),
+            "\n",
+            include_str!("startup.rs"),
+            "\n",
+            include_str!("view_anim.rs"),
+            "\n",
+            include_str!("../gui.rs")
+        ),
         include_str!("commands.rs"),
         include_str!("sketching.rs"),
         include_str!("joints.rs"),

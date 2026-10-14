@@ -89,7 +89,21 @@ mod tests {
     fn the_feature_is_named_and_shown_in_the_tree() {
         let panels = crate::gui::panels_source::PANELS;
         assert!(crate::gui::render_source::has(panels, "FeatureKind::PushFace { dist, .. } =>"), "the build tree must know the kind of the feature, otherwise the row is not drawn at all");
-        let gui = include_str!("../gui.rs");
+        let gui = concat!(
+            include_str!("file_doors.rs"),
+            "\n",
+            include_str!("gizmo_math.rs"),
+            "\n",
+            include_str!("look.rs"),
+            "\n",
+            include_str!("panel_bits.rs"),
+            "\n",
+            include_str!("startup.rs"),
+            "\n",
+            include_str!("view_anim.rs"),
+            "\n",
+            include_str!("../gui.rs")
+        );
         assert!(crate::gui::render_source::has(gui, "FK::PushFace { .. } => ph::"), "the feature must have an icon");
         assert!(!crate::i18n::tr("feat-name-push-face").is_empty() && crate::i18n::tr("feat-name-push-face") != "feat-name-push-face", "the default name of the feature must have a translation");
         // A REFERENCE TO A FACE LIVES BY TWO DIFFERENT MECHANISMS, and the guard confused them. The

@@ -159,7 +159,21 @@ const WINDOW_OPENERS: &str = concat!(
     "\n",
     include_str!("icon_themes/packager_dialog.rs"),
     "\n",
-    include_str!("../gui.rs"),
+    concat!(
+        include_str!("file_doors.rs"),
+        "\n",
+        include_str!("gizmo_math.rs"),
+        "\n",
+        include_str!("look.rs"),
+        "\n",
+        include_str!("panel_bits.rs"),
+        "\n",
+        include_str!("startup.rs"),
+        "\n",
+        include_str!("view_anim.rs"),
+        "\n",
+        include_str!("../gui.rs")
+    ),
 );
 
 /// EVERYWHERE A CONTEXT IS USED: the three workbench crates and the panels of the application. `gui.rs` is
