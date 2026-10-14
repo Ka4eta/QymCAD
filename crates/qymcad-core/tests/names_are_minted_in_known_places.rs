@@ -19,7 +19,7 @@ const PLACES: [Place; 8] = [
     // a vertex the bridge named (`MeshEdge::ends`), taken into the table when it is first referenced
     Place { file: "qymcad-core/src/model/refs.rs", function: "vertex_pool" },
     // a part copied into another document takes its names into that document's table
-    Place { file: "qymcad-core/src/model/timeline.rs", function: "clone_subtree_into" },
+    Place { file: "qymcad-core/src/model/timeline/clone.rs", function: "clone_subtree_into" },
     // the table itself
     Place { file: "qymcad-core/src/names.rs", function: "*" },
 ];
