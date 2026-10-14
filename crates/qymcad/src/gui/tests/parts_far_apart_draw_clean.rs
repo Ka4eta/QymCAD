@@ -203,11 +203,9 @@ fn faults(shot: &Shot, seen: &Expected) -> Vec<String> {
     if stray > 0 {
         wrong.push(format!("{stray} pixels drawn where no block stands"));
     }
-    // a block under the floor seen from above has the floor between it and the eye: where the floor alone draws something,
-    // the block is not sampled
-    let bare = |p: &&egui::Pos2| floor.pixels[p.y as usize * w + p.x as usize].a() == 0;
+    // the floor lies behind every block, a block under it seen from above included: each face is sampled whole
     for face in &seen.faces {
-        let tones: Vec<egui::Color32> = face.points.iter().filter(bare).map(|p| img.pixels[p.y as usize * w + p.x as usize]).collect();
+        let tones: Vec<egui::Color32> = face.points.iter().map(|p| img.pixels[p.y as usize * w + p.x as usize]).collect();
         if tones.iter().any(|c| c.a() < 128) {
             wrong.push(format!("{}: not drawn where it stands", face.label));
         } else if tones.first().is_some_and(|t0| tones.iter().any(|c| apart([*c, *t0]) > 3)) {
@@ -247,12 +245,8 @@ fn parts_5_m_apart_are_drawn_clean() {
                         }
                         // a pixel of turning later each face keeps its tone
                         let img = &shot.img;
-                        let tones: std::collections::HashMap<String, egui::Color32> = seen
-                            .faces
-                            .iter()
-                            .filter(|f| shot.floor.pixels[f.points[0].y as usize * img.size[0] + f.points[0].x as usize].a() == 0)
-                            .map(|f| (f.label.clone(), img.pixels[f.points[0].y as usize * img.size[0] + f.points[0].x as usize]))
-                            .collect();
+                        let tones: std::collections::HashMap<String, egui::Color32> =
+                            seen.faces.iter().map(|f| (f.label.clone(), img.pixels[f.points[0].y as usize * img.size[0] + f.points[0].x as usize])).collect();
                         for (label, b) in &tones {
                             if let Some(a) = tone_before.get(label).filter(|a| apart([**a, *b]) > 4) {
                                 wrong.push(format!("{name}: {label} turned from {a:?} to {b:?}"));

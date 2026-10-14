@@ -44,11 +44,8 @@ struct SeenFace {
     colour: egui::Color32,
 }
 
-/// The faces of the body turned to the eye and wide enough to sample, with the colour at the middle of each. Where the
-/// floor alone draws something (`floor`, the same view with the block hidden) the face is not sampled: seen from below,
-/// the floor lies between the eye and the block.
-fn seen_faces(app: &App, shot: &Shot) -> Vec<SeenFace> {
-    let Shot { img, floor } = shot;
+/// The faces of the body turned to the eye and wide enough to sample, with the colour at the middle of each.
+fn seen_faces(app: &App, img: &egui::ColorImage) -> Vec<SeenFace> {
     let basis = app.viewing.cam.basis();
     let scr = qymcad_ui_state::Screen { cam: &app.viewing.cam, set: &app.set, rect: rect(), basis: &basis };
     let mi = app.project.bodies.iter().rposition(|b| b.visible).expect("setup: no body");
@@ -60,14 +57,11 @@ fn seen_faces(app: &App, shot: &Shot) -> Vec<SeenFace> {
             continue; // turned away, edge-on, or a corner too small to sample
         }
         let corners: Vec<[f64; 3]> = f.triangles.iter().flat_map(|&t| body.mesh.triangle(t as usize)).map(|p| [p.x, p.y, p.z]).collect();
-        // the middle of the face, or a point a third of the way to one of its corners: the first the floor leaves bare
-        let mid = scr.at(c).0;
-        let bare = std::iter::once(mid).chain(corners.iter().map(|k| mid + (scr.at(*k).0 - mid) * 0.3)).find(|p| {
-            let (x, y) = (p.x.round() as usize, p.y.round() as usize);
-            x < img.size[0] && y < img.size[1] && floor.pixels[y * img.size[0] + x].a() == 0
-        });
-        let Some(at) = bare else { continue };
-        let (x, y) = (at.x.round() as usize, at.y.round() as usize);
+        let at = scr.at(c).0;
+        if !(0.0..img.size[0] as f32).contains(&at.x) || !(0.0..img.size[1] as f32).contains(&at.y) {
+            continue;
+        }
+        let (x, y) = (at.x as usize, at.y as usize);
         out.push(SeenFace { normal: f.normal, corners, colour: img.pixels[y * img.size[0] + x] });
     }
     out
@@ -93,28 +87,9 @@ impl SeenFace {
     }
 }
 
-/// A picture of the view, and the same view with the block hidden - what the floor alone draws.
-struct Shot {
-    img: egui::ColorImage,
-    floor: egui::ColorImage,
-}
-
-/// The picture by `draw`, with and without the block.
-fn shot(app: &mut App, draw: impl Fn(&App) -> Option<egui::ColorImage>) -> Option<Shot> {
-    let img = draw(app)?;
-    for b in &mut app.project.bodies {
-        b.visible = false;
-    }
-    let floor = draw(app);
-    for b in &mut app.project.bodies {
-        b.visible = true;
-    }
-    Some(Shot { img, floor: floor? })
-}
-
 /// Every two faces that meet, seen from where the camera stands now: how far apart their tones are.
-fn pairs_too_close(app: &App, shot: &Shot, view: &str, wrong: &mut Vec<String>) {
-    let faces = seen_faces(app, shot);
+fn pairs_too_close(app: &App, img: &egui::ColorImage, view: &str, wrong: &mut Vec<String>) {
+    let faces = seen_faces(app, img);
     assert!(faces.len() >= 5, "{view}: setup: {} faces of the block seen", faces.len());
     for (i, a) in faces.iter().enumerate() {
         for b in &faces[i + 1..] {
@@ -154,9 +129,9 @@ fn neighbouring_faces_part_in_tone_in_the_raster() {
     for View { name: view, yaw, pitch } in VIEWS {
         app.viewing.cam.yaw = yaw;
         app.viewing.cam.pitch = pitch;
-        let pictured = shot(&mut app, |app| qymcad_render::rasterize_3d(&app.painting(), rect(), &app.viewing.cam.basis(), 1.0, 1.0)).expect("the raster drew nothing");
-        keep(&pictured.img, &format!("lit-raster-{view}"));
-        pairs_too_close(&app, &pictured, view, &mut wrong);
+        let img = qymcad_render::rasterize_3d(&app.painting(), rect(), &app.viewing.cam.basis(), 1.0, 1.0).expect("the raster drew nothing");
+        keep(&img, &format!("lit-raster-{view}"));
+        pairs_too_close(&app, &img, view, &mut wrong);
     }
     assert!(wrong.is_empty(), "faces that meet merge into one tone ({}):\n{}", wrong.len(), wrong.join("\n"));
 }
@@ -169,12 +144,12 @@ fn neighbouring_faces_part_in_tone_on_the_card() {
     for View { name: view, yaw, pitch } in VIEWS {
         app.viewing.cam.yaw = yaw;
         app.viewing.cam.pitch = pitch;
-        let Some(pictured) = shot(&mut app, |app| crate::gui::gpu_shot::eyes::shot(&app.painting(), rect())) else {
+        let Some(img) = crate::gui::gpu_shot::eyes::shot(&app.painting(), rect()) else {
             eprintln!("PASSED OVER: there is no graphics device here - the card cannot be asked");
             return;
         };
-        keep(&pictured.img, &format!("lit-card-{view}"));
-        pairs_too_close(&app, &pictured, view, &mut wrong);
+        keep(&img, &format!("lit-card-{view}"));
+        pairs_too_close(&app, &img, view, &mut wrong);
     }
     assert!(wrong.is_empty(), "faces that meet merge into one tone on the card ({}):\n{}", wrong.len(), wrong.join("\n"));
 }

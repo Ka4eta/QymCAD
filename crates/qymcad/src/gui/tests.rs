@@ -38,7 +38,7 @@ mod sketch_plane_pick_frames_tests;
 mod faces_part_in_light;
 
 #[cfg(test)]
-mod the_floor_reaches_the_horizon;
+mod the_floor_fades_round_the_view;
 
 #[cfg(test)]
 mod parts_far_apart_draw_clean;

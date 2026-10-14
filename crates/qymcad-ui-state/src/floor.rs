@@ -1,20 +1,23 @@
-//! THE FLOOR OF THE 3D VIEW: the plane Z = 0 under a grid, and the world axes, to the horizon.
+//! THE FLOOR OF THE 3D VIEW: the plane Z = 0 under a grid, and the world axes, round what is looked at.
 //!
 //! Reported behaviour: "in the 3D view the table, the grid and the axes are not endless - one sees the plane end as the
-//! view moves". The grid was a square of egui lines round the middle of the view, at most 160 lines each way: tilted
-//! 10 deg over the floor and taken out to 20 m it stopped 117 to 151 rows under the horizon in perspective, and its far
-//! edge crossed the frame in orthographic. The axes were segments of the same square, the Z axis four steps high.
+//! view moves". The grid was a square of egui lines round the middle of the view, at most 160 lines each way, faded by
+//! the number of a line: tilted 10 deg over the floor and taken out to 20 m it stopped 117 to 151 rows under the horizon
+//! in perspective, and its far edge crossed the frame in orthographic. Run to the horizon instead, the grid became a
+//! ripple over the whole frame - reported as hard on the eyes, the Z axis standing up to the top of the screen.
 //!
-//! Now every pixel casts its ray of sight onto the plane. The grid is drawn where the point met lies near a line, a
-//! line's width is measured in pixels from the size of a pixel on the plane there, and a level of the grid fades out as
-//! its lines close in under 18 points - towards the horizon, and at a grazing look - with the next level, five times
-//! coarser, taking its place. There is no last line to reach. The card does the same in `fs_floor`; this is the
-//! arithmetic the software raster runs, and the description both take.
+//! Now every pixel casts its ray of sight onto the plane, as the floor of a CAD is drawn: the grid is drawn where the
+//! point met lies near a line, a line's width is measured in pixels from the size of a pixel on the plane there, a level
+//! of the grid fades out as its lines close in under 30 points with the next level, five times coarser, taking its
+//! place, and the whole floor fades out softly round the point the view looks at (`FloorLook::reach`, three times the
+//! view), the axes further out and the Z axis with its height. There is no edge to see: it is a fade that goes with the
+//! view at any zoom. The floor lies behind every body: it is drawn only where no body is. The card does the same in
+//! `fs_floor`; this is the arithmetic the software raster runs, and the description both take.
 
 use super::*;
 use egui::Color32;
 
-/// WHAT THE FLOOR IS DRAWN WITH: the step of its finest lines and the colours, all from the scheme.
+/// WHAT THE FLOOR IS DRAWN WITH: the step of its finest lines, the colours from the scheme, and where it fades out.
 #[derive(Clone, Copy, Debug)]
 pub struct FloorLook {
     /// The finest step of the grid, mm: its lines 9 to 45 points apart at the camera's target, as before.
@@ -26,40 +29,60 @@ pub struct FloorLook {
     pub axis_x: Color32,
     pub axis_y: Color32,
     pub axis_z: Color32,
+    /// The point of the floor under the camera's target: the floor fades out round it.
+    pub centre: [f64; 2],
+    /// How far from `centre` the grid is gone, mm: `FLOOR_REACH` times half the diagonal of the view at the target.
+    pub reach: f64,
 }
 
 /// The widths of the lines, in points, as the egui strokes drew them.
 pub const FLOOR_LINE: f64 = 1.0;
 pub const FLOOR_AXIS: f64 = 1.6;
 pub const FLOOR_AXIS_Z: f64 = 1.8;
-/// A level of the grid is gone at 9 points between its lines and whole at 18: the fade the minor lines had at the
-/// switch of the step.
-pub const FLOOR_FADE_GONE: f64 = 9.0;
-pub const FLOOR_FADE_WHOLE: f64 = 18.0;
-/// How many levels of the grid, each five times coarser: six reach from the finest step to 3125 of them.
-pub const FLOOR_LEVELS: usize = 6;
+/// A level of the grid is gone at 12 points between its lines and whole at 30. At 9 and 18 - the fade the minor lines
+/// had at the switch of the step - the levels far off stood so close the floor read as a ripple.
+pub const FLOOR_FADE_GONE: f64 = 12.0;
+pub const FLOOR_FADE_WHOLE: f64 = 30.0;
+/// How many levels of the grid, each five times coarser.
+pub const FLOOR_LEVELS: usize = 4;
 /// The grid fades out as the ray of sight comes within this sine of level (0.7 deg): there a pixel spans more of the
 /// plane than any level can show.
 pub const FLOOR_GRAZING: f64 = 0.012;
-/// THE FLOOR STANDS A HAIR BEHIND WHAT LIES ON IT: its depth is taken as if it were this much further along the ray,
-/// and further still by as much as its depth changes over `FLOOR_SLOPE` pixels. The bottom of a part standing on the
-/// floor is the floor's own plane, and seen from below the grid came through the face - 6 levels of it on the face of a
-/// chamfered block. A hundred-thousandth of the distance was not enough: the card tests the face's depth at every sample
-/// of a pixel and the floor's once at its middle, and across half a pixel of a face seen aslant the depth changes by
-/// 0.2 %; the raster's interpolation is good to about a hundred-thousandth. A ten-thousandth plus a pixel's slope covers
-/// both and is far below anything a person could lift a part by.
-pub const FLOOR_BEHIND: f64 = 1.0 + 1e-4;
-pub const FLOOR_SLOPE: f64 = 1.0;
+/// How far the floor reaches, in half diagonals of the view at the target: the grid is whole to a third of it and gone
+/// at it, the axes X and Y go on to twice as far.
+pub const FLOOR_REACH: f64 = 3.0;
+pub const FLOOR_WHOLE_TO: f64 = 0.35;
+/// The Z axis is gone at this share of the floor's reach, about a third of the frame: standing up the whole reach it ran
+/// to the top of the frame.
+pub const FLOOR_Z_REACH: f64 = 0.15;
 
-/// The floor for the camera and the scheme of `pn`.
-pub fn floor_look(pn: &Painting) -> FloorLook {
-    let sc = pn.cam.scale as f64;
+/// The floor for the camera and the scheme of `pn`, in a view of `rect`.
+pub fn floor_look(pn: &Painting, rect: Rect) -> FloorLook {
+    let sc = (pn.cam.scale as f64).max(1e-9);
     let mut step = 10.0_f64;
     while step * sc < 9.0 {
         step *= 5.0;
     }
     let pal = &pn.scheme.pal;
-    FloorLook { step, minor: qymcad_scheme::a(pal.grid_minor(), 170), major: qymcad_scheme::a(pal.grid(), 230), axis_x: pal.grid_axis_x(), axis_y: pal.grid_axis_y(), axis_z: pal.grid_axis_z() }
+    let half_diagonal = (rect.width() as f64).hypot(rect.height() as f64) * 0.5 / sc;
+    FloorLook {
+        step,
+        minor: qymcad_scheme::a(pal.grid_minor(), 170),
+        major: qymcad_scheme::a(pal.grid(), 230),
+        axis_x: pal.grid_axis_x(),
+        axis_y: pal.grid_axis_y(),
+        axis_z: pal.grid_axis_z(),
+        centre: [pn.cam.target[0], pn.cam.target[1]],
+        reach: FLOOR_REACH * half_diagonal,
+    }
+}
+
+impl FloorLook {
+    /// How much of the floor is left with the distance from its centre, for a fade that is gone at `out` times the reach:
+    /// whole to `FLOOR_WHOLE_TO` of that, then down to nothing.
+    fn fade(&self, out: f64) -> Fade {
+        Fade { gone: self.reach * out, whole: FLOOR_WHOLE_TO * self.reach * out }
+    }
 }
 
 /// A ray of sight: where it starts and where it runs. In perspective it starts at the eye and runs one unit along the
@@ -70,7 +93,7 @@ pub struct Ray {
     pub along: [f64; 3],
 }
 
-/// THE RAYS OF SIGHT OF A FRAME: the camera, the frame in points and in pixels, and its depth.
+/// THE RAYS OF SIGHT OF A FRAME: the camera, the frame in points and in pixels, and its projection.
 #[derive(Clone, Copy, Debug)]
 pub struct ViewRays {
     pub target: [f64; 3],
@@ -89,9 +112,8 @@ pub struct ViewRays {
     pub proj: ProjParams,
 }
 
-/// Where a ray meets the floor: how far along it, and the point.
+/// Where a ray meets the floor.
 struct FloorHit {
-    t: f64,
     at: [f64; 2],
 }
 
@@ -126,17 +148,7 @@ impl ViewRays {
         }
     }
 
-    /// The number the depth buffer holds for a point `t` along a ray (`depth_ndc`): in perspective `t` is the distance
-    /// from the eye, in orthographic from the plane of the target.
-    pub fn depth(&self, t: f64) -> f32 {
-        if self.proj.inv_d_eye > 0.0 {
-            (self.proj.z_near / t) as f32
-        } else {
-            (0.5 - t / (2.0 * self.proj.depth_half)).clamp(0.0, 1.0) as f32
-        }
-    }
-
-    /// Where the ray meets the floor, and how far along it: none if it runs level or meets it behind the eye.
+    /// Where the ray meets the floor: none if it runs level or meets it behind the eye.
     fn on_floor(&self, ray: &Ray) -> Option<FloorHit> {
         if ray.along[2].abs() < 1e-12 {
             return None;
@@ -145,15 +157,14 @@ impl ViewRays {
         if self.proj.inv_d_eye > 0.0 && t <= self.proj.z_near {
             return None;
         }
-        Some(FloorHit { t, at: [ray.from[0] + ray.along[0] * t, ray.from[1] + ray.along[1] * t] })
+        Some(FloorHit { at: [ray.from[0] + ray.along[0] * t, ray.from[1] + ray.along[1] * t] })
     }
 }
 
-/// What a pixel of the floor comes out as: its colour, premultiplied, 0..1, and the depth of what it shows.
+/// What a pixel of the floor comes out as: its colour, premultiplied, 0..1.
 #[derive(Clone, Copy, Debug)]
 pub struct FloorPixel {
     pub colour: [f32; 4],
-    pub depth: f32,
 }
 
 /// A line `width` pixels wide.
@@ -208,20 +219,17 @@ pub fn floor_pixel(rays: &ViewRays, look: &FloorLook, ndc: (f64, f64)) -> Option
     let ppp = rays.ppp;
     let pixel = (rays.pixel.x as f64, rays.pixel.y as f64);
     let mut colour = Paint::NONE;
-    let mut depth = 0.0f32;
-    if let Some(FloorHit { t, at: p }) = rays.on_floor(&ray) {
+    if let Some(FloorHit { at: p }) = rays.on_floor(&ray) {
         // THE SIZE OF A PIXEL ON THE PLANE, from the points the next pixel to the right and the next one down meet - what
         // `fwidth` gives the card. A neighbour whose ray misses the plane is taken as a pixel without end.
         let next = |d: (f64, f64)| rays.on_floor(&rays.through((ndc.0 + d.0, ndc.1 + d.1)));
-        let (right, below) = (next((pixel.0, 0.0)), next((0.0, -pixel.1)));
-        let fw = match (&right, &below) {
+        let fw = match (next((pixel.0, 0.0)), next((0.0, -pixel.1))) {
             (Some(a), Some(b)) => [(a.at[0] - p[0]).abs() + (b.at[0] - p[0]).abs(), (a.at[1] - p[1]).abs() + (b.at[1] - p[1]).abs()].map(|v| v.max(1e-12)),
             _ => [f64::INFINITY; 2],
         };
-        // how much the floor's depth changes over a pixel, as `fwidth` gives it the card
-        let slope = [&right, &below].iter().map(|h| h.as_ref().map_or(0.0, |h| (rays.depth(h.t) - rays.depth(t)).abs())).sum::<f32>();
         let len = (ray.along.iter().map(|v| v * v).sum::<f64>()).sqrt();
         let level = (ray.along[2] / len).abs();
+        let r = (p[0] - look.centre[0]).hypot(p[1] - look.centre[1]);
         // a ray running within 0.7 deg of level meets the plane where a pixel spans more than the grid can show
         let grazing = Fade { gone: 0.0, whole: FLOOR_GRAZING }.at(level);
         let lod = Fade { gone: FLOOR_FADE_GONE, whole: FLOOR_FADE_WHOLE };
@@ -232,20 +240,19 @@ pub fn floor_pixel(rays: &ViewRays, look: &FloorLook, ndc: (f64, f64)) -> Option
             // the lines across X and the lines across Y each fade by their own spacing on screen: looked at low, the lines
             // running away from the eye stay wide apart while the lines across the view close in
             let cov = (0..2).map(|a| line.covers((p[a] - (p[a] / spacing).round() * spacing).abs() / fw[a]) * lod.at(spacing / (fw[a] * ppp))).fold(0.0, f64::max);
-            let c = Paint::of(if k == 0 { look.minor } else { look.major }, cov * grazing);
+            let c = Paint::of(if k == 0 { look.minor } else { look.major }, cov * grazing * look.fade(1.0).at(r));
             if c.rgba[3] > grid.rgba[3] {
                 grid = c;
             }
             spacing *= 5.0;
         }
-        let near_level = Fade { gone: 0.0, whole: 0.01 }.at(level);
+        let near_level = Fade { gone: 0.0, whole: 0.01 }.at(level) * look.fade(2.0).at(r);
         let axis = Line { width: FLOOR_AXIS * ppp };
         let ax = Paint::of(look.axis_x, axis.covers(p[1].abs() / fw[1]) * near_level);
         let ay = Paint::of(look.axis_y, axis.covers(p[0].abs() / fw[0]) * near_level);
         colour = ay.over(ax.over(grid));
-        depth = rays.depth(t * FLOOR_BEHIND) - slope * FLOOR_SLOPE as f32;
     }
-    // THE Z AXIS: where the ray passes closest to the line standing up from the origin
+    // THE Z AXIS: where the ray passes closest to the line standing up from the origin, fading with its height
     let (o, d) = (ray.from, ray.along);
     let aa = d.iter().map(|v| v * v).sum::<f64>();
     let b = d[2];
@@ -259,19 +266,11 @@ pub fn floor_pixel(rays: &ViewRays, look: &FloorLook, ndc: (f64, f64)) -> Option
         if tc >= 0.0 && (!persp || sc > rays.proj.z_near) {
             let gap = ((o[0] + d[0] * sc).powi(2) + (o[1] + d[1] * sc).powi(2) + (o[2] + d[2] * sc - tc).powi(2)).sqrt();
             let per_point = if persp { sc * rays.proj.inv_d_eye / rays.scale } else { 1.0 / rays.scale };
-            let az = Line { width: FLOOR_AXIS_Z * ppp }.covers(gap / per_point * ppp);
+            let az = Line { width: FLOOR_AXIS_Z * ppp }.covers(gap / per_point * ppp) * look.fade(FLOOR_Z_REACH).at(tc);
             if az > 0.0 {
-                let z = Paint::of(look.axis_z, az);
-                let dz = rays.depth(sc);
-                // the nearer of the two lies over the other, and the depth is the nearer one's
-                if colour.rgba[3] <= 0.0 || dz >= depth {
-                    colour = z.over(colour);
-                    depth = dz;
-                } else {
-                    colour = colour.over(z);
-                }
+                colour = Paint::of(look.axis_z, az).over(colour);
             }
         }
     }
-    (colour.rgba[3] >= 0.5 / 255.0).then_some(FloorPixel { colour: colour.rgba, depth })
+    (colour.rgba[3] >= 0.5 / 255.0).then_some(FloorPixel { colour: colour.rgba })
 }

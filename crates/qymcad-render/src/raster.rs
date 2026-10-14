@@ -300,7 +300,7 @@ pub fn rasterize_3d(pn: &Painting, rect: Rect, basis: &([f64; 3], [f64; 3], [f64
     let proj = qymcad_ui_state::proj_params(pn, rect, qymcad_ui_state::gpu_scene_key(pn));
     let inv_d = proj.inv_d_eye;
     let rays = qymcad_ui_state::ViewRays::new(&pn.cam, rect, ppp * quality, proj);
-    let look = qymcad_ui_state::floor_look(pn);
+    let look = qymcad_ui_state::floor_look(pn, rect);
     let floor = FloorFrame { rays: &rays, look: &look, size: [w, h] };
 
     // 1) project the visible front-facing triangles into pixel coordinates. The colour is PER VERTEX

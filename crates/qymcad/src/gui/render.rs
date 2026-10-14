@@ -111,7 +111,7 @@ pub(crate) fn frame_uniform(pn: &qymcad_ui_state::Painting, rect: Rect, basis: &
         ghost_alpha: pn.set.ghost_alpha as f32 / 255.0,
         ghost_target: [gt[0] as f32 / 255.0, gt[1] as f32 / 255.0, gt[2] as f32 / 255.0],
     };
-    crate::viewport_gpu::CamRaw::new(basis, pn.cam.scale, pn.cam.target, rect.size(), &proj, shade).with_floor(&qymcad_ui_state::floor_look(pn), ppp)
+    crate::viewport_gpu::CamRaw::new(basis, pn.cam.scale, pn.cam.target, rect.size(), &proj, shade).with_floor(&qymcad_ui_state::floor_look(pn, rect), ppp)
 }
 
 pub(crate) fn draw_3d(pn: &Painting, painter: &egui::Painter, rect: Rect) {

@@ -124,8 +124,9 @@ pub struct CamRaw {
     /// premultiplied. All of it from the one description the raster takes too.
     floor: [f32; 4],
     floor_lines: [f32; 4],
-    /// [FLOOR_GRAZING, FLOOR_BEHIND, FLOOR_SLOPE, 0].
+    /// [FLOOR_GRAZING, FLOOR_WHOLE_TO, FLOOR_Z_REACH, 0], and [the point the floor fades round (x, y), its reach, 0].
     floor_more: [f32; 4],
+    floor_round: [f32; 4],
     grid_minor: [f32; 4],
     grid_major: [f32; 4],
     axis_x: [f32; 4],
@@ -164,6 +165,7 @@ impl CamRaw {
             floor: [0.0; 4],
             floor_lines: [0.0; 4],
             floor_more: [0.0; 4],
+            floor_round: [0.0; 4],
             grid_minor: [0.0; 4],
             grid_major: [0.0; 4],
             axis_x: [0.0; 4],
@@ -175,11 +177,12 @@ impl CamRaw {
     /// The floor of the frame, drawn at `ppp` pixels a point. Without it the floor is not drawn: its colours stay
     /// transparent.
     pub fn with_floor(mut self, look: &qymcad_ui_state::FloorLook, ppp: f32) -> Self {
-        use qymcad_ui_state::{FLOOR_AXIS, FLOOR_AXIS_Z, FLOOR_BEHIND, FLOOR_FADE_GONE, FLOOR_FADE_WHOLE, FLOOR_GRAZING, FLOOR_LEVELS, FLOOR_LINE, FLOOR_SLOPE};
+        use qymcad_ui_state::{FLOOR_AXIS, FLOOR_AXIS_Z, FLOOR_FADE_GONE, FLOOR_FADE_WHOLE, FLOOR_GRAZING, FLOOR_LEVELS, FLOOR_LINE, FLOOR_WHOLE_TO, FLOOR_Z_REACH};
         let paint = |c: egui::Color32| c.to_array().map(|v| v as f32 / 255.0);
         self.floor = [look.step as f32, ppp, FLOOR_FADE_GONE as f32, FLOOR_FADE_WHOLE as f32];
         self.floor_lines = [FLOOR_LINE as f32, FLOOR_AXIS as f32, FLOOR_AXIS_Z as f32, FLOOR_LEVELS as f32];
-        self.floor_more = [FLOOR_GRAZING as f32, FLOOR_BEHIND as f32, FLOOR_SLOPE as f32, 0.0];
+        self.floor_more = [FLOOR_GRAZING as f32, FLOOR_WHOLE_TO as f32, FLOOR_Z_REACH as f32, 0.0];
+        self.floor_round = [look.centre[0] as f32, look.centre[1] as f32, look.reach as f32, 0.0];
         (self.grid_minor, self.grid_major) = (paint(look.minor), paint(look.major));
         (self.axis_x, self.axis_y, self.axis_z) = (paint(look.axis_x), paint(look.axis_y), paint(look.axis_z));
         self
@@ -205,7 +208,8 @@ struct Cam {
     ghost: vec4<f32>,  // the colour a ghost is led towards
     floor: vec4<f32>,  // finest step, pixels per point, the spacing in points a level is gone at, and whole at
     floor_lines: vec4<f32>, // the widths of a line, an axis, the Z axis, in points; the number of levels
-    floor_more: vec4<f32>,  // the sine of level the grid fades out at, how far behind the floor stands, by how many pixels' slope, _
+    floor_more: vec4<f32>,  // the sine of level the grid fades out at, the share of the reach it stays whole to, the Z axis's share of the reach, _
+    floor_round: vec4<f32>, // the point of the floor it fades out round (x, y), how far it reaches, _
     grid_minor: vec4<f32>,
     grid_major: vec4<f32>,
     axis_x: vec4<f32>,
@@ -397,14 +401,6 @@ fn ray_at(ndc: vec2<f32>) -> Ray {
     return Ray(cam.tgt.xyz + side, cam.fwd.xyz);
 }
 
-// The depth the buffer takes for a point `t` along a ray (`ViewRays::depth`).
-fn depth_of(t: f32) -> f32 {
-    if (cam.persp.x > 0.0) {
-        return cam.persp.y / t;
-    }
-    return clamp(0.5 - t / (2.0 * cam.params.w), 0.0, 1.0);
-}
-
 fn covers(off: f32, width: f32) -> f32 {
     return clamp(width * 0.5 + 0.5 - off, 0.0, 1.0);
 }
@@ -413,13 +409,16 @@ fn over(top: vec4<f32>, under: vec4<f32>) -> vec4<f32> {
     return top + under * (1.0 - top.a);
 }
 
-struct FloorFrag {
-    @location(0) colour: vec4<f32>,
-    @builtin(frag_depth) depth: f32,
-};
+// How much of the floor is left at `r` mm from the point it fades round, for a fade gone at `out` times its reach
+// (`FloorLook::left_at`).
+fn left_at(r: f32, out: f32) -> f32 {
+    let reach = cam.floor_round.z * out;
+    return 1.0 - smoothstep(cam.floor_more.y * reach, reach, r);
+}
 
+// THE FLOOR LIES BEHIND EVERY BODY: the pass draws at the far end of the depth and passes only where no body was drawn.
 @fragment
-fn fs_floor(in: FloorOut) -> FloorFrag {
+fn fs_floor(in: FloorOut) -> @location(0) vec4<f32> {
     let ray = ray_at(in.ndc);
     let persp = cam.persp.x > 0.0;
     let level_ray = abs(ray.d.z) < 1e-12;
@@ -427,12 +426,11 @@ fn fs_floor(in: FloorOut) -> FloorFrag {
     let p = ray.o.xy + ray.d.xy * t;
     // the size of a pixel on the plane, taken before any branch: the derivatives need every pixel of the quad
     let fw = max(fwidth(p), vec2<f32>(1e-12));
-    let slope = fwidth(depth_of(t));
     let ppp = cam.floor.y;
     var colour = vec4<f32>(0.0);
-    var depth = 0.0;
     if (!level_ray && (!persp || t > cam.persp.y)) {
         let level = abs(normalize(ray.d).z);
+        let r = length(p - cam.floor_round.xy);
         let grazing = smoothstep(0.0, cam.floor_more.x, level);
         var grid = vec4<f32>(0.0);
         var spacing = cam.floor.x;
@@ -441,19 +439,18 @@ fn fs_floor(in: FloorOut) -> FloorFrag {
             let seen = smoothstep(vec2<f32>(cam.floor.z), vec2<f32>(cam.floor.w), spacing / (fw * ppp));
             let w = cam.floor_lines.x * ppp;
             let cov = max(covers(off.x, w) * seen.x, covers(off.y, w) * seen.y);
-            let c = select(cam.grid_major, cam.grid_minor, k == 0) * (cov * grazing);
+            let c = select(cam.grid_major, cam.grid_minor, k == 0) * (cov * grazing * left_at(r, 1.0));
             if (c.a > grid.a) {
                 grid = c;
             }
             spacing = spacing * 5.0;
         }
-        let near_level = smoothstep(0.0, 0.01, level);
+        let near_level = smoothstep(0.0, 0.01, level) * left_at(r, 2.0);
         let ax = cam.axis_x * (covers(abs(p.y) / fw.y, cam.floor_lines.y * ppp) * near_level);
         let ay = cam.axis_y * (covers(abs(p.x) / fw.x, cam.floor_lines.y * ppp) * near_level);
         colour = over(ay, over(ax, grid));
-        depth = depth_of(t * cam.floor_more.y) - slope * cam.floor_more.z;
     }
-    // THE Z AXIS: where the ray passes closest to the line standing up from the origin
+    // THE Z AXIS: where the ray passes closest to the line standing up from the origin, fading with its height
     let aa = dot(ray.d, ray.d);
     let b = ray.d.z;
     let den = aa - b * b;
@@ -468,23 +465,16 @@ fn fs_floor(in: FloorOut) -> FloorFrag {
             if (persp) {
                 per_point = sc * cam.persp.x / cam.params.x;
             }
-            let az = covers(gap / per_point * ppp, cam.floor_lines.z * ppp);
+            let az = covers(gap / per_point * ppp, cam.floor_lines.z * ppp) * left_at(tc, cam.floor_more.z);
             if (az > 0.0) {
-                let z = cam.axis_z * az;
-                let dz = depth_of(sc);
-                if (colour.a <= 0.0 || dz >= depth) {
-                    colour = over(z, colour);
-                    depth = dz;
-                } else {
-                    colour = over(colour, z);
-                }
+                colour = over(cam.axis_z * az, colour);
             }
         }
     }
     if (colour.a < 0.5 / 255.0) {
         discard;
     }
-    return FloorFrag(colour, depth);
+    return colour;
 }
 
 // ---- the blit of the offscreen target into the rectangle of the viewport (a fullscreen triangle) ----
@@ -702,9 +692,9 @@ impl GpuRenderer {
         });
 
         // --- the floor ---
-        // A FULL-FRAME PASS WITH ITS OWN DEPTH: every pixel casts its ray onto the plane and writes the depth of the point
-        // met (`fs_floor`). It is tested against the solid bodies and writes no depth of its own, so a ghost drawn after
-        // it shows the floor behind through itself.
+        // A FULL-FRAME PASS AT THE FAR END OF THE DEPTH: every pixel casts its ray onto the plane (`fs_floor`), and the
+        // test against the solid bodies passes only where none was drawn - the floor lies behind every body, from above
+        // and from below. It writes no depth, so a ghost drawn after it shows the floor behind through itself.
         let floor_pl = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: Some("qym_floor_pl"), bind_group_layouts: &[Some(&cam_layout)], immediate_size: 0 });
         let floor_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("qym_floor_pipeline"),
