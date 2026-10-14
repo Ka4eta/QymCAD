@@ -975,8 +975,7 @@ fn a_key_handed_to_anything_at_all_still_needs_words() {
                 stack.push(p);
                 continue;
             }
-            let n = p.file_name().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
-            if p.extension().is_none_or(|x| x != "rs") || n == "tests.rs" || n.ends_with("_tests.rs") {
+            if p.extension().is_none_or(|x| x != "rs") || qymcad_i18n::ratchet::is_test_module(&p) {
                 continue;
             }
             let text = std::fs::read_to_string(&p).expect("the file reads");
