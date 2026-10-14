@@ -171,9 +171,27 @@ mod tests {
         // AND BOTH PLACES ASK THROUGH IT. Read out of the source: a copy of "family, or else a word" in one
         // of them drifts from the other, and both answer the same question.
         let bar = concat!(
-            concat!(include_str!("../../../qymcad-part/src/apply/copies.rs"), "\n", include_str!("../../../qymcad-part/src/apply/faces.rs"), "\n", include_str!("../../../qymcad-part/src/apply/solids.rs"), "\n", include_str!("../../../qymcad-part/src/apply/update.rs"), "\n", include_str!("../../../qymcad-part/src/apply.rs")),
+            concat!(
+                include_str!("../../../qymcad-part/src/apply/copies.rs"),
+                "\n",
+                include_str!("../../../qymcad-part/src/apply/faces.rs"),
+                "\n",
+                include_str!("../../../qymcad-part/src/apply/solids.rs"),
+                "\n",
+                include_str!("../../../qymcad-part/src/apply/update.rs"),
+                "\n",
+                include_str!("../../../qymcad-part/src/apply.rs")
+            ),
             "\n",
-            concat!(include_str!("../../../qymcad-part/src/bars/feat_bar.rs"), "\n", include_str!("../../../qymcad-part/src/bars/options.rs"), "\n", include_str!("../../../qymcad-part/src/bars/toolbar.rs"), "\n", include_str!("../../../qymcad-part/src/bars.rs")),
+            concat!(
+                include_str!("../../../qymcad-part/src/bars/feat_bar.rs"),
+                "\n",
+                include_str!("../../../qymcad-part/src/bars/options.rs"),
+                "\n",
+                include_str!("../../../qymcad-part/src/bars/toolbar.rs"),
+                "\n",
+                include_str!("../../../qymcad-part/src/bars.rs")
+            ),
             "\n",
             include_str!("../../../qymcad-part/src/params.rs"),
             "\n",
@@ -220,7 +238,21 @@ mod tests {
             "\n",
             include_str!("../../../qymcad-ui-state/src/rebuild.rs"),
             "\n",
-            concat!(include_str!("../../../qymcad-ui-state/src/records/commands.rs"), "\n", include_str!("../../../qymcad-ui-state/src/records/frame.rs"), "\n", include_str!("../../../qymcad-ui-state/src/records/gizmos.rs"), "\n", include_str!("../../../qymcad-ui-state/src/records/pieces.rs"), "\n", include_str!("../../../qymcad-ui-state/src/records/scene.rs"), "\n", include_str!("../../../qymcad-ui-state/src/records/tools.rs"), "\n", include_str!("../../../qymcad-ui-state/src/records.rs")),
+            concat!(
+                include_str!("../../../qymcad-ui-state/src/records/commands.rs"),
+                "\n",
+                include_str!("../../../qymcad-ui-state/src/records/frame.rs"),
+                "\n",
+                include_str!("../../../qymcad-ui-state/src/records/gizmos.rs"),
+                "\n",
+                include_str!("../../../qymcad-ui-state/src/records/pieces.rs"),
+                "\n",
+                include_str!("../../../qymcad-ui-state/src/records/scene.rs"),
+                "\n",
+                include_str!("../../../qymcad-ui-state/src/records/tools.rs"),
+                "\n",
+                include_str!("../../../qymcad-ui-state/src/records.rs")
+            ),
             "\n",
             include_str!("../../../qymcad-ui-state/src/scene.rs"),
             "\n",

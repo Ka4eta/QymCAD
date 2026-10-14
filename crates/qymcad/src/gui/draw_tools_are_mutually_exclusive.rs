@@ -59,9 +59,27 @@ mod tests {
         assert!(app.tools.armed.measuring(), "the door did not take the measuring tool");
 
         let bar = concat!(
-            concat!(include_str!("../../../qymcad-part/src/apply/copies.rs"), "\n", include_str!("../../../qymcad-part/src/apply/faces.rs"), "\n", include_str!("../../../qymcad-part/src/apply/solids.rs"), "\n", include_str!("../../../qymcad-part/src/apply/update.rs"), "\n", include_str!("../../../qymcad-part/src/apply.rs")),
+            concat!(
+                include_str!("../../../qymcad-part/src/apply/copies.rs"),
+                "\n",
+                include_str!("../../../qymcad-part/src/apply/faces.rs"),
+                "\n",
+                include_str!("../../../qymcad-part/src/apply/solids.rs"),
+                "\n",
+                include_str!("../../../qymcad-part/src/apply/update.rs"),
+                "\n",
+                include_str!("../../../qymcad-part/src/apply.rs")
+            ),
             "\n",
-            concat!(include_str!("../../../qymcad-part/src/bars/feat_bar.rs"), "\n", include_str!("../../../qymcad-part/src/bars/options.rs"), "\n", include_str!("../../../qymcad-part/src/bars/toolbar.rs"), "\n", include_str!("../../../qymcad-part/src/bars.rs")),
+            concat!(
+                include_str!("../../../qymcad-part/src/bars/feat_bar.rs"),
+                "\n",
+                include_str!("../../../qymcad-part/src/bars/options.rs"),
+                "\n",
+                include_str!("../../../qymcad-part/src/bars/toolbar.rs"),
+                "\n",
+                include_str!("../../../qymcad-part/src/bars.rs")
+            ),
             "\n",
             include_str!("../../../qymcad-part/src/params.rs"),
             "\n",

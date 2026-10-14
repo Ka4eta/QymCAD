@@ -102,11 +102,7 @@ pub fn every_crate_src() -> Vec<std::path::PathBuf> {
 /// guards of the words went red on the strings the checks compare against.
 pub fn is_test_module(path: &std::path::Path) -> bool {
     let n = path.file_name().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
-    let in_a_folder_of_checks = path
-        .components()
-        .skip_while(|c| c.as_os_str() != "src")
-        .filter_map(|c| c.as_os_str().to_str())
-        .any(|c| c == "tests" || c.ends_with("_tests"));
+    let in_a_folder_of_checks = path.components().skip_while(|c| c.as_os_str() != "src").filter_map(|c| c.as_os_str().to_str()).any(|c| c == "tests" || c.ends_with("_tests"));
     n == "tests.rs" || n.ends_with("_tests.rs") || in_a_folder_of_checks
 }
 

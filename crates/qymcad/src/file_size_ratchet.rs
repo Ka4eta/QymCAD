@@ -81,18 +81,9 @@ mod tests {
         let mut faults = Vec::new();
         for f in &long {
             match KNOWN.iter().find(|k| k.path == f.path) {
-                None => faults.push(format!(
-                    "{} has {} lines, past {LIMIT}. Split it into modules by what it holds, moving the code as it is.",
-                    f.path, f.lines
-                )),
-                Some(k) if f.lines > k.lines => faults.push(format!(
-                    "{} grew from {} to {} lines. Move out what does not belong to it; the mark is not raised.",
-                    f.path, k.lines, f.lines
-                )),
-                Some(k) if f.lines < k.lines => faults.push(format!(
-                    "{} shrank from {} to {} lines. Lower its mark in KNOWN to {} in the same commit.",
-                    f.path, k.lines, f.lines, f.lines
-                )),
+                None => faults.push(format!("{} has {} lines, past {LIMIT}. Split it into modules by what it holds, moving the code as it is.", f.path, f.lines)),
+                Some(k) if f.lines > k.lines => faults.push(format!("{} grew from {} to {} lines. Move out what does not belong to it; the mark is not raised.", f.path, k.lines, f.lines)),
+                Some(k) if f.lines < k.lines => faults.push(format!("{} shrank from {} to {} lines. Lower its mark in KNOWN to {} in the same commit.", f.path, k.lines, f.lines, f.lines)),
                 Some(_) => {}
             }
         }

@@ -645,7 +645,8 @@ pub(crate) fn text_of(_string: &str) -> Outcome {
 }
 
 /// The same words placed as a note: words on the sheet, and no geometry at all.
-pub(crate) const NOTE: Outcome = Outcome::Sketch { points: 0, lines: 0, arcs: 0, circles: 0, ellipses: 0, splines: 0, texts: 0, notes: 1, constraints: None, dof: None, box_of: None, size_of: None, under: &[] };
+pub(crate) const NOTE: Outcome =
+    Outcome::Sketch { points: 0, lines: 0, arcs: 0, circles: 0, ellipses: 0, splines: 0, texts: 0, notes: 1, constraints: None, dof: None, box_of: None, size_of: None, under: &[] };
 
 /// A height of the letters: the text is the same one text, whatever it is.
 pub(crate) fn text_of_height(_h: f64) -> Outcome {
