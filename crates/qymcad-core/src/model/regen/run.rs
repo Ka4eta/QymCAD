@@ -134,6 +134,12 @@ impl Project {
             if let FeatureKind::DatumAxis { axis } = kind {
                 dirty.insert(*axis);
             }
+            // a sketch rebuilt carries on to what stands on it, as in the rebuild itself; left out, a parameter added
+            // on the filter of the examples planned 2 of 23 nodes and rebuilt the cuts and a rounding of 36 edges
+            // for 7.8 s as "a quiet rebuild of 2 nodes"
+            if let FeatureKind::Sketch { sketch } = kind {
+                dirty.insert(*sketch);
+            }
         }
         plan.total = self.timeline.len();
         plan

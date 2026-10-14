@@ -91,6 +91,32 @@ fn a_plan_for_an_edit_in_one_part_leaves_the_other_alone() {
     assert!(plan.nodes.len() < plan.total, "the plan named the whole timeline where one node was touched: {plan:?}");
 }
 
+/// A SKETCH MARKED NAMES WHAT STANDS ON IT: the rebuild carries the sketch on to the extrusion over it, and so must the
+/// plan. Reported behaviour: a parameter added on the filter of the examples marked two sketches with formulas, the
+/// plan named those two of 23 nodes - "a quiet rebuild of 2 nodes" - and the cuts and the rounding of 36 edges on them
+/// were rebuilt for 7.8 s.
+#[test]
+fn a_marked_sketch_takes_what_stands_on_it_into_the_plan() {
+    let (mut p, _d1, _d2, b1, b2) = two_independent_parts();
+    let k = MockKernel::default();
+    p.regenerate(&k);
+    let s1 = p.timeline.iter().find_map(|n| match n.kind {
+        qymcad_core::feature::FeatureKind::Sketch { sketch } if p.timeline.iter().any(|m| m.kind.body() == Some(b1) && m.kind.inputs().contains(&sketch)) => Some(sketch),
+        _ => None,
+    });
+    p.mark_sketch_dirty(s1.expect("the sketch of body 1"));
+    let plan = p.regen_plan();
+    let named = |b: Id| p.timeline.iter().any(|n| plan.nodes.contains(&n.id) && n.kind.body() == Some(b));
+    assert!(named(b1), "the sketch under body 1 is marked and the plan does not name the extrusion on it: {plan:?}");
+    assert!(!named(b2), "the sketch under body 1 is marked and the plan names the other part: {plan:?}");
+    let planned: HashSet<Id> = plan.nodes.into_iter().collect();
+    let rep = p.regenerate(&k);
+    for (body, _) in rep.built.iter() {
+        let node = p.timeline.iter().find(|n| n.kind.bodies().contains(body)).map(|n| n.id);
+        assert!(node.is_some_and(|id| planned.contains(&id)), "body {body} was rebuilt from the marked sketch while the plan said nothing about it");
+    }
+}
+
 /// The plan is an over-approximation: whatever the rebuild built, the plan had to name.
 #[test]
 fn everything_rebuilt_was_named_by_the_plan() {
