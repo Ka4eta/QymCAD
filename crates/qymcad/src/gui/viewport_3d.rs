@@ -45,7 +45,7 @@ impl App {
         }
         if scroll != 0.0 && resp.contains_pointer() {
             let part = crate::gui::commands::cmd_anchor_screen(&mut self.part_ctx(), rect); // where the open command's fields stand
-            qymcad_ui_state::wheel_zoom_3d(&mut self.viewing.cam, &self.set, rect, resp.hover_pos(), part, scroll);
+            self.viewing.cam = crate::gui::look_at_point::wheeled(&self.painting(), rect, qymcad_ui_state::zoom_anchor(&self.set, rect, resp.hover_pos(), part), scroll);
         }
         if let Some(p) = crate::gui::look_at_point::look_at(&self.painting(), self.set.mouse_nav, resp, rect) {
             crate::gui::animate_look_to(self.viewing.cam, &mut self.viewing.view_anim, p);
@@ -385,13 +385,7 @@ impl App {
                 self.commit_body_gizmo(self.dragged.body_giz.snap);
             }
         } else if let Some(pan) = qymcad_ui_state::pan_now(self.set.mouse_nav, ctx, resp) {
-            let d = qymcad_ui_state::nav_delta(ctx, resp, pan);
-            let (right, up, _) = self.viewing.cam.basis();
-            let k = 1.0 / self.viewing.cam.scale as f64;
-            for a in 0..3 {
-                self.viewing.cam.target[a] -= d.x as f64 * right[a] * k;
-                self.viewing.cam.target[a] += d.y as f64 * up[a] * k;
-            }
+            self.viewing.cam = crate::gui::orbit_about::panned(&self.painting(), rect, ctx, resp, pan);
         } else {
             qymcad_ui_state::turn_view(crate::gui::orbit_about::pivot(&self.painting(), rect, ctx, resp), &mut self.viewing.cam, self.set.mouse_nav, ctx, resp);
             // the layout's turns and tilts, about the centre the setting names

@@ -615,6 +615,11 @@ pub fn pick_face_ray(pn: &Painting, rect: Rect, screen: Pos2) -> Option<(qymcad_
     let ctx = current_ctx_id(pn.active_path, pn.project);
     let consumed = consumed_bodies(pn.project);
     let mut best: Option<(f64, usize, usize, [f64; 3])> = None;
+    // A TRIANGLE NOT WHOLLY IN FRONT OF THE EYE IS NOT UNDER THE POINTER: in perspective a point behind the eye has no
+    // place on the screen, and projected all the same a part standing behind the eye was hit with the nearest depth
+    // there is. Its piece in front of the eye is left unpicked; what the eye is that close to, it is not aiming at.
+    let inv_d = persp_inv_d_eye(&pn.cam, pn.set, rect.height() * 0.5);
+    let ahead = |p: [f64; 3]| inv_d <= 0.0 || v_dot(v_sub(p, pn.cam.target), basis.2) * inv_d > -0.999;
     for (mi, mesh) in pn.project.bodies.iter().map(|b| &b.mesh).enumerate() {
         if !body_shown(pn.body_view(), mi) {
             continue;
@@ -628,7 +633,7 @@ pub fn pick_face_ray(pn: &Painting, rect: Rect, screen: Pos2) -> Option<(qymcad_
         for ti in 0..mesh.tris.len() {
             let t = mesh.triangle(ti);
             let (wa, wb, wc) = (tp([t[0].x, t[0].y, t[0].z]), tp([t[1].x, t[1].y, t[1].z]), tp([t[2].x, t[2].y, t[2].z]));
-            if section_tri_hidden(pn.section, wa, wb, wc) {
+            if section_tri_hidden(pn.section, wa, wb, wc) || !(ahead(wa) && ahead(wb) && ahead(wc)) {
                 continue;
             }
             if v_dot(v_norm(v_cross(v_sub(wb, wa), v_sub(wc, wa))), basis.2) >= 0.0 {

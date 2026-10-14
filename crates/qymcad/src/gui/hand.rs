@@ -16,6 +16,15 @@ pub(super) struct Drag2d {
     pub modifiers: egui::Modifiers,
 }
 
+/// A DRAG OF THE VIEW: from where to where on the screen, by which button and with which keys held.
+#[cfg(test)]
+pub(super) struct ViewDrag {
+    pub button: egui::PointerButton,
+    pub modifiers: egui::Modifiers,
+    pub from: egui::Pos2,
+    pub to: egui::Pos2,
+}
+
 #[cfg(test)]
 pub(super) struct Hand<'a> {
     pub app: &'a mut super::App,
@@ -1237,6 +1246,38 @@ impl<'a> Hand<'a> {
             self.frame(vec![egui::Event::PointerMoved(from + (to - from) * (k as f32 / steps as f32))]);
         }
         self.frame(vec![press(to, false)])
+    }
+
+    /// A DRAG OF THE VIEW as a person makes it: the hand comes over `from`, presses `button` with `modifiers` held, leads
+    /// in steps of 3 px to `to` and lets go, in whole frames. Which button and which keys turn or move the view is the
+    /// layout's to say (`MouseNav::rotates`, `MouseNav::pans`).
+    pub fn drag_view(&mut self, drag: ViewDrag) -> &mut Self {
+        let ViewDrag { button, modifiers, from, to } = drag;
+        self.win.clock += 1.0;
+        self.frame_holding(modifiers, vec![egui::Event::PointerMoved(from)]);
+        let press = |pos, pressed| egui::Event::PointerButton { pos, button, pressed, modifiers };
+        self.frame_holding(modifiers, vec![press(from, true)]);
+        let steps = ((to - from).length() / 3.0).ceil().max(1.0) as usize;
+        for k in 1..=steps {
+            self.frame_holding(modifiers, vec![egui::Event::PointerMoved(from + (to - from) * (k as f32 / steps as f32))]);
+        }
+        self.frame_holding(modifiers, vec![press(to, false)]);
+        self.frame(Vec::new())
+    }
+
+    /// NOTCHES OF THE WHEEL over a place of the 3D view: forward (`notches` above zero) brings the model nearer.
+    pub fn wheel3d(&mut self, over: egui::Pos2, notches: i32) -> &mut Self {
+        self.frame(vec![egui::Event::PointerMoved(over)]); // the hand comes over the view first
+        for _ in 0..notches.unsigned_abs() {
+            let delta = egui::vec2(0.0, 120.0 * notches.signum() as f32);
+            let wheel = egui::Event::MouseWheel { unit: egui::MouseWheelUnit::Point, delta, phase: egui::TouchPhase::Move, modifiers: Default::default() };
+            self.frame(vec![egui::Event::PointerMoved(over), wheel]);
+            // the wheel is smoothed over frames
+            for _ in 0..10 {
+                self.frame(vec![egui::Event::PointerMoved(over)]);
+            }
+        }
+        self
     }
 
     /// Whether a text field holds the keyboard - a caret blinking in it.

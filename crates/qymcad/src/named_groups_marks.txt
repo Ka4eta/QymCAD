@@ -533,7 +533,7 @@ crates/qymcad-ui-state/src/icons/watcher.rs 0 0 2
 crates/qymcad-ui-state/src/jobs.rs 1 9 0
 crates/qymcad-ui-state/src/joints.rs 0 5 1
 crates/qymcad-ui-state/src/lib.rs 3 1 1
-crates/qymcad-ui-state/src/navigation.rs 6 9 1
+crates/qymcad-ui-state/src/navigation.rs 5 9 1
 crates/qymcad-ui-state/src/painting.rs 8 10 3
 crates/qymcad-ui-state/src/rebuild.rs 2 0 3
 crates/qymcad-ui-state/src/records/commands.rs 0 21 2

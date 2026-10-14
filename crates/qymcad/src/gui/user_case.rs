@@ -10,10 +10,9 @@
 //! and that is how it must be checked.
 #[cfg(test)]
 mod tests {
-    use super::super::hand::Hand;
-    use super::super::App;
-
+    use super::super::{hand::Hand, App};
     mod check_all;
+    mod the_view;
     use check_all::check_all;
 
     /// Save and reopen - and check everything there as well.
@@ -3117,6 +3116,7 @@ mod tests {
             eprintln!("ASSEMBLY: the slider travelled {went:.3} mm, the driven wheel {:.3} deg", moved_b.abs());
         }
 
+        the_view::framed_wheeled_to_a_hole_and_turned(&mut app, &mut problems);
         // ── THE FINAL DOCUMENT TO LOOK AT: it stays in target ───────────────────────────
         let out = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target").join("user-case.qcad").to_string_lossy().into_owned();
         crate::gui::set_project_path(&mut app.disk.project_path, &mut app.set, out.clone());

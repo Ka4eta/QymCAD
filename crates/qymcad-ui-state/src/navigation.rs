@@ -365,13 +365,62 @@ pub fn zoom_latched(ctx: &egui::Context) -> bool {
     ctx.data(|d| d.get_temp::<(Option<f64>, bool)>(zoom_latch_id())).is_some_and(|(_, on)| on)
 }
 
-/// THE WHEEL OVER THE 3D VIEWPORT: zoom towards whatever the rule says to hold still.
+/// WHAT A ZOOM HOLDS STILL: the place on screen, and the point of the model seen there.
+#[derive(Clone, Copy, Debug)]
+pub struct Held {
+    pub anchor: Pos2,
+    pub point: [f64; 3],
+}
+
+/// THE WHEEL OVER THE 3D VIEWPORT: zoom towards whatever the rule says to hold still (`zoom_anchor`), holding the point of
+/// the model seen there.
 ///
-/// `part` is where the open command's fields stand, when one is open - the workbench knows that and this
-/// module does not, so it is handed in.
-pub fn wheel_zoom_3d(cam: &mut Cam3, set: &Settings, rect: Rect, cursor: Option<Pos2>, part: Option<Pos2>, scroll: f32) {
+/// The centre of the view is slid along the line of sight to the depth of that point first, which changes nothing on
+/// screen, and the zoom then holds the plane through the centre still. Held in the plane of the centre as it stood, a
+/// view framed at 4 m and wheeled down to 100 mm at a part kept its centre metres away from the part: in orthographic
+/// every turn afterwards swung the part out of the frame, and in perspective the eye, 120 mm from that centre, ended
+/// up beyond the part, which went behind it. Reported behaviour: "everything flies off into space, it turns fast and
+/// touchy".
+pub fn wheel_zoom_3d(cam: &mut Cam3, set: &Settings, rect: Rect, held: Held, scroll: f32) {
+    centre_at_depth_of(cam, set, rect.height() * 0.5, held.point);
+    // the limits are from where the view was framed, and never tighter than where the view already is: sliding the
+    // centre in perspective changes the scale, and a limit it now stands past would make the next notch jump
     let (lo, hi) = zoom_limits(cam.fit);
-    zoom_cam_3d(cam, rect, zoom_anchor(set, rect, cursor, part), (scroll * 0.002).exp(), lo, hi);
+    zoom_cam_3d(cam, rect, held.anchor, (scroll * 0.002).exp(), lo.min(cam.scale), hi.max(cam.scale));
+}
+
+/// THE CENTRE OF THE VIEW SLID ALONG THE LINE OF SIGHT to the depth of `p`, the picture left as it is.
+///
+/// In orthographic the depth of the centre changes nothing on screen. In perspective the eye stands where it stood and
+/// the scale follows the centre: it is points per mm in the plane of the centre, and that plane is nearer or further.
+/// A point behind the eye (or at it) leaves the view alone.
+pub fn centre_at_depth_of(cam: &mut Cam3, set: &Settings, half_h: f32, p: [f64; 3]) {
+    let (_, _, fwd) = cam.basis();
+    let rel = v_dot(v_sub(p, cam.target), fwd);
+    let inv_d = persp_inv_d_eye(cam, set, half_h);
+    if inv_d > 0.0 {
+        let d_eye = 1.0 / inv_d;
+        let d_new = d_eye + rel;
+        if d_new <= d_eye * 1e-3 {
+            return;
+        }
+        cam.scale = (cam.scale as f64 * d_eye / d_new) as f32;
+    }
+    for (t, f) in cam.target.iter_mut().zip(fwd) {
+        *t += f * rel;
+    }
+}
+
+/// THE POINT AT `depth` ALONG THE RAY OF SIGHT through screen `at`: `depth` measured along the line of sight from the
+/// plane of the centre of the view.
+pub fn on_ray_at_depth(cam: &Cam3, set: &Settings, rect: Rect, at: Pos2, depth: f64) -> [f64; 3] {
+    let (right, up, fwd) = cam.basis();
+    let c = rect.center();
+    let (sx, sy) = (((at.x - c.x) / cam.scale) as f64, (-(at.y - c.y) / cam.scale) as f64);
+    let inv_d = persp_inv_d_eye(cam, set, rect.height() * 0.5);
+    // in perspective the ray spreads from the eye: its offset from the axis grows with the distance from it
+    let spread = if inv_d > 0.0 { 1.0 + depth * inv_d } else { 1.0 };
+    std::array::from_fn(|a| cam.target[a] + fwd[a] * depth + (right[a] * sx + up[a] * sy) * spread)
 }
 
 /// HOW FAR THE WHEEL GOES: two hundred times either way from where the view was last framed, and never tighter than

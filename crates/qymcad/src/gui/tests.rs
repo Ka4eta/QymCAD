@@ -42,3 +42,6 @@ mod the_floor_reaches_the_horizon;
 
 #[cfg(test)]
 mod parts_far_apart_draw_clean;
+
+#[cfg(test)]
+mod the_camera_holds_after_a_far_view;
