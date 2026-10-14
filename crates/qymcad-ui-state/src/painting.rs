@@ -288,10 +288,29 @@ pub struct Painting<'a> {
     pub workbench: Workbench,
 }
 
-/// The bodies consumed by modifier features (hidden, so that only the result is seen). A delegate to
-/// the core (`Project::consumed_bodies`) — one source for the core and for the UI.
+/// The bodies consumed by modifier features (hidden, so that only the result is seen): the core's answer
+/// (`Project::consumed_bodies`), less the sources of a step that has built nothing yet.
+///
+/// A STEP NOT BUILT YET HIDES NOTHING ON SCREEN: what was there before stays until its result is in. The core
+/// counts such a step as consuming - a document is read that way before any rebuild - and so the screen went
+/// empty for as long as the step took. Reported behaviour: the rollback bar dragged back down under a rounding of
+/// 36 edges, and the part vanished from the viewport while the rounding was computed.
 pub fn consumed_bodies(project: &qymcad_core::model::Project) -> std::collections::HashSet<Id> {
-    project.consumed_bodies()
+    let built = |b: &Id| project.mesh_index(*b).is_some_and(|mi| !project.bodies[mi].mesh.tris.is_empty());
+    // the sources taken by a step above the bar that has a result on screen, or makes no body at all
+    let taken: std::collections::HashSet<Id> = project
+        .timeline
+        .iter()
+        .take(project.rollback_place())
+        .filter(|n| {
+            let outs = n.kind.bodies();
+            outs.is_empty() || outs.iter().any(built)
+        })
+        .flat_map(|n| n.kind.consumed())
+        .collect();
+    let mut eaten = project.consumed_bodies();
+    eaten.retain(|b| taken.contains(b));
+    eaten
 }
 
 /// Is the cylindrical face an INTERNAL one (a hole)? The core decides, from the face's triangles; here
@@ -683,7 +702,7 @@ pub fn body_is_consumed(cache: &Caches, project: &Project, regen: &Rebuilding, b
     let mut c = cache.consumed.borrow_mut();
     if c.rev != view_rev(regen) {
         c.rev = view_rev(regen);
-        c.value = project.consumed_bodies();
+        c.value = consumed_bodies(project);
     }
     c.value.contains(&body)
 }

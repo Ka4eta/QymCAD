@@ -178,13 +178,19 @@ pub(crate) fn build_tree(tc: &mut qymcad_ui_state::TreeCtx, ui: &mut egui::Ui) {
 
     // THE BODIES OF A PART, a row each: the pieces a split or a cut through left are told apart here, shown, hidden,
     // picked and made parts of their own, as the solid bodies of a part are listed in the professional systems
+    //
+    // THE LIST HOLDS STILL while the timeline is rebuilt: a body waiting for the step after it stays listed, as it stays
+    // on screen (`qymcad_ui_state::consumed_bodies`), and a body made below the rollback bar is not listed while its
+    // mesh is still on hand. Reported behaviour: the bar dragged up or down, the section came and went for as long as
+    // the rebuild ran, and everything under it - the bar held by the cursor included - jumped by a row or two.
     if tc.project.ctx_holds_bodies(ctx) {
-        let consumed = tc.project.consumed_bodies();
+        let consumed = qymcad_ui_state::consumed_bodies(&*tc.project);
+        let rolled_back: std::collections::HashSet<Id> = tc.project.timeline.iter().skip(tc.project.rollback_place()).flat_map(|n| n.kind.bodies()).collect();
         let rows: Vec<usize> = tc
             .project
             .component_bodies(ctx)
             .into_iter()
-            .filter(|b| !consumed.contains(b))
+            .filter(|b| !consumed.contains(b) && !rolled_back.contains(b))
             .filter_map(|b| tc.project.mesh_index(b))
             .filter(|&mi| !tc.project.bodies[mi].sheet && tree_text_matches(&*tc.tree, &crate::i18n::name(&tc.project.mesh_name(mi))))
             .collect();
