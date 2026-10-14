@@ -256,20 +256,25 @@ struct TakenNames {
 };
 
 // TWO ELEMENTS BECAME ONE IN A MERGE - coplanar faces glued into a monolith, the two long sides of a strip taken out - and
-// the one image is already bound: THE WINNER IS CHOSEN BY NAME, NOT BY THE ORDER OF THE WALK (`QymMerge::ByName`). A name beats a positional number,
-// and among names the smaller descriptor wins: a descriptor is an index into the document's table of names, it lives
-// in the file and depends on neither the walk nor the session, so one merge always has one winner. Measured on a real
-// part with the order deciding: one edit gave the win now to the smaller name, now to the larger, and six walls lost
-// their name to the draw; 7 names of 13 were lost to positional numbers in one push of a face. The loser is not lost:
-// written to `absorbed`, a reference to it goes on finding the face it became. Answers whether `id` took the image.
+// the one image is already bound: THE WINNER IS CHOSEN BY NAME, NOT BY THE ORDER OF THE WALK (`QymMerge::ByName`). A name
+// of the document beats a role the operation hands out now, and a role beats a positional number: the faces with names
+// of the document are the body the operation works on, the roles are the faces its tool makes, and the face of the
+// base grown by the tool is still the face of the base. Measured: with a role counted as the smaller name (0x1000_0000
+// below every name of the document), the wall of a boss merged with a wall of the base took its name, and every
+// reference to that wall went to the boss. Among names of one rank the smaller descriptor wins: a descriptor is an
+// index into the document's table of names, it lives in the file and depends on neither the walk nor the session, so
+// one merge always has one winner. Measured on a real part with the order deciding: one edit gave the win now to the
+// smaller name, now to the larger, and six walls lost their name to the draw. The loser is not lost: written to
+// `absorbed`, a reference to it goes on finding the face it became. Answers whether `id` took the image.
 static bool merge_names(TopTools_DataMapOfShapeInteger& out, const TopoDS_Shape& image, int id, TakenNames& record) {
     const int have = out.Find(image);
     if (have == id) return false;
-    const bool have_named = qym_recipe(have), id_named = qym_recipe(id);
     auto note = [&](int loser, int winner) {
         if (record.absorbed && qym_recipe(loser) && qym_recipe(winner)) record.absorbed->emplace_back((unsigned)loser, (unsigned)winner);
     };
-    if (!id_named || (have_named && (unsigned)id > (unsigned)have)) {
+    auto rank = [](int d) { return (d & QYM_NAMED) ? 2 : (d & QYM_ROLE) ? 1 : 0; };
+    const bool wins = rank(id) > rank(have) || (rank(id) == rank(have) && rank(id) > 0 && (unsigned)id < (unsigned)have);
+    if (!wins) {
         note(id, have);
         return false;
     }

@@ -656,7 +656,8 @@ struct QymChainHistory : QymHistory {
 /// WHO KEEPS AN IMAGE TWO ELEMENTS BECAME; the other is recorded as yielded to it either way, so a reference to it still
 /// finds the element. `First`: the first carried, as an operation hands its elements on - two edges of a base and a tool
 /// lying together in a boolean, the base's first; the two long sides of a strip taken out, the first side. `ByName`: in
-/// the monolith, coplanar faces glued - a name beats a positional number and the smaller name wins. Measured: the name
+/// the monolith, coplanar faces glued - a name of the document beats a role of the operation, which beats a positional
+/// number, and of one rank the smaller name wins. Measured: the name
 /// rule over every operation, the strips included, made a rounding of R2 on a sample leave two of its four corners out.
 enum class QymMerge { First, ByName };
 
