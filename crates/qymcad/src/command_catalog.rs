@@ -179,9 +179,9 @@ mod tests {
     /// `tr("<hint>"), bc.armed.cmd_kind() == N`.
     fn kind_of_button(hint: &str) -> Option<u8> {
         let src = concat!(
-            include_str!("../../qymcad-part/src/apply.rs"),
+            concat!(include_str!("../../qymcad-part/src/apply/copies.rs"), "\n", include_str!("../../qymcad-part/src/apply/faces.rs"), "\n", include_str!("../../qymcad-part/src/apply/solids.rs"), "\n", include_str!("../../qymcad-part/src/apply/update.rs"), "\n", include_str!("../../qymcad-part/src/apply.rs")),
             "\n",
-            include_str!("../../qymcad-part/src/bars.rs"),
+            concat!(include_str!("../../qymcad-part/src/bars/feat_bar.rs"), "\n", include_str!("../../qymcad-part/src/bars/options.rs"), "\n", include_str!("../../qymcad-part/src/bars/toolbar.rs"), "\n", include_str!("../../qymcad-part/src/bars.rs")),
             "\n",
             include_str!("../../qymcad-part/src/params.rs"),
             "\n",

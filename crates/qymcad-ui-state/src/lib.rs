@@ -770,7 +770,7 @@ mod state_is_free_of_the_god_object {
             "\n",
             include_str!("rebuild.rs"),
             "\n",
-            include_str!("records.rs"),
+            concat!(include_str!("records/commands.rs"), "\n", include_str!("records/frame.rs"), "\n", include_str!("records/gizmos.rs"), "\n", include_str!("records/pieces.rs"), "\n", include_str!("records/scene.rs"), "\n", include_str!("records/tools.rs"), "\n", include_str!("records.rs")),
             "\n",
             include_str!("scene.rs"),
             "\n",
