@@ -2,6 +2,12 @@
 
 use super::*;
 
+/// HOW CLOSE AN ELEMENT FOUND BY PLACE STANDS TO WHERE A REFERENCE SAW IT: a micrometre, the tolerance a node deleted
+/// below translates its references with. The place is the last step, after the name, its recorded merge and its
+/// structure, and only the element standing exactly there is taken: within 2% of the body (at least 0.5 mm) the
+/// neighbour an edit moved into the place was taken, and nothing said so.
+const PLACE_EXACT: f64 = 1e-6;
+
 impl Project {
     /// Repair lost face references in one pass before the build, instead of guessing inside every resolve.
     ///
@@ -18,11 +24,17 @@ impl Project {
 
     pub(crate) fn rebind_lost_face_refs(&mut self, report: &mut crate::feature::RegenReport) {
         use crate::feature::{Rebind, SketchPlane};
-        // Candidate by fingerprint among the faces of the body: co-directed normal, nearest centre.
+        // The one face standing where the sketch saw its face, to `PLACE_EXACT`, facing the same way: the nearest face
+        // facing roughly the same way (within 25 deg) was taken before, however far, and a sketch went onto a face an
+        // edit had moved into the place, saying nothing.
         let candidate = |faces: &[crate::geom::MeshFace], key: &crate::feature::FaceKey| -> Option<u32> {
             let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-            let d2 = |c: &crate::geom::Point3| (c.x - key.centroid[0]).powi(2) + (c.y - key.centroid[1]).powi(2) + (c.z - key.centroid[2]).powi(2);
-            faces.iter().filter(|f| f.id != 0 && dot(f.normal, key.normal) > 0.9).min_by(|a, b| d2(&a.centroid).partial_cmp(&d2(&b.centroid)).unwrap_or(std::cmp::Ordering::Equal)).map(|f| f.id)
+            let off = |c: &crate::geom::Point3| ((c.x - key.centroid[0]).powi(2) + (c.y - key.centroid[1]).powi(2) + (c.z - key.centroid[2]).powi(2)).sqrt();
+            let there: Vec<u32> = faces.iter().filter(|f| f.id != 0 && dot(f.normal, key.normal) > 1.0 - PLACE_EXACT && off(&f.centroid) < PLACE_EXACT).map(|f| f.id).collect();
+            match there.as_slice() {
+                [one] => Some(*one),
+                _ => None,
+            }
         };
         let known = |me: &Self, body: Id, id: u32| -> bool { id != 0 && me.regen_faces.get(&body).is_some_and(|fs| fs.iter().any(|f| f.id == id)) };
         // Holes are deliberately not handled here: their reference became a query, which needs no matching
@@ -269,13 +281,18 @@ impl Project {
                 return Some(t);
             }
         }
+        // Then the structure of the name: the one live piece of the same wall.
+        let ids: Vec<u32> = fs.iter().map(|f| f.id).collect();
+        if let Some(t) = self.names.same_recipe(stored, &ids) {
+            return Some(t);
+        }
         // The only face of the body: there is nothing to confuse it with, so this is proof rather than
         // similarity.
         if fs.len() == 1 {
             return Some(fs[0].id);
         }
+        // THE PLACE, LAST, ONLY WHERE IT IS EXACT: one face standing where the reference saw it, to `PLACE_EXACT`.
         let (c, n) = snap?;
-        let tol = self.face_snap_tol(fs);
         let mut scored: Vec<(f64, u32)> = fs
             .iter()
             .map(|f| {
@@ -287,7 +304,7 @@ impl Project {
         scored.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
         let best = *scored.first()?;
         let second = scored.get(1).map(|x| x.0).unwrap_or(f64::MAX);
-        let hit = best.0 < tol && (second - best.0) > tol * 0.6;
+        let hit = best.0 < PLACE_EXACT && second >= PLACE_EXACT;
         if hit {
             self.snap_rebinds.fetch_add(1, std::sync::atomic::Ordering::Relaxed); // The fallback fired.
             if std::env::var("QYM_SNAP_DEBUG").is_ok() {
@@ -361,8 +378,9 @@ impl Project {
         // pulled in edges the fillet cannot build on, so the whole feature failed. At 0.02 all 36 are found
         // and nothing breaks.
         //
-        // The unambiguity requirement stays and grows with the tolerance: a fillet on the wrong edge is
-        // worse than a lost one, so the second candidate has to be clearly worse than the first.
+        // That yardstick now only witnesses a positional number; the search by place itself, after the name, its
+        // recorded merge, its canonical pair and its structure, takes an edge standing exactly where the reference
+        // saw it (`PLACE_EXACT`) and nothing nearby: a fillet on the wrong edge is worse than a lost one.
         let (mut lo, mut hi) = ([f64::MAX; 3], [f64::MIN; 3]);
         for e in es {
             for k in 0..3 {
@@ -372,7 +390,6 @@ impl Project {
         }
         let diag = ((hi[0] - lo[0]).powi(2) + (hi[1] - lo[1]).powi(2) + (hi[2] - lo[2]).powi(2)).sqrt();
         let tol = (diag * 0.02).max(0.5);
-        let gap = (tol * 0.6).max(0.3);
         let mut out = Vec::with_capacity(stored.len());
         for &eid in stored {
             // A positional number is trusted only while the snapshot agrees with it.
@@ -442,6 +459,14 @@ impl Project {
                     continue;
                 }
             }
+            // Then the structure of the name: the one edge between faces of the same recipe as its pair.
+            let ids: Vec<u32> = es.iter().map(|e| e.id).collect();
+            if let Some(t) = self.names.same_recipe(eid, &ids) {
+                if !out.contains(&t) {
+                    out.push(t);
+                }
+                continue;
+            }
             if let Some(&ElemSnapshot { at: mid, dir, .. }) = snaps.and_then(|v| v.iter().find(|s| s.id == eid)) {
                 let seg_dist = |e: &crate::geom::MeshEdge| -> f64 {
                     let (a, b) = (e.a, e.b);
@@ -464,7 +489,7 @@ impl Project {
                 scored.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
                 if let Some(&(best, bid)) = scored.first() {
                     let second = scored.get(1).map(|x| x.0).unwrap_or(f64::MAX);
-                    if best < tol && (second - best) > gap && !out.contains(&bid) {
+                    if best < PLACE_EXACT && second >= PLACE_EXACT && !out.contains(&bid) {
                         self.snap_rebinds.fetch_add(1, std::sync::atomic::Ordering::Relaxed); // The fallback fired.
                         if std::env::var("QYM_SNAP_DEBUG").is_ok() {
                             eprintln!("edge fallback: feature {fid}, reference {} = {} -> {bid} = {}", eid, self.names.describe(eid), self.names.describe(bid));
@@ -475,5 +500,35 @@ impl Project {
             }
         }
         out
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::names::{GeoName, Role};
+
+    /// A face of `body` named `id`, standing at `x` on the X axis and facing up.
+    fn face(id: u32, x: f64) -> crate::geom::MeshFace {
+        crate::geom::MeshFace { triangles: Vec::new(), normal: [0.0, 0.0, 1.0], centroid: crate::geom::Point3 { x, y: 0.0, z: 0.0 }, area: 1.0, id }
+    }
+
+    /// A REFERENCE FOUND BY PLACE ONLY WHERE THE PLACE IS EXACT: its name gone, a face standing exactly where the
+    /// reference saw it is taken and counted; a face an edit moved 0.3 mm off that place is not - within 2% of the body
+    /// (at least 0.5 mm) it was, silently, though it is the neighbour that came there.
+    #[test]
+    fn a_face_is_found_by_place_only_standing_exactly_there() {
+        let mut p = Project::default();
+        let (src, node) = (1, 2);
+        let gone = p.names.intern_face(GeoName::new(9, Role::Wall, 5));
+        let near = p.names.intern_face(GeoName::new(9, Role::CapEnd, 0));
+        let far = p.names.intern_face(GeoName::new(9, Role::CapStart, 0));
+        p.face_refs.insert(node, vec![ElemSnapshot { id: gone, at: [0.0, 0.0, 0.0], dir: [0.0, 0.0, 1.0] }]);
+        p.regen_faces.insert(src, vec![face(near, 0.3), face(far, 10.0)]);
+        assert_eq!(p.resolve_face_id(node, src, gone), None, "a face 0.3 mm off the place was taken for the lost one");
+        p.regen_faces.insert(src, vec![face(near, 0.0), face(far, 10.0)]);
+        let before = p.snap_rebinds.load(std::sync::atomic::Ordering::Relaxed);
+        assert_eq!(p.resolve_face_id(node, src, gone), Some(near), "the face standing exactly where the reference saw it was not taken");
+        assert_eq!(p.snap_rebinds.load(std::sync::atomic::Ordering::Relaxed), before + 1, "a face found by place is not counted");
     }
 }

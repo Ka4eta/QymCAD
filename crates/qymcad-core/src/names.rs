@@ -463,6 +463,29 @@ impl NameTable {
         Some(([a.min(b), a.max(b)], e.index))
     }
 
+    /// THE ONE LIVE ELEMENT OF THE SAME RECIPE among `live`: a face named by the same node, role and source as `desc` -
+    /// another piece of it - or an edge between two such faces, the other way round included. A translation by the
+    /// structure of the name, not a search by place: taken only when exactly one element answers, since two pieces of
+    /// one wall are two places, and a guess between them is worse than a reference said lost.
+    pub fn same_recipe(&self, desc: u32, live: &[u32]) -> Option<u32> {
+        let like = |a: GeoName, b: GeoName| a.feature == b.feature && a.role == b.role && a.src == b.src;
+        let hits: Vec<u32> = if let Some(e) = self.edge(desc) {
+            let (Some(a), Some(b)) = (self.get(e.faces[0]), self.get(e.faces[1])) else { return None };
+            let pair = |x: EdgeName| match (self.get(x.faces[0]), self.get(x.faces[1])) {
+                (Some(p), Some(q)) => (like(p, a) && like(q, b)) || (like(p, b) && like(q, a)),
+                _ => false,
+            };
+            live.iter().copied().filter(|d| *d != desc && self.edge(*d).is_some_and(pair)).collect()
+        } else {
+            let g = self.get(desc)?;
+            live.iter().copied().filter(|d| *d != desc && self.get(*d).is_some_and(|n| like(n, g))).collect()
+        };
+        match hits.as_slice() {
+            [one] => Some(*one),
+            _ => None,
+        }
+    }
+
     /// IS THIS A NAME OF THIS DOCUMENT: a structural descriptor the table holds. The mark alone says a descriptor was
     /// minted as a name, not by whom: one minted against another table points past this one, or at a name of some
     /// other face of it.
