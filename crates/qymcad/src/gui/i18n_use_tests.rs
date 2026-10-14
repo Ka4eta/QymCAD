@@ -655,7 +655,8 @@ fn no_code_branches_on_the_text_of_the_status_line() {
                 stack.push(p);
                 continue;
             }
-            if p.extension().is_none_or(|x| x != "rs") {
+            // the checks are let be: inline after `#[cfg(test)]`, or a file of checks of their own (`tests.rs`)
+            if !qymcad_i18n::ratchet::is_working_code(&p) {
                 continue;
             }
             let text = std::fs::read_to_string(&p).expect("the file reads");
