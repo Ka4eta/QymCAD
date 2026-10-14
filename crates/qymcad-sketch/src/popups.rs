@@ -1140,11 +1140,12 @@ pub fn dim_editor(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Context, rect
             ed.project().add_named_dim(nm.clone(), sid, refs);
         }
         drop(ed);
-        // ONLY WHAT DEPENDS ON THIS NAME is recomputed, not the whole timeline of every body.
+        // ONLY WHAT DEPENDS ON THIS NAME is marked, not the whole timeline of every body; it is rebuilt when the sketch
+        // closes (`rebuild_after_sketch`). Asked for here, a name nothing used yet rebuilt 0 nodes for 0.8 s under the
+        // sign of a rebuild.
         if !nm.is_empty() {
             sk.project.mark_param_dependents_dirty_for(&nm);
         }
-        qymcad_ui_state::mark_dirty_for_rebuild(&mut sk.rebuild());
     }
     if changed {
         // a snapshot of the positions BEFORE solving (the sketch is consistent right now)
@@ -1180,8 +1181,7 @@ pub fn dim_editor(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Context, rect
         sk.dim.buf.clear();
         sk.dim.focus = false;
         sk.dim.fresh = None;
-        if dim_refs.is_some() && !sk.project.named_dims.is_empty() {
-            qymcad_ui_state::mark_dirty_for_rebuild(&mut sk.rebuild()); // the document is marked; the planner does the counting - the driver reaches the bodies that consume it
-        }
+        // a driver whose value moved reaches the bodies that consume it when the sketch closes: the scheduler compares
+        // the values against those of the last rebuild (`mark_changed_params_dirty`)
     }
 }

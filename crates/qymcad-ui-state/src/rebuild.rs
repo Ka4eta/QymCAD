@@ -20,6 +20,30 @@ pub fn keep_live_shapes(live: &mut LiveGeom, project: &Project) {
     live.shapes.retain(|body, _| imports.contains(body) || project.mesh_index(*body).is_some());
 }
 
+/// A SKETCH OPENED FOR EDITING: the session takes it, and the key it is opened at.
+pub fn open_sketch_session(ses: &mut SketchSession, project: &Project, sid: Id) {
+    ses.editing = Some(sid);
+    ses.opened = project.sketch_key(sid);
+}
+
+/// THE BODIES ARE REBUILT WHEN A SKETCH CLOSES, NOT WHILE IT IS OPEN - and only when it changed.
+///
+/// While a sketch is open the scheduler runs only what is asked for explicitly (`rebuild_if_dirty`): what an edit in
+/// it marks - the dependents of a driver whose value moved, say - waits for the sketch to close, as it does in the
+/// professional systems. The sketch itself is marked here, when its key differs from the one it was opened at. Reported behaviour:
+/// a sketch of the filter of the examples opened and closed with nothing touched rebuilt the cuts on it and a rounding
+/// of 36 edges, 5.7 s; naming a driver in it rebuilt 0 nodes for 0.8 s under the sign of a rebuild.
+///
+/// A project from a bundle has no live B-rep, and the feature on a marked sketch asks for its source body: the missing
+/// ones are built first (`ensure_brep`), exactly those and not the whole project.
+pub fn rebuild_after_sketch(rc: &mut RebuildCtx, closed: SketchSession) {
+    if let Some(sid) = closed.editing.filter(|sid| rc.project.sketch_key(*sid) != closed.opened) {
+        ensure_brep(rc);
+        rc.project.mark_sketch_dirty(sid);
+    }
+    rebuild_if_dirty(rc);
+}
+
 pub fn regenerate_now(rc: &mut RebuildCtx) {
     prune_dangling_features(rc.live, rc.project); // anti-ghost: on EVERY regen, orphan meshes and dangling features go
                                                   // THE REBUILD GRAPH: a parameter may have changed (including a named sketch dimension - those are in
@@ -342,6 +366,11 @@ pub fn rebuild_if_dirty(rc: &mut RebuildCtx) {
         pulse.ask_stop();
     }
     let asked = std::mem::take(&mut rc.regen.pending);
+    // AN OPEN SKETCH HOLDS WHAT IS NOT ASKED FOR: the marks wait for it to close (`rebuild_after_sketch`); an explicit
+    // request - the live B-rep a projection needs, say - goes through
+    if !asked && rc.sketch_ses.editing.is_some() {
+        return;
+    }
     // THE REBUILD WAS STOPPED BY HAND — it does not start again on its own. An explicit request
     // (`asked`) clears the mark: "Rebuild everything" and any edit of the document both mean
     // "compute again".

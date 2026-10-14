@@ -156,7 +156,7 @@ mod quiet_is_visible {
     /// A quiet rebuild in flight LONGER THAN THE LIMIT a sign waits for: a shorter one is to show nothing at all.
     #[test]
     fn a_quiet_rebuild_shows_the_veil_and_blocks_nothing() {
-        use super::super::a_quick_rebuild_does_not_blink::tests::{signs_painted, Sign};
+        use crate::gui::tests::a_quick_rebuild_does_not_blink::tests::{signs_painted, Sign};
         let mut app = App::default();
         super::super::joint_flow::tests::add_part_at(&mut app, 0.0);
         crate::gui::io_jobs::regenerate_now(&mut app.rebuild_ctx());

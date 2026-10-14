@@ -45,3 +45,9 @@ mod parts_far_apart_draw_clean;
 
 #[cfg(test)]
 mod the_camera_holds_after_a_far_view;
+
+#[cfg(test)]
+pub(in crate::gui) mod a_quick_rebuild_does_not_blink;
+
+#[cfg(test)]
+mod nothing_changed_rebuilds_nothing;

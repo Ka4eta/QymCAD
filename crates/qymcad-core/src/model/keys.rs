@@ -108,6 +108,16 @@ impl Project {
     /// external reference, and moving the source marks its consumers dirty
     /// (`mark_external_consumers_dirty`). The scheduler queries those marks separately, so that rebuild
     /// still happens — once, when the component is released, instead of twenty times a second.
+    /// THE KEY OF ONE SKETCH: what it is drawn as and where it stands, labels moved and notes aside - what the bodies on
+    /// it are built from. 0 when there is no such sketch.
+    pub fn sketch_key(&self, sid: Id) -> u64 {
+        use std::hash::Hasher;
+        let Some(s) = self.sketches.iter().find(|s| s.id == sid) else { return 0 };
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        feed_sketch(s, &mut h);
+        h.finish()
+    }
+
     pub fn rebuild_key(&self) -> u64 {
         self.key_of(false)
     }
@@ -247,91 +257,13 @@ impl Project {
         // Sketches: points, counts and dimension values, so an edited number is visible before the solve
         // runs.
         for s in &self.sketches {
-            let Sketch {
-                id,
-                name,
-                contour_ids: _, // OUT: recomputed with the contours
-                source,
-                points,
-                entities,
-                closed,
-                constraints,
-                splines,
-                notes,
-                texts,
-                patterns,
-                rects,
-                projections,
-                plane,
-                origin,
-                axis_pts,
-                frame,
-                origin_uv,
-                // OUT: what the solver, a drag and the rebuild of loops keep between calls, none of it written
-                left_unsolved: _,
-                drag_session: _,
-                laid: _,
-                checked: _,
-                point_at: _,
-                entity_at: _,
-            } = s;
-            (id, name, source, closed, origin, axis_pts, frame).hash(&mut h);
-            // the plane whole, save the persistent id of the face a sketch stands on: the rebuild writes that one
-            // when it rebinds the sketch to a face renamed by a change upstream (`rebind_lost_face_refs`); the face
-            // as it was picked - its index, centroid and normal - is the author's
-            std::mem::discriminant(plane).hash(&mut h);
-            match plane {
-                crate::feature::SketchPlane::Face(body, key) => {
-                    (body, key.index).hash(&mut h);
-                    for v in key.centroid.iter().chain(key.normal.iter()) {
-                        bits(*v, &mut h);
-                    }
-                }
-                other => feed(other, &mut h),
-            }
-            feed(origin_uv, &mut h);
-            for p in points {
-                p.id.hash(&mut h);
-                bits(p.x, &mut h);
-                bits(p.y, &mut h);
-            }
-            // the lines, arcs and circles whole - a circle's radius, a line turned into construction - and what is
-            // drawn over them
-            feed(entities, &mut h);
-            feed(splines, &mut h);
-            feed(patterns, &mut h);
-            feed(rects, &mut h);
-            // how many constraints there are, and the numbers of the dimensions, so an edited number is visible before
-            // the solve runs
-            constraints.len().hash(&mut h);
-            for c in constraints {
-                if let Some(d) = c.dim_value() {
-                    bits(d, &mut h);
-                }
-            }
+            feed_sketch(s, &mut h);
             // A LABEL MOVED IS AN EDIT OF THE DOCUMENT - it goes into the file - but not of what is built: the
             // constraints whole, labels included, are counted with the placement, so dragging a label asks to save
             // and rebuilds nothing. A note is the same: written beside the drawing, building nothing.
             if placement {
-                feed(constraints, &mut h);
-                feed(notes, &mut h);
-            }
-            // labels: a placed or retyped label is a change of the document like any line. Its glyphs are made from
-            // the text and the font, and are not counted.
-            for t in texts {
-                let SketchText { id, x, y, height, angle, text, construction, font, glyphs: _ } = t;
-                (id, text, construction).hash(&mut h);
-                for v in [x, y, height, angle] {
-                    bits(*v, &mut h);
-                }
-                feed(font, &mut h);
-            }
-            // a projection: what it projects; the points and lines it made, and whether its source was lost, the
-            // rebuild writes
-            for pr in projections {
-                let SketchProjection { id, body, src, points: _, entities: _, edges: _ } = pr; // OUT: the edge of each curve, written by the rebuild with them
-                (id, body).hash(&mut h);
-                feed(src, &mut h);
+                feed(&s.constraints, &mut h);
+                feed(&s.notes, &mut h);
             }
         }
         // Datums and planes.
@@ -618,5 +550,93 @@ impl Project {
         for a in &named.absorbed {
             self.names.absorb(a.loser, a.winner);
         }
+    }
+}
+
+/// A SKETCH INTO THE KEY OF THE DOCUMENT: what it is drawn as and where it stands, its labels and notes aside. One routine
+/// for the key of the whole document and for the key of one sketch (`Project::sketch_key`), so the two cannot drift
+/// apart.
+fn feed_sketch(s: &Sketch, h: &mut std::collections::hash_map::DefaultHasher) {
+    use hash_ser::feed;
+    use std::hash::Hash;
+    let bits = |v: f64, h: &mut std::collections::hash_map::DefaultHasher| v.to_bits().hash(h);
+    let Sketch {
+        id,
+        name,
+        contour_ids: _, // OUT: recomputed with the contours
+        source,
+        points,
+        entities,
+        closed,
+        constraints,
+        splines,
+        notes: _, // counted with the placement, in `key_of`
+        texts,
+        patterns,
+        rects,
+        projections,
+        plane,
+        origin,
+        axis_pts,
+        frame,
+        origin_uv,
+        // OUT: what the solver, a drag and the rebuild of loops keep between calls, none of it written
+        left_unsolved: _,
+        drag_session: _,
+        laid: _,
+        checked: _,
+        point_at: _,
+        entity_at: _,
+    } = s;
+    (id, name, source, closed, origin, axis_pts, frame).hash(h);
+    // the plane whole, save the persistent id of the face a sketch stands on: the rebuild writes that one
+    // when it rebinds the sketch to a face renamed by a change upstream (`rebind_lost_face_refs`); the face
+    // as it was picked - its index, centroid and normal - is the author's
+    std::mem::discriminant(plane).hash(h);
+    match plane {
+        crate::feature::SketchPlane::Face(body, key) => {
+            (body, key.index).hash(h);
+            for v in key.centroid.iter().chain(key.normal.iter()) {
+                bits(*v, h);
+            }
+        }
+        other => feed(other, h),
+    }
+    feed(origin_uv, h);
+    for p in points {
+        p.id.hash(h);
+        bits(p.x, h);
+        bits(p.y, h);
+    }
+    // the lines, arcs and circles whole - a circle's radius, a line turned into construction - and what is
+    // drawn over them
+    feed(entities, h);
+    feed(splines, h);
+    feed(patterns, h);
+    feed(rects, h);
+    // how many constraints there are, and the numbers of the dimensions, so an edited number is visible before
+    // the solve runs
+    constraints.len().hash(h);
+    for c in constraints {
+        if let Some(d) = c.dim_value() {
+            bits(d, h);
+        }
+    }
+    // labels: a placed or retyped label is a change of the document like any line. Its glyphs are made from
+    // the text and the font, and are not counted.
+    for t in texts {
+        let SketchText { id, x, y, height, angle, text, construction, font, glyphs: _ } = t;
+        (id, text, construction).hash(h);
+        for v in [x, y, height, angle] {
+            bits(*v, h);
+        }
+        feed(font, h);
+    }
+    // a projection: what it projects; the points and lines it made, and whether its source was lost, the
+    // rebuild writes
+    for pr in projections {
+        let SketchProjection { id, body, src, points: _, entities: _, edges: _ } = pr; // OUT: the edge of each curve, written by the rebuild with them
+        (id, body).hash(h);
+        feed(src, h);
     }
 }

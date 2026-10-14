@@ -204,23 +204,13 @@ impl App {
 
     /// Finish editing a sketch.
     pub(super) fn finish_sketch_edit(&mut self) {
-        let edited = self.sketch_ses.editing;
+        let closed = self.sketch_ses;
         self.sketch_ses.editing = None;
         self.tools.cmd.ref_body = None; // highlighting the faces of a neighbour belongs to the creation session only
         self.tools.sel_sk.clear(); // the selection and whatever was waiting for it
         qymcad_ui_state::exit_draw_tools(&mut qymcad_ui_state::tools_of!(self)); // leaving a sketch drops all of its modes in one transition
-                                                                                 // associativity: editing a sketch rebuilds the bodies built on it
-        if let Some(sid) = edited {
-            // ...and there is NOTHING TO REBUILD THEM ON while no live B-rep exists. A project from a
-            // bundle shows the geometry FROM THE FILE and has no `Shape` (the lazy B-rep): one sketch node
-            // gets marked dirty, the feature on it asks for its source body - and is told the source body
-            // was not built. This was hit on the very first opening; "Rebuild all" cured it and it never
-            // came back. `ensure_brep` builds EXACTLY the missing nodes rather than the whole project.
-            ensure_brep(&mut self.rebuild_ctx());
-            self.project.mark_sketch_dirty(sid);
-            qymcad_ui_state::regenerate_all(&mut self.rebuild_ctx());
-        }
-        // restore the viewpoint and mode from before entering the sketch (pop one level off the stack)
+        qymcad_ui_state::rebuild_after_sketch(&mut self.rebuild_ctx(), closed); // associativity: the bodies on it follow a changed sketch
+                                                                                // restore the viewpoint and mode from before entering the sketch (pop one level off the stack)
         if let Some((cam, view, mode_3d)) = self.viewing.nav_stash.pop() {
             self.viewing.cam = cam;
             self.viewing.cam.init = true; // do not refit - keep the same framing

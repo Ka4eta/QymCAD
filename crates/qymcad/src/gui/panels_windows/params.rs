@@ -342,19 +342,18 @@ pub(crate) fn fresh_row(wc: &qymcad_ui_state::WinCtx, i: usize) -> bool {
 /// parameter window draws itself, and a test must pull the same handle rather than a similar one of its own.
 pub(crate) fn apply_param_edit(wc: &mut qymcad_ui_state::WinCtx) {
     wc.project.eval_parameters();
-    // THE REBUILD GRAPH: editing a parameter touches only the sketches that actually mention it, not every one
-    // of them. The features with expressions over that name are marked by `mark_changed_params_dirty` (by
-    // comparing against a snapshot of the values), so there is nothing to duplicate here.
+    // THE SKETCHES WITH FORMULAS ARE SOLVED for the new values, so the sizes on screen follow at once; what is REBUILT is
+    // decided by the scheduler, which marks only what mentions a name whose value changed (`mark_changed_params_dirty`,
+    // against the values the last rebuild saw). Every sketch with a formula used to be marked here, whatever changed:
+    // "Add a parameter" on the filter of the examples - an empty row, no value changed - rebuilt two sketches, the cuts
+    // on them and a rounding of 36 edges for 7.8 s.
     for si in 0..wc.project.sketches.len() {
-        let uses = wc.project.sketches[si].constraints.iter().any(|c| c.expr().is_some());
-        if uses {
+        if wc.project.sketches[si].constraints.iter().any(|c| c.expr().is_some()) {
             wc.project.solve_sketch(si);
-            let sid = wc.project.sketches[si].id;
-            wc.project.mark_sketch_dirty(sid);
         }
     }
     // THE SKETCHES SOLVED BY THE NEW VALUES ARE PART OF THE EDIT that changed them: solved after its step closed, they
     // were a step of their own ("Edit"), and a change of two parameters took four presses of Ctrl+Z to undo
     qymcad_ui_state::fold_into_last_step(wc.edits, wc.project);
-    wc.ask.push(qymcad_ui_state::WinAsk::RegenerateAll); // the bodies rebuild associatively from the new parameters
+    qymcad_ui_state::rebuild_if_dirty(&mut wc.rebuild()); // the bodies rebuild associatively from the new parameters
 }

@@ -254,6 +254,8 @@ pub struct RebuildCtx<'a> {
     pub cam: &'a Cam3,
     pub scheme: &'a SchemeUi,
     pub set: &'a Settings,
+    /// THE SKETCH OPEN FOR EDITING: while one is, the scheduler waits for it to close (`rebuild_after_sketch`)
+    pub sketch_ses: &'a SketchSession,
 }
 
 /// WHAT THE PART WORKBENCH TOUCHES.
@@ -341,6 +343,7 @@ impl PartCtx<'_> {
             cam: self.cam,
             scheme: self.scheme,
             set: self.set,
+            sketch_ses: self.sketch_ses,
         }
     }
 }
@@ -740,6 +743,7 @@ impl SketchCtx<'_> {
             cam: self.cam,
             scheme: self.scheme,
             set: self.set,
+            sketch_ses: self.sketch_ses,
         }
     }
 }
@@ -837,6 +841,7 @@ impl TreeCtx<'_> {
             cam: self.cam,
             scheme: self.scheme,
             set: &*self.set,
+            sketch_ses: self.sketch_ses,
         }
     }
 }
@@ -1010,6 +1015,8 @@ pub enum BarAsk {
 /// that the rebuild context can be composed out of this one.
 pub struct WinCtx<'a> {
     pub cache: &'a mut Caches,
+    /// the sketch open for editing, if any: a parameter edited over it is rebuilt when it closes
+    pub sketch_ses: &'a SketchSession,
     pub deferred: &'a mut DeferredUi,
     pub edits: &'a mut Edits,
     pub gpu_ok: &'a mut bool,
@@ -1071,8 +1078,6 @@ pub enum WinAsk {
     /// Carry out a deletion the confirmation asked about.
     /// delete the selection; true takes what stands on it too
     Delete(Sel, bool),
-    /// Rebuild everything from the timeline (a parameter changed).
-    RegenerateAll,
     /// Launch a command by its catalogue code - through the application's one door, the same one a button uses.
     RunCommand(&'static str),
     /// Go somewhere, BUT ASK ABOUT UNSAVED WORK FIRST. `Nav` above goes straight there and is what the
@@ -1096,6 +1101,7 @@ impl WinCtx<'_> {
             cam: &*self.cam,
             scheme: &*self.scheme,
             set: &*self.set,
+            sketch_ses: self.sketch_ses,
         }
     }
 }
@@ -1189,6 +1195,7 @@ impl PropsCtx<'_> {
             cam: self.cam,
             scheme: self.scheme,
             set: &*self.set,
+            sketch_ses: self.sketch_ses,
         }
     }
 }

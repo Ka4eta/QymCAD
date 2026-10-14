@@ -65,7 +65,7 @@ mod tests {
         let mut quiet = 0;
         while std::time::Instant::now() < until {
             h.frame(Vec::new());
-            let busy = h.app.regen.busy.is_some() || !h.app.regen.bg.is_empty() || h.app.regen.wanted || !super::super::a_quick_rebuild_does_not_blink::tests::signs_painted(h).is_empty();
+            let busy = h.app.regen.busy.is_some() || !h.app.regen.bg.is_empty() || h.app.regen.wanted || !crate::gui::tests::a_quick_rebuild_does_not_blink::tests::signs_painted(h).is_empty();
             quiet = if busy { 0 } else { quiet + 1 };
             if quiet >= 10 {
                 return true;
@@ -79,7 +79,7 @@ mod tests {
     fn what_still_turns(h: &mut Hand) -> Vec<String> {
         h.frame(Vec::new());
         let mut out = Vec::new();
-        if !super::super::a_quick_rebuild_does_not_blink::tests::signs_painted(h).is_empty() || h.app.regen.busy.is_some() {
+        if !crate::gui::tests::a_quick_rebuild_does_not_blink::tests::signs_painted(h).is_empty() || h.app.regen.busy.is_some() {
             out.push(format!("the spinner of a rebuild: {}", h.app.status));
         }
         if h.app.tools.armed.cmd_kind() == 35 && h.app.params.recognise.src.is_some() && h.app.params.recognise.ready(|_| ()).is_none() {

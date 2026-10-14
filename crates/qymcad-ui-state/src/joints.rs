@@ -404,6 +404,8 @@ impl JointCtx<'_> {
             cam: self.cam,
             scheme: self.scheme,
             set: self.set,
+            // the joints of an assembly are not worked inside a sketch
+            sketch_ses: &SketchSession::CLOSED,
         }
     }
 }

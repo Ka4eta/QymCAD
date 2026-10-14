@@ -53,6 +53,14 @@ pub struct SketchSession {
     pub editing: Option<Id>,
     /// the last one worked on (for commands that act "on the last sketch")
     pub last: Option<Id>,
+    /// THE KEY OF THE OPEN SKETCH WHEN IT WAS OPENED (`Project::sketch_key`): closed with the same key, it changed
+    /// nothing the bodies on it are built from, and nothing is rebuilt (`rebuild_after_sketch`)
+    pub opened: u64,
+}
+
+impl SketchSession {
+    /// No sketch open.
+    pub const CLOSED: SketchSession = SketchSession { editing: None, last: None, opened: 0 };
 }
 
 /// THE CLIPBOARD: sketch geometry and tree nodes are different things, but they share one state of "what has been copied".

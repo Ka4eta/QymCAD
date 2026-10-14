@@ -181,6 +181,7 @@ impl App {
         let file_ask_open = self.asking_for_a_file();
         WinCtx {
             cache: &mut self.cache,
+            sketch_ses: &self.sketch_ses,
             deferred: &mut self.deferred,
             edits: &mut self.disk.edits,
             gpu_ok: &mut self.gpu_ok,
@@ -248,7 +249,6 @@ impl App {
                 }
                 WinAsk::ExportMesh(format, target, defl) => self.export_mesh(format, target, defl),
                 WinAsk::Delete(sel, dependents) => self.execute_delete(sel, dependents),
-                WinAsk::RegenerateAll => qymcad_ui_state::regenerate_all(&mut self.rebuild_ctx()),
                 // THE ONE DOOR a button uses. The search must not have a launch path of its own: a second one
                 // sooner or later starts doing something other than the button, and nothing says so.
                 WinAsk::RunCommand(code) => self.run_command(code, ctx),
@@ -647,6 +647,7 @@ impl App {
             cam: &self.viewing.cam,
             scheme: &self.scheme,
             set: &self.set,
+            sketch_ses: &self.sketch_ses,
         }
     }
 }
@@ -859,7 +860,7 @@ impl App {
         if let Some(s) = self.project.sketches.get(si) {
             // remember the viewpoint and mode, to bring them back on leaving the sketch (the drill-in stack)
             self.viewing.nav_stash.push((self.viewing.cam, self.viewing.view, self.viewing.mode_3d));
-            self.sketch_ses.editing = Some(s.id);
+            qymcad_ui_state::open_sketch_session(&mut self.sketch_ses, &self.project, s.id);
             self.workbench = Workbench::Sketch;
             self.viewing.mode_3d = false;
             self.chosen.sel = Sel::Sketch(si);
@@ -2379,7 +2380,6 @@ mod long_values;
 mod modal_barrier;
 mod open_keeps_brep;
 mod regen_live_view;
-mod a_quick_rebuild_does_not_blink;
 mod the_program_ends_during_a_rebuild;
 mod the_program_ends_during_a_trial;
 mod recognise_then_delete;

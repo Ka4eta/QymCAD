@@ -9,8 +9,8 @@
 //! up it stays `REBUILD_SIGN_HOLDS` at least. The barrier of a loud rebuild does not wait for its paint.
 #[cfg(test)]
 pub(in crate::gui) mod tests {
-    use super::super::hand::Hand;
-    use super::super::App;
+    use crate::gui::hand::Hand;
+    use crate::gui::App;
     use qymcad_ui_state::{REBUILD_SIGN_AFTER, REBUILD_SIGN_HOLDS};
     use std::ops::Range;
     use std::time::{Duration, Instant};
@@ -108,7 +108,7 @@ pub(in crate::gui) mod tests {
             app.project.meta.comment = format!("{}{ms}", crate::gui::io_jobs::REBUILD_HOLDS_FOR_TEST);
         }
         for k in 0..n {
-            super::super::joint_flow::tests::add_part_at(&mut app, 100.0 * k as f64);
+            crate::gui::joint_flow::tests::add_part_at(&mut app, 100.0 * k as f64);
         }
         crate::gui::io_jobs::regenerate_now(&mut app.rebuild_ctx());
         app
@@ -149,7 +149,7 @@ pub(in crate::gui) mod tests {
             let from = Instant::now();
             h.frame(keys.next().unwrap_or_default());
             let to = Instant::now();
-            let busy = h.app.regen.busy.as_ref().filter(|b| b.kind == super::super::BgKind::Regen);
+            let busy = h.app.regen.busy.as_ref().filter(|b| b.kind == crate::gui::BgKind::Regen);
             if let Some(b) = busy {
                 started.get_or_insert(b.started);
                 kind.get_or_insert(if b.quiet { Kind::Quiet } else { Kind::Loud });
@@ -249,7 +249,7 @@ pub(in crate::gui) mod tests {
             h.frame(events);
         }
         h.frame(vec![egui::Event::PointerMoved(at)]);
-        let started = h.app.regen.busy.as_ref().filter(|b| b.kind == super::super::BgKind::Regen && !b.quiet).map(|b| b.started).expect("setup: Enter asked for a loud rebuild in the background");
+        let started = h.app.regen.busy.as_ref().filter(|b| b.kind == crate::gui::BgKind::Regen && !b.quiet).map(|b| b.started).expect("setup: Enter asked for a loud rebuild in the background");
         let mut painted = signs_painted(&h);
         let button = |pressed| egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() };
         h.frame(vec![button(true)]);
