@@ -5,7 +5,8 @@
                             acceptance probes that do no heavy geometry
     tools/gate.py full      before a commit: the fast level, plus every other crate - the kernel, the heavy geometry,
                             the matrices of the testkit - and every acceptance probe, the short generated chains with them
-    tools/gate.py release   before the public repository: the full level with the long generated chains, and every
+    tools/gate.py release   before the public repository: the full level with the long generated chains, the heaviest
+                            matrices of the testkit (`RELEASE_ONLY`), and every
                             breakage on order (`tools/breakages.py`) caught. A whole run of it leaves its mark in
                             `target/gate-release.json` - the commit, whether the tree was clean, whether it passed - and
                             `tools/publish.py` refuses without that mark for the commit it publishes
@@ -150,11 +151,22 @@ CHECK_TIMEOUT_S = 1200
 QUICK_S = 1.0
 BATCH_S = 5.0
 
+# THE HEAVIEST MATRICES OF THE TESTKIT GO TO THE RELEASE: a bolt and its nut screwed through a whole turn (5 checks, 100 -
+# 400 s each among the others of the pool) and the names held through an edit above (3 checks, 145 - 240 s). They are
+# run before a release (`RELEASE_MATRICES`), not at every change; the pool of every crate leaves their programs out.
+RELEASE_ONLY = ["a_bolt_screws_into_its_nut", "matrix_names_survive_an_edit"]
+RELEASE_MATRICES = (
+    "the heaviest matrices of the testkit",
+    ["cargo", "test", "-p", "qymcad-testkit", "--no-fail-fast"] + [a for t in RELEASE_ONLY for a in ("--test", t)],
+    {},
+)
+
 LEVELS = {
     "release": [
         BUILDS,
         SHIPPED,
         EVERY_CRATE,
+        RELEASE_MATRICES,
         SKETCH_TIME,
         THREAD_TIME,
         DRAWING_TIME,
@@ -403,7 +415,8 @@ def pool(threads):
     sys.stdout.write(build.stderr)
     if build.returncode != 0:
         return build.returncode
-    progs = test_programs(build.stdout)
+    # the matrices kept for the release are not run here (`RELEASE_ONLY`)
+    progs = [p for p in test_programs(build.stdout) if not (p.crate == "qymcad-testkit" and p.key.split("/")[1] in RELEASE_ONLY)]
     checks = []
     with ThreadPoolExecutor(max_workers=threads) as ex:
         # the lists asked of every program side by side: one after another they were 762 starts of a program
