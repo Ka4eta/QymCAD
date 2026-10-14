@@ -73,7 +73,17 @@ pub(crate) const PANELS: &str = concat!(
         include_str!("../../../qymcad-assembly/src/lib.rs")
     ),
     "\n",
-    include_str!("panels_tree.rs"),
+    concat!(
+        include_str!("panels_tree/build.rs"),
+        "\n",
+        include_str!("panels_tree/copy.rs"),
+        "\n",
+        include_str!("panels_tree/rename.rs"),
+        "\n",
+        include_str!("panels_tree/rows.rs"),
+        "\n",
+        include_str!("panels_tree.rs")
+    ),
     "\n",
     include_str!("panels_props.rs"),
     "\n",
@@ -91,7 +101,19 @@ pub(crate) const PANELS: &str = concat!(
     // the export submenu the File menu and the tree's component menu both open
     include_str!("export_menu.rs"),
     "\n",
-    include_str!("panels_windows.rs"),
+    concat!(
+        include_str!("panels_windows/dialogs.rs"),
+        "\n",
+        include_str!("panels_windows/library.rs"),
+        "\n",
+        include_str!("panels_windows/params.rs"),
+        "\n",
+        include_str!("panels_windows/schemes.rs"),
+        "\n",
+        include_str!("panels_windows/settings.rs"),
+        "\n",
+        include_str!("panels_windows.rs")
+    ),
     "\n",
     include_str!("icon_themes.rs"),
     "\n",
@@ -161,7 +183,19 @@ const WINDOW_OPENERS: &str = concat!(
     "\n",
     include_str!("panels_bars.rs"),
     "\n",
-    include_str!("panels_windows.rs"),
+    concat!(
+        include_str!("panels_windows/dialogs.rs"),
+        "\n",
+        include_str!("panels_windows/library.rs"),
+        "\n",
+        include_str!("panels_windows/params.rs"),
+        "\n",
+        include_str!("panels_windows/schemes.rs"),
+        "\n",
+        include_str!("panels_windows/settings.rs"),
+        "\n",
+        include_str!("panels_windows.rs")
+    ),
     "\n",
     include_str!("start_screen.rs"),
     "\n",
@@ -254,13 +288,35 @@ const CTX_USERS: &str = concat!(
         include_str!("../../../qymcad-assembly/src/lib.rs")
     ),
     "\n",
-    include_str!("panels_tree.rs"),
+    concat!(
+        include_str!("panels_tree/build.rs"),
+        "\n",
+        include_str!("panels_tree/copy.rs"),
+        "\n",
+        include_str!("panels_tree/rename.rs"),
+        "\n",
+        include_str!("panels_tree/rows.rs"),
+        "\n",
+        include_str!("panels_tree.rs")
+    ),
     "\n",
     include_str!("panels_props.rs"),
     "\n",
     include_str!("panels_bars.rs"),
     "\n",
-    include_str!("panels_windows.rs"),
+    concat!(
+        include_str!("panels_windows/dialogs.rs"),
+        "\n",
+        include_str!("panels_windows/library.rs"),
+        "\n",
+        include_str!("panels_windows/params.rs"),
+        "\n",
+        include_str!("panels_windows/schemes.rs"),
+        "\n",
+        include_str!("panels_windows/settings.rs"),
+        "\n",
+        include_str!("panels_windows.rs")
+    ),
 );
 
 /// The declarations of the contexts, for the two checks below.

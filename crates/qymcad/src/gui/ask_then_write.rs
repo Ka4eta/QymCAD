@@ -96,9 +96,37 @@ mod tests {
             ),
         ),
         ("bars", include_str!("panels_bars.rs")),
-        ("tree", include_str!("panels_tree.rs")),
+        (
+            "tree",
+            concat!(
+                include_str!("panels_tree/build.rs"),
+                "\n",
+                include_str!("panels_tree/copy.rs"),
+                "\n",
+                include_str!("panels_tree/rename.rs"),
+                "\n",
+                include_str!("panels_tree/rows.rs"),
+                "\n",
+                include_str!("panels_tree.rs")
+            ),
+        ),
         ("properties", include_str!("panels_props.rs")),
-        ("windows", include_str!("panels_windows.rs")),
+        (
+            "windows",
+            concat!(
+                include_str!("panels_windows/dialogs.rs"),
+                "\n",
+                include_str!("panels_windows/library.rs"),
+                "\n",
+                include_str!("panels_windows/params.rs"),
+                "\n",
+                include_str!("panels_windows/schemes.rs"),
+                "\n",
+                include_str!("panels_windows/settings.rs"),
+                "\n",
+                include_str!("panels_windows.rs")
+            ),
+        ),
     ];
 
     /// Where the requests are carried out, and where the functions they delegate to live.
@@ -123,12 +151,22 @@ mod tests {
         include_str!("joints.rs"),
         include_str!("io_jobs.rs"),
         include_str!("pick.rs"),
-        include_str!("panels_tree.rs"),
+        concat!(
+            include_str!("panels_tree/build.rs"),
+            "\n",
+            include_str!("panels_tree/copy.rs"),
+            "\n",
+            include_str!("panels_tree/rename.rs"),
+            "\n",
+            include_str!("panels_tree/rows.rs"),
+            "\n",
+            include_str!("panels_tree.rs")
+        ),
         include_str!("file_ask.rs"),
         include_str!("help_window.rs"),
         include_str!("measure3d.rs"),
         include_str!("import_scale.rs"),
-        include_str!("import_door.rs"),
+        concat!(include_str!("import_door/tests.rs"), "\n", include_str!("import_door.rs")),
         concat!(
             include_str!("../../../qymcad-ui-state/src/contexts.rs"),
             "\n",
