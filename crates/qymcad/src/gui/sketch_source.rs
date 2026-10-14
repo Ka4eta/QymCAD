@@ -15,7 +15,37 @@
 
 /// The sketch, whole: the workbench crate plus what stayed with the application.
 #[cfg(test)]
-pub(crate) const SKETCH: &str = concat!(include_str!("../../../qymcad-sketch/src/lib.rs"), "\n", include_str!("sketching.rs"),);
+pub(crate) const SKETCH: &str = concat!(
+    concat!(
+        include_str!("../../../qymcad-sketch/src/clicks.rs"),
+        "\n",
+        include_str!("../../../qymcad-sketch/src/constraints.rs"),
+        "\n",
+        include_str!("../../../qymcad-sketch/src/corners.rs"),
+        "\n",
+        include_str!("../../../qymcad-sketch/src/dims.rs"),
+        "\n",
+        include_str!("../../../qymcad-sketch/src/drag.rs"),
+        "\n",
+        include_str!("../../../qymcad-sketch/src/extend.rs"),
+        "\n",
+        include_str!("../../../qymcad-sketch/src/menu.rs"),
+        "\n",
+        include_str!("../../../qymcad-sketch/src/offset.rs"),
+        "\n",
+        include_str!("../../../qymcad-sketch/src/popups.rs"),
+        "\n",
+        include_str!("../../../qymcad-sketch/src/props.rs"),
+        "\n",
+        include_str!("../../../qymcad-sketch/src/snap.rs"),
+        "\n",
+        include_str!("../../../qymcad-sketch/src/ties.rs"),
+        "\n",
+        include_str!("../../../qymcad-sketch/src/lib.rs")
+    ),
+    "\n",
+    include_str!("sketching.rs"),
+);
 
 /// The picking, whole: the module crate plus the remnant in the application.
 #[cfg(test)]
