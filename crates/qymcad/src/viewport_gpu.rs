@@ -14,9 +14,9 @@
 //!
 //! Colour: the offscreen target is in an sRGB format, the fragment gives out a LINEAR colour
 //! (srgb-to-linear), and the write encodes it back into the same sRGB bytes the CPU path lays down
-//! (`Color32`), so the colour matches frame for frame. The light and the shading, and the hot and ghost
-//! branches, are computed on the CPU by the same formula as the raster (see `App::shade_tri`) and
-//! uploaded ONCE per change of the scene (the light is of the world and does not depend on the camera).
+//! (`Color32`), so the colour matches frame for frame. The lights and the shading, and the hot and ghost
+//! branches, follow the same formula as the raster (`shade_tri`); the lights go with the camera and come in its
+//! uniform every frame.
 //! Back faces are culled in the fragment by the ray FROM THE EYE (in orthographic that is `fwd`, in
 //! perspective a direction of its own at every point), with the normal of the face carried in the
 //! vertices.
@@ -110,21 +110,23 @@ pub struct CamRaw {
     /// and far come from the bounding box of the scene (tight ones mean precision in the z-buffer). The
     /// formula is the same as in `App::proj_params` and `depth_ndc`.
     persp: [f32; 4],
-    /// THE LIGHT AND THE SHADING, moved here from the vertices.
+    /// THE LIGHTS AND THE SHADING, moved here from the vertices.
     ///
-    /// `light` is the direction the scene is lit from; `shade` is [floor, ghost_alpha 0..1, 0, 0], and
-    /// `ghost` is the colour a ghost is led towards. All of it used to be applied on the processor and baked
-    /// into every vertex - which is why a change of highlight rewrote the whole scene.
-    light: [f32; 4],
+    /// `key` and `fill` are where the two lights come from, each with what it gives a face turned straight to it in
+    /// `w` (`SceneLights`); `shade` is [floor, ghost_alpha 0..1, 0, 0], and `ghost` is the colour a ghost is led
+    /// towards. All of it used to be applied on the processor and baked into every vertex - which is why a change of
+    /// highlight rewrote the whole scene.
+    key: [f32; 4],
+    fill: [f32; 4],
     shade: [f32; 4],
     ghost: [f32; 4],
 }
 
-/// WHAT THE SHADING NEEDS, gathered from the scheme and the settings: the light, the floor the shading
+/// WHAT THE SHADING NEEDS, gathered from the scheme and the settings: the lights, the floor the shading
 /// cannot go below, how solid a ghost is, and the colour a ghost is led towards.
 #[derive(Clone, Copy)]
 pub struct ShadeRaw {
-    pub light: [f32; 3],
+    pub lights: qymcad_ui_state::SceneLights,
     pub floor: f32,
     pub ghost_alpha: f32,
     pub ghost_target: [f32; 3],
@@ -160,11 +162,17 @@ impl CamRaw {
             target: [target[0] as f32, target[1] as f32, target[2] as f32, 0.0],
             params: [scale, half_w, half_h, depth_half],
             persp: [persp_inv_d_eye, z_near, z_far, 0.0],
-            light: [look.light[0], look.light[1], look.light[2], 0.0],
+            key: light_raw(look.lights.key, look.lights.key_share),
+            fill: light_raw(look.lights.fill, look.lights.fill_share),
             shade: [look.floor, look.ghost_alpha, 0.0, 0.0],
             ghost: [look.ghost_target[0], look.ghost_target[1], look.ghost_target[2], 0.0],
         }
     }
+}
+
+/// A light as the shader takes it: where it comes from, and what it gives a face turned to it.
+fn light_raw(from: [f64; 3], share: f64) -> [f32; 4] {
+    [from[0] as f32, from[1] as f32, from[2] as f32, share as f32]
 }
 
 pub(crate) const SHADER: &str = r#"
@@ -175,7 +183,8 @@ struct Cam {
     tgt: vec4<f32>,
     params: vec4<f32>, // scale, half_w, half_h, depth_half
     persp: vec4<f32>,  // inv_d_eye (0 for orthographic), z_near, z_far, _
-    light: vec4<f32>,  // the direction the scene is lit from
+    key: vec4<f32>,    // where the key light comes from; w: what it gives a face turned to it
+    fill: vec4<f32>,   // the same for the fill
     shade: vec4<f32>,  // floor, ghost_alpha, _, _
     ghost: vec4<f32>,  // the colour a ghost is led towards
 };
@@ -283,23 +292,34 @@ fn fs_mesh(in: VsOut, @builtin(front_facing) front: bool) -> @location(0) vec4<f
     // reported as extruded text losing its walls, while the software raster drew the same document correctly.
     if (!front) { discard; }
     // THE FLAT NORMAL COMES FROM THE DERIVATIVES of the world position across the triangle - the same normal
-    // that used to be carried in every vertex, 12 bytes lighter per vertex. It faces the eye, and the light
-    // takes it by its absolute value, so no sign has to be recovered.
-    let n = normalize(cross(dpdx(in.wpos), dpdy(in.wpos)));
+    // that used to be carried in every vertex, 12 bytes lighter per vertex. Its sign is turned to the eye here: each
+    // light lights only the side turned to it, so the side matters.
+    var n = normalize(cross(dpdx(in.wpos), dpdy(in.wpos)));
+    var sight = cam.fwd.xyz;
+    if (cam.persp.x > 0.0) {
+        sight = in.wpos - (cam.tgt.xyz - cam.fwd.xyz / cam.persp.x);
+    }
+    if (dot(n, sight) > 0.0) {
+        n = -n;
+    }
 
     // SMOOTH SHADING BRINGS ITS OWN NORMAL: a vertex normal packed into four bytes. Flat shading leaves it
-    // zero and the face normal above is used - which is exactly what flat shading means.
+    // zero and the face normal above is used - which is exactly what flat shading means. A vertex normal pointing
+    // into the body (a sheet wound the other way) is turned to the eye with its face.
     var shading_n = n;
     if (dot(in.nrm, in.nrm) > 0.25) {
         shading_n = normalize(in.nrm);
+        if (dot(shading_n, n) < 0.0) {
+            shading_n = -shading_n;
+        }
     }
 
     let look = look_of(in.body);
     let tint = vec3<f32>(f32(look.tint & 0xffu), f32((look.tint >> 8u) & 0xffu), f32((look.tint >> 16u) & 0xffu));
     // THE SHADING, moved here from the processor: it can only darken, never brighten past the body's own
-    // colour, and never below the floor the scheme sets.
+    // colour, and never below the floor the scheme sets. The two lights as `SceneLights::on` takes them.
     let floor = cam.shade.x;
-    let diff = abs(dot(shading_n, cam.light.xyz));
+    let diff = cam.key.w * max(dot(shading_n, cam.key.xyz), 0.0) + cam.fill.w * max(dot(shading_n, cam.fill.xyz), 0.0);
     let lit = floor + clamp(diff, 0.0, 1.0) * (1.0 - floor);
 
     if ((look.state & 4u) != 0u) {
@@ -885,7 +905,7 @@ fn draw_the_square(device: &wgpu::Device, queue: &wgpu::Queue, samples: u32) -> 
     resources.insert(GpuRenderer::new(device, OFFSCREEN_FORMAT, samples));
     let side = TEST_SIDE as f32;
     let basis = ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]);
-    let shade = ShadeRaw { light: [0.0, 0.0, 1.0], floor: 0.5, ghost_alpha: 0.5, ghost_target: [0.5; 3] };
+    let shade = ShadeRaw { lights: qymcad_ui_state::scene_lights(&basis), floor: 0.5, ghost_alpha: 0.5, ghost_target: [0.5; 3] };
     let cam = CamRaw::new(&basis, side / 2.0 * 0.8, [0.0; 3], egui::vec2(side, side), 0.0, ZRange { near: 0.1, far: 10.0 }, shade);
     let corner = |x: f32, y: f32| GpuVert { pos: [x, y, 0.0], body: 0, nrm: 0 };
     let verts = vec![corner(-1.0, -1.0), corner(1.0, -1.0), corner(1.0, 1.0), corner(-1.0, 1.0)];
@@ -972,7 +992,7 @@ mod tests {
 
     /// Shading plays no part in what these checks measure - the projection does.
     fn plain() -> super::ShadeRaw {
-        super::ShadeRaw { light: [0.0, 0.0, 1.0], floor: 0.35, ghost_alpha: 0.5, ghost_target: [0.1, 0.1, 0.12] }
+        super::ShadeRaw { lights: qymcad_ui_state::scene_lights(&basis()), floor: 0.35, ghost_alpha: 0.5, ghost_target: [0.1, 0.1, 0.12] }
     }
 
     /// THE SELF-TEST SEES A DEVICE THAT DRAWS: on this machine's device the square is drawn, with one sample and

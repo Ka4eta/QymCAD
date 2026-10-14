@@ -824,8 +824,8 @@ pub fn pick_vertex_any(pn: &Painting, rect: Rect, pos: Pos2) -> Option<(Id, u32,
 }
 
 /// Shading a triangle, plus the branches for a highlighted body and for a ghosted one.
-/// One source of colour for the CPU raster and for the GPU pass (the normal and the light are in world
-/// space, so they do not depend on the camera).
+/// One source of colour for the CPU raster and for the GPU pass. `n` is the normal turned to the eye, and the
+/// lights are `scene_lights` of the camera.
 ///
 /// THE DEPTH OF THE SHADOW COMES FROM THE SCHEME. `0.4 + 0.6 * |n . light|` used to stand here, and the
 /// function had no `&self` — it simply could not look at the scheme. Against a dark background a shadow
@@ -834,9 +834,8 @@ pub fn pick_vertex_any(pn: &Painting, rect: Rect, pos: Pos2) -> Option<(Id, u32,
 /// `ghost_alpha` is an ARGUMENT for the same reason as the scheme: a function without `&self` can ask
 /// about neither. Hiding the setting in a constant here would mean a second source of truth about a
 /// ghost's opacity — exactly the case that once kept the scheme from reaching the shading at all.
-pub fn shade_tri(pal: &qymcad_scheme::Palette, ghost_alpha: u8, hot: bool, ghost: bool, base: [u8; 3], n: [f64; 3], light: [f64; 3]) -> Color32 {
-    let diff = v_dot(n, light).abs();
-    let lit = qymcad_scheme::lit(pal.shade_floor_body, diff as f32);
+pub fn shade_tri(pal: &qymcad_scheme::Palette, ghost_alpha: u8, hot: bool, ghost: bool, base: [u8; 3], n: [f64; 3], lights: &qymcad_ui_state::SceneLights) -> Color32 {
+    let lit = qymcad_scheme::lit(pal.shade_floor_body, lights.on(n) as f32);
     // shading can only darken: without this the brightest a part gets is its own colour, which on a
     // light canvas is darker than the background. So the BRIGHTNESS is raised (lightness plus
     // saturation) rather than white being mixed in: white washes the colour out and gives whitewash

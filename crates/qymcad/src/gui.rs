@@ -2009,8 +2009,8 @@ impl App {
 }
 
 #[cfg(test)]
-pub(crate) fn shade_tri_for_test(pal: &crate::palette::Palette, ghost_alpha: u8, hot: bool, ghost: bool, base: [u8; 3], n: [f64; 3], light: [f64; 3]) -> Color32 {
-    qymcad_pick::shade_tri(pal, ghost_alpha, hot, ghost, base, n, light)
+pub(crate) fn shade_tri_for_test(pal: &crate::palette::Palette, ghost_alpha: u8, hot: bool, ghost: bool, base: [u8; 3], n: [f64; 3], lights: &qymcad_ui_state::SceneLights) -> Color32 {
+    qymcad_pick::shade_tri(pal, ghost_alpha, hot, ghost, base, n, lights)
 }
 
 /// A PNG out of a `ColorImage` (RGBA8) — for the `thumb.png` inside a `.qpart`. Uses `image` with its png feature.

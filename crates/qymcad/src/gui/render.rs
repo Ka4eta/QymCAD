@@ -73,19 +73,7 @@ impl App {
 pub(crate) fn draw_3d_gpu(pn: &qymcad_ui_state::Painting, painter: &egui::Painter, rect: Rect, basis: &([f64; 3], [f64; 3], [f64; 3])) {
     let ppp = painter.ctx().pixels_per_point();
     let key = qymcad_ui_state::gpu_scene_key(pn);
-    let (inv_d, z_near, z_far, _) = proj_params(pn, rect, key);
-    let gt = pn.scheme.pal.ghost_target;
-    let shade = crate::viewport_gpu::ShadeRaw {
-        // the same light the raster uses, so the two pictures agree
-        light: {
-            let l = qymcad_ui_state::scene_light();
-            [l[0] as f32, l[1] as f32, l[2] as f32]
-        },
-        floor: pn.scheme.pal.shade_floor_body,
-        ghost_alpha: pn.set.ghost_alpha as f32 / 255.0,
-        ghost_target: [gt[0] as f32 / 255.0, gt[1] as f32 / 255.0, gt[2] as f32 / 255.0],
-    };
-    let cam = crate::viewport_gpu::CamRaw::new(basis, pn.cam.scale, pn.cam.target, rect.size(), inv_d as f32, crate::viewport_gpu::ZRange { near: z_near as f32, far: z_far as f32 }, shade);
+    let cam = frame_uniform(pn, rect, basis);
     let size_px = [(rect.width() * ppp).round().max(1.0) as u32, (rect.height() * ppp).round().max(1.0) as u32];
     // THE GEOMETRY IS REBUILT RARELY, THE LOOK EVERY FRAME. Moving the pointer over the model, stepping into
     // a subassembly, changing a colour - none of that touches a vertex now; it rewrites a table of two numbers
@@ -109,6 +97,21 @@ pub(crate) fn draw_3d_gpu(pn: &qymcad_ui_state::Painting, painter: &egui::Painte
         (None, render_scene::scene_looks(pn))
     };
     painter.add(eframe::egui_wgpu::Callback::new_paint_callback(rect, crate::viewport_gpu::MeshPaint::new(cam, size_px, pieces, looks, key)));
+}
+
+/// THE CAMERA OF A FRAME AS THE CARD TAKES IT: the projection, the depth, the lights and the shading. One place, so
+/// the window and a check that takes the picture off the card draw with the same numbers.
+pub(crate) fn frame_uniform(pn: &qymcad_ui_state::Painting, rect: Rect, basis: &([f64; 3], [f64; 3], [f64; 3])) -> crate::viewport_gpu::CamRaw {
+    let (inv_d, z_near, z_far, _) = proj_params(pn, rect, qymcad_ui_state::gpu_scene_key(pn));
+    let gt = pn.scheme.pal.ghost_target;
+    let shade = crate::viewport_gpu::ShadeRaw {
+        // the same lights the raster uses, so the two pictures agree
+        lights: qymcad_ui_state::scene_lights(basis),
+        floor: pn.scheme.pal.shade_floor_body,
+        ghost_alpha: pn.set.ghost_alpha as f32 / 255.0,
+        ghost_target: [gt[0] as f32 / 255.0, gt[1] as f32 / 255.0, gt[2] as f32 / 255.0],
+    };
+    crate::viewport_gpu::CamRaw::new(basis, pn.cam.scale, pn.cam.target, rect.size(), inv_d as f32, crate::viewport_gpu::ZRange { near: z_near as f32, far: z_far as f32 }, shade)
 }
 
 pub(crate) fn draw_3d(pn: &Painting, painter: &egui::Painter, rect: Rect) {

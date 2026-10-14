@@ -337,12 +337,55 @@ pub struct GpuVert {
     pub nrm: u32,
 }
 
-/// WHERE THE SCENE IS LIT FROM. One direction, named once: the raster and the card must agree, or the same
-/// part comes out shaded differently in a picture of the viewport and on screen.
-pub fn scene_light() -> [f64; 3] {
-    let v: [f64; 3] = [0.35, 0.5, 0.78];
-    let n = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
-    [v[0] / n, v[1] / n, v[2] / n]
+/// THE LIGHTS OF THE 3D VIEW: a key light and a weaker fill, both carried with the camera.
+///
+/// One light taken by its absolute value lit a face and the face opposite it alike, and every face at one angle to
+/// it alike: on a block chamfered round the top the right chamfer came out 2 levels from the top it leads into.
+/// Reported behaviour: "add a second light, so the models and their structure look more solid". The key comes from
+/// above and to the left of the eye, the fill from below and to the right at 0.37 of its strength, each lights only the
+/// side turned to it, and the two together give exactly 1 to a face looking straight at the eye. Searched over the
+/// faces and 45 deg chamfers of a block seen from the front, from behind and from below: two faces that share an edge
+/// stay at least 12 levels apart, against 2 with the one light, and the top of a block in the usual view takes 0.70,
+/// its front 0.56 and its side 0.48 - lit from above, as a person expects a part on a table to be.
+///
+/// FIXED TO THE CAMERA, as a CAD lights a part: the side a person turns to themselves is the lit side, whichever it
+/// is. Fixed to the world, a part turned over showed its underside in the fill alone.
+#[derive(Clone, Copy, Debug)]
+pub struct SceneLights {
+    /// Where the key light comes from: a unit vector in the world, pointing at the light.
+    pub key: [f64; 3],
+    /// Where the fill comes from, the same way.
+    pub fill: [f64; 3],
+    /// What each light gives a face turned straight to it.
+    pub key_share: f64,
+    pub fill_share: f64,
+}
+
+/// The two lights in the frame of the camera: x to the right, y up, z towards the eye.
+const KEY_FROM_EYE: [f64; 3] = [-0.21, 0.38, 0.9];
+const FILL_FROM_EYE: [f64; 3] = [0.17, -0.47, 0.87];
+/// The fill's strength against the key's.
+const FILL_TO_KEY: f64 = 0.37;
+
+/// The lights for a camera whose right, up and forward are `basis`.
+pub fn scene_lights(basis: &([f64; 3], [f64; 3], [f64; 3])) -> SceneLights {
+    let (right, up, fwd) = basis;
+    let place = |v: [f64; 3]| {
+        let l = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
+        std::array::from_fn(|a| (right[a] * v[0] + up[a] * v[1] - fwd[a] * v[2]) / l)
+    };
+    let (key, fill) = (place(KEY_FROM_EYE), place(FILL_FROM_EYE));
+    // a face looking straight at the eye gets exactly 1: the key's part and the fill's part of it add up to that
+    let head_on = -v_dot(key, *fwd) + FILL_TO_KEY * -v_dot(fill, *fwd);
+    SceneLights { key, fill, key_share: 1.0 / head_on, fill_share: FILL_TO_KEY / head_on }
+}
+
+impl SceneLights {
+    /// How much light a face with the unit normal `n` turned to the eye takes, 0..1: each light lights only the side
+    /// turned to it.
+    pub fn on(&self, n: [f64; 3]) -> f64 {
+        (self.key_share * v_dot(n, self.key).max(0.0) + self.fill_share * v_dot(n, self.fill).max(0.0)).clamp(0.0, 1.0)
+    }
 }
 
 /// ONE PIECE OF THE SCENE handed to the card: the vertices of one body (or of the section caps) and the row

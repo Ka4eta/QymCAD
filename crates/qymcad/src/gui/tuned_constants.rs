@@ -165,9 +165,9 @@ mod tests {
         let pal = crate::palette::dark();
         let base = [160, 160, 160];
         let n = [0.0, 0.0, 1.0];
-        let light = [0.0, 0.0, 1.0];
-        let faint = crate::gui::shade_tri_for_test(&pal, 40, false, true, base, n, light).a();
-        let solid = crate::gui::shade_tri_for_test(&pal, 240, false, true, base, n, light).a();
+        let lights = qymcad_ui_state::scene_lights(&([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, -1.0]));
+        let faint = crate::gui::shade_tri_for_test(&pal, 40, false, true, base, n, &lights).a();
+        let solid = crate::gui::shade_tri_for_test(&pal, 240, false, true, base, n, &lights).a();
         assert_eq!(faint, 40, "the ghost did not take the transparency from the setting: {faint}");
         assert_eq!(solid, 240, "the ghost did not take the transparency from the setting: {solid}");
     }

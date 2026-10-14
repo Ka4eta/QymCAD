@@ -245,7 +245,7 @@ pub fn rasterize_3d(pn: &Painting, rect: Rect, basis: &([f64; 3], [f64; 3], [f64
     if w == 0 || h == 0 || w.saturating_mul(h) > 16_000_000 {
         return None;
     }
-    let light = qymcad_ui_state::v_norm([0.35, 0.5, 0.78]);
+    let lights = qymcad_ui_state::scene_lights(basis);
     let (_, _, fwd) = basis;
     let mut color = vec![Color32::TRANSPARENT; w * h];
     let mut zbuf = vec![f32::INFINITY; w * h];
@@ -294,10 +294,18 @@ pub fn rasterize_3d(pn: &Painting, rect: Rect, basis: &([f64; 3], [f64; 3], [f64
             }
             let col_at = |k: usize| -> Color32 {
                 let nrm = match vn {
-                    Some(list) => qymcad_ui_state::rotate_normal(&wt, list.at(i, k, tri_idx[k])),
+                    // a vertex normal pointing into the body (a sheet wound the other way) is turned to the eye with its face
+                    Some(list) => {
+                        let v = qymcad_ui_state::rotate_normal(&wt, list.at(i, k, tri_idx[k]));
+                        if qymcad_ui_state::v_dot(v, n) < 0.0 {
+                            [-v[0], -v[1], -v[2]]
+                        } else {
+                            v
+                        }
+                    }
                     None => n,
                 };
-                qymcad_pick::shade_tri(&pn.scheme.pal, pn.set.ghost_alpha, hot, ghost, tint, nrm, light)
+                qymcad_pick::shade_tri(&pn.scheme.pal, pn.set.ghost_alpha, hot, ghost, tint, nrm, &lights)
             };
             let cols = [col_at(0), col_at(1), col_at(2)];
             let scr = qymcad_ui_state::Screen { cam: &pn.cam, set: pn.set, rect, basis };

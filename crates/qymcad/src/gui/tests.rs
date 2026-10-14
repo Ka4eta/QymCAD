@@ -33,3 +33,6 @@ mod brep_warmup_tests;
 
 #[cfg(test)]
 mod sketch_plane_pick_frames_tests;
+
+#[cfg(test)]
+mod faces_part_in_light;
