@@ -236,9 +236,49 @@ pub fn draw_mesh(pn: &Painting, painter: &egui::Painter, rect: Rect) {
     }
 }
 
-/// Software rasterisation of the visible bodies into RGBA with a Z buffer. The buffer holds the
-/// screen-linear `ndc_z` (`depth_ndc`), so the linear interpolation in `raster_band` is exact both in
-/// orthographic and in perspective. The background is transparent.
+/// A corner of a triangle on its way to the screen: where it stands in the world and its colour.
+#[derive(Clone, Copy)]
+struct Corner {
+    at: [f64; 3],
+    colour: Color32,
+}
+
+/// THE PART OF A TRIANGLE IN FRONT OF THE NEAR PLANE, as a polygon of up to four corners.
+///
+/// In perspective a point behind the eye has no place on the screen, and projected all the same it landed far out with
+/// the nearest depth there is: a part standing behind the eye, 5 m along the line of sight from the one looked at at
+/// 100 mm, smeared 139 128 pixels of its colour over the frame. The card clips at the near plane; the raster now does
+/// the same. In orthographic nothing is behind the eye and the triangle is whole.
+fn in_front(tri: &[Corner; 3], cam: &qymcad_ui_state::Cam3, basis: &([f64; 3], [f64; 3], [f64; 3]), proj: &qymcad_ui_state::ProjParams) -> Vec<Corner> {
+    if proj.inv_d_eye <= 0.0 {
+        return tri.to_vec();
+    }
+    let d_eye = 1.0 / proj.inv_d_eye;
+    let ahead = |k: &Corner| qymcad_ui_state::v_dot(qymcad_ui_state::v_sub(k.at, cam.target), basis.2) + d_eye - proj.z_near;
+    if tri.iter().all(|k| ahead(k) >= 0.0) {
+        return tri.to_vec();
+    }
+    let mut out = Vec::with_capacity(4);
+    for i in 0..3 {
+        let (p, q) = (tri[i], tri[(i + 1) % 3]);
+        let (dp, dq) = (ahead(&p), ahead(&q));
+        if dp >= 0.0 {
+            out.push(p);
+        }
+        if (dp >= 0.0) != (dq >= 0.0) {
+            let t = dp / (dp - dq);
+            let at = std::array::from_fn(|a| p.at[a] + (q.at[a] - p.at[a]) * t);
+            let (cp, cq) = (p.colour.to_array(), q.colour.to_array());
+            let ch = |c: usize| (cp[c] as f64 + (cq[c] as f64 - cp[c] as f64) * t).round() as u8;
+            out.push(Corner { at, colour: Color32::from_rgba_premultiplied(ch(0), ch(1), ch(2), ch(3)) });
+        }
+    }
+    out
+}
+
+/// Software rasterisation of the visible bodies and the floor into RGBA with a Z buffer. The buffer holds the
+/// screen-linear depth of the card (`depth_ndc`) negated, so nearer is smaller as the raster compares, and the linear
+/// interpolation in `raster_band` is exact both in orthographic and in perspective. The background is transparent.
 pub fn rasterize_3d(pn: &Painting, rect: Rect, basis: &([f64; 3], [f64; 3], [f64; 3]), ppp: f32, quality: f32) -> Option<egui::ColorImage> {
     let w = (rect.width() * ppp * quality).round() as usize;
     let h = (rect.height() * ppp * quality).round() as usize;
@@ -256,8 +296,12 @@ pub fn rasterize_3d(pn: &Painting, rect: Rect, basis: &([f64; 3], [f64; 3], [f64
     }
     let ncache = pn.cache.norm.borrow();
     let items = qymcad_ui_state::visible_mesh_items(pn);
-    // the depth parameters for this frame (in perspective: tight near/far from the scene's extent)
-    let (inv_d, z_near, z_far, depth_half) = qymcad_ui_state::proj_params(pn, rect, qymcad_ui_state::gpu_scene_key(pn));
+    // the depth of this frame, as the card takes it
+    let proj = qymcad_ui_state::proj_params(pn, rect, qymcad_ui_state::gpu_scene_key(pn));
+    let inv_d = proj.inv_d_eye;
+    let rays = qymcad_ui_state::ViewRays::new(&pn.cam, rect, ppp * quality, proj);
+    let look = qymcad_ui_state::floor_look(pn);
+    let floor = FloorFrame { rays: &rays, look: &look, size: [w, h] };
 
     // 1) project the visible front-facing triangles into pixel coordinates. The colour is PER VERTEX
     // (Gouraud): from the smoothed normal, interpolated in the raster; in flat mode the face normal goes
@@ -309,22 +353,20 @@ pub fn rasterize_3d(pn: &Painting, rect: Rect, basis: &([f64; 3], [f64; 3], [f64
             };
             let cols = [col_at(0), col_at(1), col_at(2)];
             let scr = qymcad_ui_state::Screen { cam: &pn.cam, set: pn.set, rect, basis };
-            let (pa, da) = scr.at(a);
-            let (pb, db) = scr.at(b);
-            let (pc, dc) = scr.at(c);
-            // the z buffer takes the screen-linear ndc_z (perspective-correct), not the world depth
-            let tri = RasterTri {
-                v: [
-                    [(pa.x - ox) * pscale, (pa.y - oy) * pscale, qymcad_ui_state::depth_ndc(da, inv_d, z_near, z_far, depth_half)],
-                    [(pb.x - ox) * pscale, (pb.y - oy) * pscale, qymcad_ui_state::depth_ndc(db, inv_d, z_near, z_far, depth_half)],
-                    [(pc.x - ox) * pscale, (pc.y - oy) * pscale, qymcad_ui_state::depth_ndc(dc, inv_d, z_near, z_far, depth_half)],
-                ],
-                cols,
+            let corners = [Corner { at: a, colour: cols[0] }, Corner { at: b, colour: cols[1] }, Corner { at: c, colour: cols[2] }];
+            // the z buffer takes the depth the card takes, negated: nearer is smaller, as the raster compares
+            let to_screen = |k: &Corner| {
+                let (p, d) = scr.at(k.at);
+                [(p.x - ox) * pscale, (p.y - oy) * pscale, -qymcad_ui_state::depth_ndc(d, &proj)]
             };
-            if ghost {
-                ghost_tris.push(tri)
-            } else {
-                tris.push(tri)
+            let ahead = in_front(&corners, &pn.cam, basis, &proj);
+            for k in 1..ahead.len().saturating_sub(1) {
+                let tri = RasterTri { v: [to_screen(&ahead[0]), to_screen(&ahead[k]), to_screen(&ahead[k + 1])], cols: [ahead[0].colour, ahead[k].colour, ahead[k + 1].colour] };
+                if ghost {
+                    ghost_tris.push(tri)
+                } else {
+                    tris.push(tri)
+                }
             }
         }
     }
@@ -333,6 +375,7 @@ pub fn rasterize_3d(pn: &Painting, rect: Rect, basis: &([f64; 3], [f64; 3], [f64
     let nthreads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1).clamp(1, 8);
     if nthreads <= 1 || h < 64 {
         raster_band(&mut color, &mut zbuf, w, 0, h, &tris);
+        floor.draw(&mut color, &zbuf, 0);
         raster_band_blend(&mut color, &zbuf, w, 0, h, &ghost_tris);
     } else {
         let band = h.div_ceil(nthreads);
@@ -341,6 +384,7 @@ pub fn rasterize_3d(pn: &Painting, rect: Rect, basis: &([f64; 3], [f64; 3], [f64
             let mut y0 = 0;
             let tref = &tris;
             let gref = &ghost_tris;
+            let fref = &floor;
             while y0 < h {
                 let rows = band.min(h - y0);
                 let (cb, c2) = crest.split_at_mut(rows * w);
@@ -348,9 +392,11 @@ pub fn rasterize_3d(pn: &Painting, rect: Rect, basis: &([f64; 3], [f64; 3], [f64
                 crest = c2;
                 zrest = z2;
                 let y = y0;
-                // within a band: the opaque ones first (they fill z), then the ghosts on top (z test, blend)
+                // within a band: the opaque ones first (they fill z), the floor under and over them by z, then the
+                // ghosts on top (z test, blend)
                 s.spawn(move || {
                     raster_band(cb, zb, w, y, rows, tref);
+                    fref.draw(cb, zb, y);
                     raster_band_blend(cb, zb, w, y, rows, gref);
                 });
                 y0 += rows;

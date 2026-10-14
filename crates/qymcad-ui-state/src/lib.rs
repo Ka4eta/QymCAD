@@ -1002,6 +1002,8 @@ pub use settings::*;
 mod records;
 pub use records::*;
 mod scene;
+pub use floor::*;
+mod floor;
 pub use scene::*;
 mod contexts;
 pub use contexts::*;

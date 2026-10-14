@@ -520,7 +520,7 @@ crates/qymcad-ui-state/src/edits.rs 0 1 2
 crates/qymcad-ui-state/src/fields.rs 2 2 2
 crates/qymcad-ui-state/src/fonts.rs 0 3 0
 crates/qymcad-ui-state/src/geom.rs 19 9 0
-crates/qymcad-ui-state/src/gizmos.rs 4 10 4
+crates/qymcad-ui-state/src/gizmos.rs 3 9 4
 crates/qymcad-ui-state/src/handles.rs 0 1 0
 crates/qymcad-ui-state/src/hotkeys.rs 2 0 0
 crates/qymcad-ui-state/src/icons/bundle/discovery.rs 1 0 0
@@ -816,4 +816,4 @@ crates/qymcad/src/packaging_winget.rs 0 2 0
 crates/qymcad/src/parts_library.rs 0 1 0
 crates/qymcad/src/safe_graphics.rs 0 5 0
 crates/qymcad/src/system.rs 0 1 1
-crates/qymcad/src/viewport_gpu.rs 0 5 0
+crates/qymcad/src/viewport_gpu.rs 0 4 0

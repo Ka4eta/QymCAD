@@ -60,6 +60,8 @@ pub use dim_text::*;
 mod glyphs;
 pub use glyphs::*;
 mod raster;
+mod floor;
+pub use floor::*;
 pub use raster::*;
 mod gizmos;
 pub use gizmos::*;

@@ -22,21 +22,33 @@ pub fn arr_vec(dir: u8, step: f64) -> (f64, f64, f64) {
     }
 }
 
-/// The screen-linear depth `ndc_z` for a world `depth = rel . fwd`. In perspective this is
-/// `clip_z/clip_w` (PERSPECTIVE-CORRECT, planar on the screen), so the linear interpolation in
-/// `raster_band` gives the right visibility; in orthographic mode it is linear in world space. The
-/// formula is THE SAME as in the GPU shader (`vs_mesh`), so both paths agree. `near` maps to 0 and
-/// `far` to 1, smaller is nearer (the z comparison is `<`). The parameters come from `proj_params`,
-/// computed once per frame rather than per vertex.
-pub fn depth_ndc(world_depth: f64, inv_d: f64, z_near: f64, z_far: f64, depth_half: f64) -> f32 {
-    if inv_d > 0.0 {
-        let d_eye = 1.0 / inv_d;
-        let zc = (world_depth + d_eye).max(z_near); // clamped to a point in front of the eye (the CPU path does not clip)
-        let a = z_far / (z_far - z_near);
-        let b = -z_near * z_far / (z_far - z_near);
-        (a + b / zc) as f32
+/// THE DEPTH OF A FRAME: how the distance along the line of sight becomes the number the depth buffer holds.
+///
+/// REVERSED, NEARER IS LARGER, the way the card compares (`Greater`, cleared to 0). In perspective the number is
+/// `z_near / zc` - 1 at the near plane, 0 at infinity - so a float keeps the same relative precision at every distance
+/// and there is no far plane to cut a part off; in orthographic it is linear over the depth of the scene. The depth used
+/// to be tight round the scene's bounding sphere with the near plane clamped to 1/50 of the eye's distance and the far
+/// one at the sphere: in orthographic a part 5 m in front of the one looked at, 100 mm across, fell outside it and was
+/// cut away.
+#[derive(Clone, Copy, Debug)]
+pub struct ProjParams {
+    /// 1 / the distance from the eye to the target, 0 in orthographic.
+    pub inv_d_eye: f64,
+    /// The near plane in perspective: a thousandth of the eye's distance.
+    pub z_near: f64,
+    /// Half the depth of the orthographic range round the target, along the line of sight.
+    pub depth_half: f64,
+}
+
+/// The number the depth buffer holds for a world `depth = rel . fwd` (see `ProjParams`). In perspective it is
+/// `clip_z / clip_w`, planar on the screen, so the linear interpolation in `raster_band` gives the right visibility; in
+/// orthographic it is linear in the world. THE SAME formula as the shader's `vs_mesh`, so both paths agree.
+pub fn depth_ndc(world_depth: f64, proj: &ProjParams) -> f32 {
+    if proj.inv_d_eye > 0.0 {
+        let zc = (world_depth + 1.0 / proj.inv_d_eye).max(proj.z_near); // in front of the eye: the raster clips what is not
+        (proj.z_near / zc) as f32
     } else {
-        (0.5 + world_depth / (2.0 * depth_half)) as f32
+        (0.5 - world_depth / (2.0 * proj.depth_half)) as f32
     }
 }
 
@@ -613,29 +625,21 @@ pub fn body_gizmo_target(bv: BodyView, sel: Sel) -> Option<(Id, usize)> {
     body_shown(bv, mi).then_some((body, mi))
 }
 
-/// The frame's projection parameters: `(inv_d_eye, z_near, z_far, depth_half)`. Perspective takes TIGHT
-/// near and far planes from the scene's bounding box (the most z-buffer precision, so thin features do
-/// not z-fight); orthographic takes a linear depth from `depth_half`. `inv_d_eye = 0` means
-/// orthographic. The single source for the CPU (`depth_ndc`) and for the GPU (`CamRaw`).
-pub fn proj_params(pn: &Painting, rect: Rect, scene_key: u64) -> (f64, f64, f64, f64) {
-    let half_w = (rect.width() * 0.5) as f64;
-    let half_h = (rect.height() * 0.5) as f64;
+/// The frame's projection parameters (`ProjParams`): the single source for the CPU (`depth_ndc`) and for the GPU
+/// (`CamRaw`). The orthographic range holds the whole scene round the target, wherever the target is.
+pub fn proj_params(pn: &Painting, rect: Rect, scene_key: u64) -> ProjParams {
+    let half = (rect.width().max(rect.height()) * 0.5) as f64;
     let scale = (pn.cam.scale as f64).max(1e-4);
-    let depth_half = (half_w.max(half_h) / scale) * 50.0 + 1000.0; // the orthographic range (as in `CamRaw::new`)
     let inv_d = persp_inv_d_eye(&pn.cam, pn.set, rect.height() * 0.5);
-    if inv_d <= 0.0 {
-        return (0.0, 0.0, 0.0, depth_half);
-    }
-    let d_eye = 1.0 / inv_d;
-    let (mut z_near, mut z_far) = (d_eye * 0.05, d_eye * 4.0); // the fallback when the scene is empty
+    let z_near = if inv_d > 0.0 { 1e-3 / inv_d } else { 0.0 };
+    // the depth of what is on screen, as the orthographic range was, and at least the scene round the target
+    let mut depth_half = (half / scale) * 50.0 + 1000.0;
     if let Some(Sphere { centre: c, radius: r }) = scene_sphere_cached(pn, scene_key) {
         let (_, _, fwd) = pn.cam.basis();
-        let dc = v_dot(v_sub(c, pn.cam.target), fwd); // the world depth of the sphere's centre along the line of sight
-        let margin = (r * 0.05).max(1e-3);
-        z_near = (dc - r + d_eye - margin).max(d_eye * 0.02); // clamped above 0 (a point in front of the eye)
-        z_far = (dc + r + d_eye + margin).max(z_near + d_eye * 0.01);
+        let dc = v_dot(v_sub(c, pn.cam.target), fwd);
+        depth_half = depth_half.max((dc.abs() + r) * 1.05);
     }
-    (inv_d, z_near, z_far, depth_half)
+    ProjParams { inv_d_eye: inv_d, z_near, depth_half }
 }
 
 pub fn face_arrow_geometry(pn: &Painting) -> Option<([f64; 3], [f64; 3], [f64; 3])> {

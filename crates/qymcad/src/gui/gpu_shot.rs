@@ -47,7 +47,7 @@ pub(crate) mod eyes {
         // come from `draw_3d_gpu`'s own arithmetic, so what is drawn here is what is drawn there.
         let basis = pn.cam.basis();
         let key = qymcad_ui_state::gpu_scene_key(pn);
-        let cam = crate::gui::render::frame_uniform(pn, rect, &basis);
+        let cam = crate::gui::render::frame_uniform(pn, rect, &basis, 1.0);
         let size_px = [rect.width().round().max(1.0) as u32, rect.height().round().max(1.0) as u32];
         let scene = crate::gui::render_scene::gpu_scene(pn);
         let paint = crate::viewport_gpu::MeshPaint::new(cam, size_px, Some(scene.pieces), scene.looks, key);
