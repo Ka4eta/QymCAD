@@ -271,11 +271,18 @@ def run_step(name, cmd, env):
     return time.time() - began, passed, sorted(set(red)), broken, said
 
 
+def listing_of(cmd):
+    """THE COMMAND THAT LISTS THE PROBES of an acceptance run: its own, the number of threads left out - still the
+    placeholder `PICKED` there, which libtest refused, and every share ran every probe: the four machines of CI each
+    ran all 2890 (35 - 40 min), then the eight all 2892."""
+    return [a for a in cmd if a != PICKED] + ["--list", "--format", "terse"]
+
+
 def shard_of(cmd, env, k, n):
     """THE K-TH OF N SHARES of an acceptance run: its probes listed (the skips of the level applied), every N-th taken
     from the K-th on, and named exactly. Round the list rather than cut it in blocks: the probes of one module stand
     together and cost alike, so a block would put the slow modules on one machine."""
-    listed = subprocess.run(CAP + cmd + ["--list", "--format", "terse"], cwd=ROOT, capture_output=True, text=True, env={**os.environ, **env})
+    listed = subprocess.run(CAP + listing_of(cmd), cwd=ROOT, capture_output=True, text=True, env={**os.environ, **env})
     if listed.returncode != 0:
         # the build failed; the step itself runs the same build and reports it
         return cmd
@@ -560,6 +567,7 @@ def self_test():
     listed = "test a ... ok\ntest b ... FAILED\n\nfailures:\n\n---- b stdout ----\npanicked\n\nfailures:\n    b\n\ntest result: FAILED"
     expect("the checks libtest lists as failed", states_of(["a", "b"], listed, False), {"a": "ok", "b": "FAILED"})
     expect("a process that aborted after its checks", states_of(["a", "b"], "test a ... ok\ntest b ... ok\n", False), {"a": "FAILED", "b": "FAILED"})
+    expect("the listing of the probes of a share has no placeholder of threads", PICKED in listing_of(ACCEPTANCE + [PICKED, "--skip", "part_"]), False)
     meminfo = "MemTotal:       32000000 kB\nMemAvailable:   18061028 kB\n"
     expect("the available memory of /proc/meminfo", read_mb(meminfo, "MemAvailable"), 17637)
     expect("a key that is not there", read_mb(meminfo, "SwapTotal"), None)
