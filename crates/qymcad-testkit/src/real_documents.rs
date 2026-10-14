@@ -380,8 +380,11 @@ fn honest(o: &Opened, node: Id, code: &str) -> bool {
     true
 }
 
-/// THE EDGES OF A BLEND FOUND BY NAME: how many of the picked edges of a rounding or a chamfer `node` holds are in its
-/// source body, each asked on its own, the geometric fallback not counted as found. `None` for a node with no picks.
+/// THE EDGES OF A BLEND FOUND BY NAME: of the picked edges of a rounding or a chamfer `node` holds, how many are in its
+/// source body, each asked on its own, the geometric fallback not counted as found - and of those not found, how many
+/// went with their faces. An edge is where two faces meet: a face the edit took away (a pocket gone through its floor)
+/// takes its edges with it, and two faces something now stands between no longer meet; that loss is the geometry's,
+/// not the name's. `None` for a node with no picks.
 fn picked_found(p: &Project, node: Id) -> Option<PickedEdges> {
     use qymcad_core::feature::FeatureKind;
     let n = p.timeline.iter().find(|n| n.id == node)?;
@@ -393,24 +396,40 @@ fn picked_found(p: &Project, node: Id) -> Option<PickedEdges> {
     // asking leaves no trace: neither the count of finds by place nor the steps the next rebuild would mark
     let keep = p.snap_rebinds.load(Ordering::Relaxed);
     let marked = p.placed_now.lock().map(|s| s.clone()).unwrap_or_default();
-    let found = picked
+    let lost: Vec<u32> = picked
         .iter()
+        .copied()
         .filter(|d| {
             let before = p.snap_rebinds.load(Ordering::Relaxed);
-            !p.resolve_edge_ids(node, src, &[**d]).is_empty() && p.snap_rebinds.load(Ordering::Relaxed) == before
+            p.resolve_edge_ids(node, src, &[*d]).is_empty() || p.snap_rebinds.load(Ordering::Relaxed) != before
         })
-        .count();
+        .collect();
     p.snap_rebinds.store(keep, Ordering::Relaxed);
     if let Ok(mut now) = p.placed_now.lock() {
         *now = marked;
     }
-    Some(PickedEdges { asked: picked.len(), found })
+    let faces: Vec<u32> = p.regen_faces.get(&src).map(|fs| fs.iter().map(|f| f.id).collect()).unwrap_or_default();
+    let now = |f: u32| if faces.contains(&f) { Some(f) } else { p.names.absorbed_target(f).filter(|t| faces.contains(t)) };
+    // the faces of the pair still meet: an edge of the body runs between what they are now
+    let meet = |a: u32, b: u32| p.regen_edges.get(&src).into_iter().flatten().any(|e| p.names.edge(e.id).is_some_and(|x| (x.faces == [a, b]) || (x.faces == [b, a])));
+    let with_a_face = lost
+        .iter()
+        .filter(|d| {
+            p.names.edge(**d).is_some_and(|e| match (now(e.faces[0]), now(e.faces[1])) {
+                (Some(a), Some(b)) => !meet(a, b),
+                _ => true,
+            })
+        })
+        .count();
+    Some(PickedEdges { asked: picked.len(), lost: lost.len(), with_a_face })
 }
 
-/// The picked edges of a blend: how many it holds, how many are found by name.
+/// The picked edges of a blend: how many it holds, how many are not found by name, and of those how many went with
+/// their faces.
 struct PickedEdges {
     asked: usize,
-    found: usize,
+    lost: usize,
+    with_a_face: usize,
 }
 
 /// THE ERRORS AND WARNINGS A REBUILD LEFT that the document did not open with, each said with its node; an honest
@@ -427,16 +446,27 @@ fn new_reds(o: &Opened) -> Vec<String> {
         if honest(o, *node, &code) {
             continue;
         }
+        // every edge of the rounding gone with a face of its pair: the geometry took them
+        if let (CoreError::EdgesNotFound { .. }, Some(picks)) = (e, picked_found(p, *node)) {
+            if picks.lost > 0 && picks.with_a_face == picks.lost {
+                eprintln!("{}: node {node} lost its {} edges with the faces they stood between", o.doc.name, picks.lost);
+                continue;
+            }
+        }
         let what = if is_lost_reference(e) { "lost a reference" } else { "went red" };
         out.push(format!("node {node} {what}: {code}"));
     }
     for (node, e) in p.regen_warnings.iter().filter(|(n, e)| o.warnings.get(n) != Some(e)) {
         let CoreError::EdgesDropped { dropped, .. } = e else { continue };
-        let picks = picked_found(p, *node).unwrap_or(PickedEdges { asked: 0, found: 0 });
-        let lost = picks.asked - picks.found;
-        if lost > 0 {
-            out.push(format!("node {node} lost {lost} of {} edge references by name", picks.asked));
+        let picks = picked_found(p, *node).unwrap_or(PickedEdges { asked: 0, lost: 0, with_a_face: 0 });
+        let by_name = picks.lost - picks.with_a_face;
+        if by_name > 0 {
+            out.push(format!("node {node} lost {by_name} of {} edge references by name, the faces of each still meeting", picks.asked));
         }
+        if picks.with_a_face > 0 {
+            eprintln!("{}: node {node} lost {} edges with the faces they stood between", o.doc.name, picks.with_a_face);
+        }
+        let lost = picks.lost;
         let left_out = dropped.saturating_sub(lost);
         if left_out > 0 && !honest(o, *node, "EdgesLeftOut") {
             out.push(format!("node {node} went yellow: the kernel left {left_out} edges out"));
