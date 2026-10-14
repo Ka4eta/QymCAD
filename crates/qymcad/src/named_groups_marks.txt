@@ -393,7 +393,6 @@ crates/qymcad-pick/src/body_hits.rs 1 28 2
 crates/qymcad-pick/src/infer.rs 1 14 0
 crates/qymcad-pick/src/sketch_hits.rs 4 19 1
 crates/qymcad-render/src/cards.rs 0 0 2
-crates/qymcad-render/src/dim_text.rs 0 1 0
 crates/qymcad-render/src/gizmos.rs 1 0 0
 crates/qymcad-render/src/lib.rs 0 0 1
 crates/qymcad-render/src/part_previews.rs 1 3 0
@@ -530,13 +529,13 @@ crates/qymcad-ui-state/src/icons/runtime.rs 0 0 2
 crates/qymcad-ui-state/src/icons/tests/bundles.rs 0 1 0
 crates/qymcad-ui-state/src/icons/tests/svg.rs 0 2 0
 crates/qymcad-ui-state/src/icons/watcher.rs 0 0 2
-crates/qymcad-ui-state/src/jobs.rs 1 9 0
+crates/qymcad-ui-state/src/jobs.rs 1 8 0
 crates/qymcad-ui-state/src/joints.rs 0 5 1
 crates/qymcad-ui-state/src/lib.rs 3 1 1
 crates/qymcad-ui-state/src/navigation.rs 5 9 1
 crates/qymcad-ui-state/src/painting.rs 8 10 3
 crates/qymcad-ui-state/src/rebuild.rs 2 0 3
-crates/qymcad-ui-state/src/records/commands.rs 0 21 2
+crates/qymcad-ui-state/src/records/commands.rs 0 20 2
 crates/qymcad-ui-state/src/records/frame.rs 0 6 2
 crates/qymcad-ui-state/src/records/gizmos.rs 0 6 0
 crates/qymcad-ui-state/src/records/pieces.rs 0 1 0
@@ -769,7 +768,7 @@ crates/qymcad/src/gui/text_font.rs 0 2 0
 crates/qymcad/src/gui/the_box_of_fillet_all_stands_at_the_clicked_side.rs 0 2 0
 crates/qymcad/src/gui/the_camera_finds_the_model_on_opening.rs 0 1 0
 crates/qymcad/src/gui/the_cancel_button_cancels.rs 0 2 0
-crates/qymcad/src/gui/the_card_holds_its_words.rs 0 5 0
+crates/qymcad/src/gui/the_card_holds_its_words.rs 0 4 0
 crates/qymcad/src/gui/the_corner_box_stands_clear_of_the_corner.rs 0 3 1
 crates/qymcad/src/gui/the_dimensions_of_a_cut_corner_stand_outside.rs 0 4 0
 crates/qymcad/src/gui/the_dimensions_turn_with_their_rectangle.rs 3 3 0

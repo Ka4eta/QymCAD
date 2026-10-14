@@ -133,10 +133,10 @@ mod tests {
         let ctx = egui::Context::default();
         super::super::install_fonts(&ctx);
         let _ = ctx.run_ui(input.clone(), |c| {
-            crate::gui::render::draw_dim_overlay_with(&app.scheme, c, &crate::i18n::tr("io-rebuilding"), Some((7, 40)), egui::Rect::NOTHING);
+            crate::gui::render::draw_dim_overlay_with(&app.scheme, c, &crate::i18n::tr("io-rebuilding"), Some(qymcad_ui_state::NodeCount { done: 7, total: 40 }), egui::Rect::NOTHING);
         });
         let out = ctx.run_ui(input, |c| {
-            crate::gui::render::draw_dim_overlay_with(&app.scheme, c, &crate::i18n::tr("io-rebuilding"), Some((7, 40)), egui::Rect::NOTHING);
+            crate::gui::render::draw_dim_overlay_with(&app.scheme, c, &crate::i18n::tr("io-rebuilding"), Some(qymcad_ui_state::NodeCount { done: 7, total: 40 }), egui::Rect::NOTHING);
         });
         let mut texts = Vec::new();
         collect_text_from(&out, &mut texts);

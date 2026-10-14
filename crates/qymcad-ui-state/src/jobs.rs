@@ -88,6 +88,82 @@ pub struct Busy {
     pub kind: BgKind,
 }
 
+/// HOW LONG A REBUILD RUNS UNSEEN: one that lands sooner paints no sign at all. Reported behaviour: the sign went up on
+/// the first frame in flight, and a rebuild of tens of milliseconds was a veil on screen for one or two frames - the
+/// window blinked on every edit.
+///
+/// Measured in a dev build, rebuild in the worker from start to result: an extrusion of a small part 7-9 ms; a pinpoint
+/// edit of a 12-node document 15-17 ms, its whole timeline 190-200 ms; a pinpoint edit of an 8-node document with
+/// booleans 110-125 ms, its whole timeline 0.86-1.05 s; a pinpoint edit of a 6-node document with fillets 0.65-0.87 s.
+/// 300 ms leaves every edit under 0.2 s unmarked and marks every one past 0.6 s.
+pub const REBUILD_SIGN_AFTER: std::time::Duration = std::time::Duration::from_millis(300);
+
+/// HOW LONG A SIGN, ONCE PAINTED, STAYS: a rebuild landing just past `REBUILD_SIGN_AFTER` would otherwise blink as well.
+pub const REBUILD_SIGN_HOLDS: std::time::Duration = std::time::Duration::from_millis(300);
+
+/// WHAT THE SIGN OF A REBUILD LOOKS LIKE.
+#[derive(Clone)]
+pub enum RebuildLook {
+    /// A pinpoint rebuild: a faint veil over the canvas and a spinner.
+    Quiet,
+    /// A long one: the panels dimmed and a card with its words and its count of nodes.
+    Loud { label: String, pulse: Option<std::sync::Arc<RegenPulse>> },
+}
+
+/// A REBUILD IN FLIGHT, as its sign sees it: when it started and how it looks.
+pub struct RebuildRunning {
+    pub started: std::time::Instant,
+    pub look: RebuildLook,
+}
+
+impl RebuildRunning {
+    /// The rebuild in hand, when the job in hand is one.
+    pub fn of(busy: Option<&Busy>) -> Option<Self> {
+        let b = busy.filter(|b| b.kind == BgKind::Regen)?;
+        let look = if b.quiet { RebuildLook::Quiet } else { RebuildLook::Loud { label: b.label.clone(), pulse: b.pulse.clone() } };
+        Some(Self { started: b.started, look })
+    }
+}
+
+/// THE SIGN ON SCREEN: since when it is painted and what it shows.
+#[derive(Clone)]
+pub struct RebuildSign {
+    pub since: std::time::Instant,
+    pub look: RebuildLook,
+}
+
+/// THE SIGN OF A REBUILD AT `now`, given the rebuild in flight and the sign the frame before painted.
+///
+/// A rebuild in flight is painted once it has run `REBUILD_SIGN_AFTER`, and from then on for as long as it, or the next
+/// one, runs. With nothing in flight a sign painted stays until it has been up `REBUILD_SIGN_HOLDS`. Only the paint
+/// waits: the barrier of a loud rebuild is not decided here.
+pub fn rebuild_sign(running: Option<&RebuildRunning>, shown: Option<RebuildSign>, now: std::time::Instant) -> Option<RebuildSign> {
+    let Some(r) = running else {
+        return shown.filter(|s| now.saturating_duration_since(s.since) < REBUILD_SIGN_HOLDS);
+    };
+    let since = match shown {
+        Some(s) => s.since,
+        None if now.saturating_duration_since(r.started) >= REBUILD_SIGN_AFTER => now,
+        None => return None,
+    };
+    Some(RebuildSign { since, look: r.look.clone() })
+}
+
+/// The sign of this frame, the one painted before kept in the memory of the window: the sign outlives its rebuild by
+/// up to `REBUILD_SIGN_HOLDS`, and the document has nothing to keep it in.
+pub fn rebuild_sign_now(ctx: &egui::Context, running: Option<&RebuildRunning>) -> Option<RebuildSign> {
+    let id = egui::Id::new("rebuild_sign");
+    let next = rebuild_sign(running, ctx.data(|d| d.get_temp::<RebuildSign>(id)), std::time::Instant::now());
+    ctx.data_mut(|d| {
+        if let Some(s) = &next {
+            d.insert_temp(id, s.clone());
+        } else {
+            d.remove::<RebuildSign>(id);
+        }
+    });
+    next
+}
+
 /// HOW LONG A REBUILD LEFT RUNNING IS WAITED FOR when its job is dropped: as long as the end of the program waits for a
 /// rebuild (`wait_bg`).
 pub(crate) const DROPPED_REBUILD_WAIT: std::time::Duration = std::time::Duration::from_secs(120);
@@ -178,10 +254,17 @@ pub struct RegenPulse {
     pub stamp: u64,
 }
 
+/// HOW FAR A REBUILD HAS GOT, in nodes of the timeline.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NodeCount {
+    pub done: usize,
+    pub total: usize,
+}
+
 impl RegenPulse {
-    pub fn progress(&self) -> (usize, usize) {
+    pub fn progress(&self) -> NodeCount {
         use std::sync::atomic::Ordering::Relaxed;
-        (self.done.load(Relaxed), self.total.load(Relaxed))
+        NodeCount { done: self.done.load(Relaxed), total: self.total.load(Relaxed) }
     }
     pub fn ask_stop(&self) {
         self.stop.store(true, std::sync::atomic::Ordering::Relaxed);

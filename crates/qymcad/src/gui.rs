@@ -1436,21 +1436,8 @@ impl App {
                 self.save_project();
             }
         }
-        // the indicator of a background rebuild sits over the ordinary interface, with dimming
-        if let Some(label) = self.tools.dim.overlay.take() {
-            let progress = self.tools.dim.overlay_progress.take();
-            // A LIVE VIEWPORT during a rebuild: the rectangle is taken from the PREVIOUS frame — the
-            // overlay is drawn before the viewport itself, and the window size does not jump between frames.
-            let live = if self.regen.regen_running() { self.viewing.view_rect } else { egui::Rect::NOTHING };
-            if crate::gui::render::draw_dim_overlay_with(&self.scheme, ctx, &label, progress, live) {
-                cancel_regen(&self.regen, &mut self.status);
-            }
-        }
-        // A SILENT REBUILD gets only a spinner on the canvas. No window, no dimming, no barrier: nobody is
-        // kept from working, and nobody is left guessing whether what is on screen is still current.
-        if std::mem::take(&mut self.tools.dim.spinner) {
-            crate::gui::render::draw_quiet_spinner(&self.scheme, self.viewing.view_rect, ctx);
-        }
+        // the sign of a background rebuild; the canvas is the PREVIOUS frame's, drawn before the viewport itself
+        rebuild_sign::draw_rebuild_sign(&self.regen, &self.scheme, self.viewing.view_rect, ctx, &mut self.status);
         self.sync_workbench(); // the workbench and the active context are derived from `active_path` (drill in and out)
         self.chosen.hover.joint = None; // the hovered joint is rebuilt every frame (by the panel and by 3D below)
         self.keep_selection_on_edited_sketch(); // the selection follows the sketch being edited — in one phase
@@ -2054,7 +2041,7 @@ fn doc_changed_outside_edit(edits: &Edits, project: &Project) -> bool {
 /// A facade: the rebuild overlay WITH A LIVE CANVAS — by the same call the frame makes.
 #[cfg(test)]
 pub(crate) fn draw_regen_overlay_over(dc: &qymcad_ui_state::DrawCtx, ctx: &egui::Context, live: egui::Rect) -> bool {
-    crate::gui::render::draw_dim_overlay_with(dc.scheme, ctx, &crate::i18n::tr("io-rebuilding"), Some((1, 2)), live)
+    crate::gui::render::draw_dim_overlay_with(dc.scheme, ctx, &crate::i18n::tr("io-rebuilding"), Some(qymcad_ui_state::NodeCount { done: 1, total: 2 }), live)
 }
 
 /// Whether a multiple selection of components is active: the set holds more than one node AND the
@@ -2392,6 +2379,7 @@ mod long_values;
 mod modal_barrier;
 mod open_keeps_brep;
 mod regen_live_view;
+mod a_quick_rebuild_does_not_blink;
 mod the_program_ends_during_a_rebuild;
 mod the_program_ends_during_a_trial;
 mod recognise_then_delete;
@@ -2454,6 +2442,7 @@ mod array_axis;
 
 /// Drawing the scene and the overlays lives in `gui/render.rs`.
 mod render;
+mod rebuild_sign;
 
 /// The Part commands (starting them, their parameters, applying them) live in `gui/commands.rs`.
 mod command_search;

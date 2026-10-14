@@ -499,25 +499,13 @@ impl App {
                     return false;
                 }
                 Err(std::sync::mpsc::TryRecvError::Empty) => {
-                    let label = busy.label.clone();
                     // A REBUILD does not hide the interface. Collapsing the window to a black screen with a
                     // spinner - the way startup does - is frightening: the model is gone and it is unclear
-                    // what is happening. Everything is drawn as usual, a dimming and a spinner go on top, and
-                    // input is muted: edits made during a rebuild would land on a stale copy of the project.
-                    if busy.kind == BgKind::Regen && busy.quiet {
-                        self.tools.dim.spinner = true; // the only sign: the body on screen is out of date
-                                                       // A PINPOINT EDIT GETS NO WINDOW. The thread is computing, the document on screen is
-                                                       // intact, and work can go on: an edit made while it computes will not be lost - the
-                                                       // stale result is rejected by the imprint check (`finish_regen_checked`) and the
-                                                       // rebuild repeats.
-                        ctx.request_repaint();
-                        return false;
-                    }
+                    // what is happening. Everything is drawn as usual, and its sign and the barrier of a loud
+                    // one go on top (`draw_rebuild_sign`). A pinpoint edit gets no barrier: an edit made while it
+                    // computes is not lost - the stale result is rejected by the imprint check
+                    // (`finish_regen_checked`) and the rebuild repeats.
                     if busy.kind == BgKind::Regen {
-                        // INPUT IS MUTED BY THE BARRIER IN THE OVERLAY ITSELF rather than by clearing events
-                        // here: that was too late - egui collects the input state at the start of a pass.
-                        self.tools.dim.overlay_progress = busy.pulse.as_ref().map(|p| p.progress());
-                        self.tools.dim.overlay = Some(label);
                         ctx.request_repaint();
                         return false;
                     }
@@ -549,6 +537,11 @@ fn rebuild_in_worker(
     stamp: u64,
     tx: std::sync::mpsc::Sender<JobResult>,
 ) {
+    // held before the kernel is taken: the checks beside this one go on using it
+    #[cfg(test)]
+    if let Some(ms) = proj.meta.comment.strip_prefix(REBUILD_HOLDS_FOR_TEST).and_then(|ms| ms.parse().ok()) {
+        std::thread::sleep(std::time::Duration::from_millis(ms));
+    }
     let _gate = qymcad_kernel::kernel_gate();
     let kernel = OcctKernel { shapes: std::cell::RefCell::new(shapes), quality_k, stop: watch.stop.clone(), ..Default::default() };
     // A PANIC IN THE REBUILD DOES NOT TAKE THE LIVE B-rep WITH IT. The cache came into this thread whole and
@@ -704,6 +697,11 @@ pub(crate) fn adopt_shapes(live: &mut super::LiveGeom, shapes: Vec<(Id, qymcad_k
 /// panic.
 #[cfg(test)]
 pub(crate) const REBUILD_PANICS_FOR_TEST: &str = "a test asks this rebuild to panic";
+
+/// THE TEST-ONLY SWITCH OF A SLOW REBUILD: a rebuild of a document whose comment is this followed by a number of
+/// milliseconds waits that long in the worker before it starts, as a rebuild of a heavy document does.
+#[cfg(test)]
+pub(crate) const REBUILD_HOLDS_FOR_TEST: &str = "a test holds this rebuild for ms: ";
 
 /// THE TEST-ONLY SWITCH OF AN EXPORT: a file whose name holds this is written by a worker that panics, inside the caught
 /// region. A mark in the path rather than a flag of the process, so exports side by side cannot take each other's panic.

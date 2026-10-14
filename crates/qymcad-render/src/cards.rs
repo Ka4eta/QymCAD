@@ -106,6 +106,9 @@ pub fn modal_input_barrier_except(ctx: &egui::Context, hole: egui::Rect) {
     }
 }
 
+/// HOW DARK THE VEIL OF A QUIET REBUILD IS, out of 255: faint, the part goes slightly grey.
+pub const QUIET_VEIL_ALPHA: u8 = 44;
+
 /// THE QUIET-REBUILD SPINNER - in the centre of the canvas, with no text and no backing.
 ///
 /// Its only message: the body on show is STALE, a recompute is under way. No window, no barrier - the
@@ -119,7 +122,7 @@ pub fn draw_quiet_spinner(scheme: &SchemeUi, view_rect: egui::Rect, ctx: &egui::
     // geometry on screen will be rebuilt once the effect fades. The veil is faint and it is PAINT, not a
     // barrier: the view and the selection work straight through it. Its disappearance, on the other
     // hand, reads at once - grey means counting, clear means here is the new geometry.
-    painter.rect_filled(rect, 0.0, qymcad_scheme::a(scheme.pal.scrim(), 44));
+    painter.rect_filled(rect, 0.0, qymcad_scheme::a(scheme.pal.scrim(), QUIET_VEIL_ALPHA));
     let t = ctx.input(|i| i.time) as f32;
     let c = rect.center();
     for k in 0..8 {

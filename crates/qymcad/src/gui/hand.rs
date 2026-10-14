@@ -289,6 +289,11 @@ impl<'a> Hand<'a> {
         &self.win.drawn
     }
 
+    /// WHAT THE LAST FRAME DREW, shape by shape: a sign laid over the window is told by its look.
+    pub fn shapes_drawn(&self) -> &[egui::epaint::ClippedShape] {
+        &self.win.shapes
+    }
+
     /// WHERE `word` IS WRITTEN, the next frame drawn - the place written first, when it is written in several.
     pub fn written_at(&mut self, word: &str) -> Option<egui::Rect> {
         self.frame(Vec::new());

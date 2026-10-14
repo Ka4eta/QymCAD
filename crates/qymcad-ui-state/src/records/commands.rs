@@ -737,18 +737,6 @@ pub struct DimTool {
     /// THE SKETCH AS IT WAS before a provisional length was put on a picked line: Esc puts it back whole, the
     /// points the length brought with it (an axis of the sketch made on demand) as well.
     pub before: Option<Box<qymcad_core::model::Sketch>>,
-    /// a hint drawn over the canvas
-    pub overlay: Option<String>,
-    /// A SILENT REBUILD IS RUNNING: a spinner in the middle of the canvas, no text and no dimming.
-    ///
-    /// While a background rebuild runs silently, the previous body is still on screen and people draw
-    /// wrong conclusions from it. The status line is not enough — nobody looks at it while looking at
-    /// the model. A spinner right on the canvas says one thing, but says it in time: what you see is
-    /// STALE, a recompute is under way.
-    pub spinner: bool,
-    /// NODE COUNT of a long rebuild `(done, total)` — next to the caption and nowhere else.
-    /// A count means there is also a "Cancel" button: exactly what reports its progress can be stopped.
-    pub overlay_progress: Option<(usize, usize)>,
 }
 
 /// THE JOINT COMMAND: what has been pointed at, with which anchor, and whether an existing one is being edited.

@@ -37,6 +37,8 @@ pub(crate) const RENDER: &str = concat!(
     "\n",
     include_str!("render.rs"),
     "\n",
+    include_str!("rebuild_sign.rs"),
+    "\n",
     include_str!("viewport_3d.rs"),
     "\n",
     include_str!("viewcube.rs"),

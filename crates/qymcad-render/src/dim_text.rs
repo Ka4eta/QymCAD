@@ -52,13 +52,24 @@ pub fn draw_angle_dim(painter: &egui::Painter, g: &qymcad_ui_state::AngleDim, tx
 /// A spinner on its own says one thing - "busy". On an assembly that takes seconds to compute a person
 /// needs something else: how much is left and whether they can change their mind. Both answers come from
 /// one place (the rebuild loop in the core, see `RegenWatch`), which is why they are shown together.
-pub fn draw_dim_overlay_with(scheme: &SchemeUi, ctx: &egui::Context, label: &str, progress: Option<(usize, usize)>, live: egui::Rect) -> bool {
+pub fn draw_dim_overlay_with(scheme: &SchemeUi, ctx: &egui::Context, label: &str, progress: Option<NodeCount>, live: egui::Rect) -> bool {
+    modal_input_barrier_except(ctx, live);
+    paint_dim_overlay(scheme, ctx, label, progress, live)
+}
+
+/// HOW DARK THE DIMMING OF A LONG REBUILD IS, out of 255.
+pub const DIM_ALPHA: u8 = 120;
+
+/// THE DIMMING AND THE CARD OF A LONG REBUILD, with no barrier: the barrier goes up from the first frame of the rebuild,
+/// the paint only once it has run long enough to be worth it (`qymcad_ui_state::rebuild_sign`). Returns `true` if the
+/// cancel button was pressed.
+pub fn paint_dim_overlay(scheme: &SchemeUi, ctx: &egui::Context, label: &str, progress: Option<NodeCount>, live: egui::Rect) -> bool {
     let screen = ctx.viewport_rect();
     let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::new("regen_dim")));
     // WHAT IS TO BE SHOWN IS MEASURED FIRST, and the card is then made to fit it. It used to be a
     // fixed 280 px wide with the label painted centred inside: a long line ("Rebuilding 28 nodes, one
     // of them a thread") ran out past both edges of the card and stood on the dimmed viewport.
-    let prog_text = progress.map(|(done, total)| qymcad_i18n::tr2("io-rebuild-progress", "done", &done.to_string(), "total", &total.to_string()));
+    let prog_text = progress.map(|n| qymcad_i18n::tr2("io-rebuild-progress", "done", &n.done.to_string(), "total", &n.total.to_string()));
     let wrap = (screen.width() - 96.0).clamp(200.0, 520.0); // wraps rather than growing off a narrow window
     let title = painter.layout(label.to_owned(), egui::FontId::proportional(15.0), scheme.pal.text_strong(), wrap);
     let prog = prog_text.map(|t| painter.layout(t, egui::FontId::proportional(13.0), scheme.pal.text_dim(), wrap));
@@ -67,7 +78,6 @@ pub fn draw_dim_overlay_with(scheme: &SchemeUi, ctx: &egui::Context, label: &str
     // THE VIEWPORT STAYS LIVE AND UNDIMMED when it is given (`live`): the model is visible, the view
     // orbits, selection works. What gets dimmed and muted is exactly where the document is changed from.
     let card = if live.is_positive() {
-        modal_input_barrier_except(ctx, live);
         for r in [
             egui::Rect::from_min_max(screen.min, egui::pos2(screen.max.x, live.min.y)),
             egui::Rect::from_min_max(egui::pos2(screen.min.x, live.max.y), screen.max),
@@ -75,15 +85,14 @@ pub fn draw_dim_overlay_with(scheme: &SchemeUi, ctx: &egui::Context, label: &str
             egui::Rect::from_min_max(egui::pos2(live.max.x, live.min.y), egui::pos2(screen.max.x, live.max.y)),
         ] {
             if r.is_positive() {
-                painter.rect_filled(r, 0.0, qymcad_scheme::a(scheme.pal.scrim(), 120));
+                painter.rect_filled(r, 0.0, qymcad_scheme::a(scheme.pal.scrim(), DIM_ALPHA));
             }
         }
         // the card sits AT THE BOTTOM of the viewport rather than in its centre: in the centre it would
         // cover exactly what the live window was kept for - the model itself
         egui::Rect::from_center_size(egui::pos2(live.center().x, live.max.y - size.y / 2.0 - 16.0), size)
     } else {
-        modal_input_barrier(ctx, "regen_modal_barrier");
-        painter.rect_filled(screen, 0.0, qymcad_scheme::a(scheme.pal.scrim(), 120));
+        painter.rect_filled(screen, 0.0, qymcad_scheme::a(scheme.pal.scrim(), DIM_ALPHA));
         egui::Rect::from_center_size(screen.center(), size)
     };
     let places = regen_card_places(card, title.size(), prog.as_ref().map(|g| g.size()), progress.is_some());
