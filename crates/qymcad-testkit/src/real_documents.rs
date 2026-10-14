@@ -16,6 +16,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::Ordering;
 
 /// A DOCUMENT OF THE MATRIX: its file name and where it lies.
+#[derive(Clone)]
 pub struct Doc {
     pub name: String,
     pub path: String,
@@ -198,15 +199,15 @@ fn moved_names(change: Change<'_>, p: &Project) -> Vec<String> {
     out
 }
 
-/// A REFERENCE NOT FOUND: the codes a node goes red or yellow with when a name it holds is not in its body.
+/// A REFERENCE NOT FOUND: the codes a node goes red with when a name it holds is not in its body.
 fn is_lost_reference(e: &CoreError) -> bool {
-    matches!(e, CoreError::FaceNotFound | CoreError::FacesNotFound | CoreError::EdgesNotFound { .. } | CoreError::DescribedEdgesNotFound | CoreError::EdgesDropped { .. })
+    matches!(e, CoreError::FaceNotFound | CoreError::FacesNotFound | CoreError::EdgesNotFound { .. } | CoreError::DescribedEdgesNotFound)
 }
 
 /// A DOCUMENT OPENED, with what the edits are measured against.
 pub struct Opened {
-    /// Where the document lies: an edit that did not undo cleanly opens it afresh, so it does not spoil the next.
-    path: String,
+    /// The document: an edit that did not undo cleanly opens it afresh, so it does not spoil the next.
+    doc: Doc,
     pub project: Project,
     shapes: HashMap<Id, qymcad_kernel::Shape>,
     pub marks: Marks,
@@ -222,7 +223,7 @@ pub fn open(doc: &Doc) -> Opened {
     let marks = Marks::of(&project);
     let errors = project.regen_errors.clone();
     let warnings = project.regen_warnings.clone();
-    Opened { path: doc.path.clone(), project, shapes, marks, errors, warnings }
+    Opened { doc: doc.clone(), project, shapes, marks, errors, warnings }
 }
 
 /// TWO REBUILDS IN A ROW GIVE THE SAME NAMES: `doc` opened, then rebuilt whole once more with nothing edited.
@@ -341,7 +342,75 @@ fn undo(p: &mut Project, before: Project) {
     }
 }
 
-/// THE ERRORS AND WARNINGS A REBUILD LEFT that the document did not open with, each said with its node.
+/// A REFUSAL A DOCUMENT GIVES HONESTLY: an edit that makes the geometry impossible, said by the node in words. `code` is
+/// the start of the code the node is red with, as `Debug` writes it.
+struct Honest {
+    doc: &'static str,
+    node: Id,
+    code: &'static str,
+    why: &'static str,
+}
+
+/// THE HONEST REFUSALS OF THE DOCUMENTS, each with its reason. Anything else red after an edit is a fault.
+const HONEST: &[Honest] = &[
+    Honest { doc: "Filter-v2.qcad", node: 26, code: "ThreadNotItsSize", why: "the thread of M40 stays on a shaft drawn 44 or 36" },
+    Honest { doc: "QymBoxPc-Case.qcad", node: 5001, code: "BrokenSolid", why: "the outline with one angle 10% wider crosses itself" },
+    Honest { doc: "QymBoxPc-Case.qcad", node: 5008, code: "BodyInPieces", why: "the base 10% narrower is cut in two by its pockets" },
+    Honest { doc: "QymBoxPc-Case.qcad", node: 5180, code: "CutRemovedNothing", why: "the cut is drawn where the base no longer reaches" },
+    Honest { doc: "QymBoxPc-Case.qcad", node: 5495, code: "CutRemovedNothing", why: "the cut is drawn where the wall no longer reaches" },
+    Honest { doc: "QymBoxPc-Case.qcad", node: 5503, code: "CutRemovedNothing", why: "the cut is drawn where the wall no longer reaches" },
+    Honest { doc: "QymBoxPc-Case.qcad", node: 11961, code: "ChamferTooBig", why: "a chamfer of 2 on a face the edit made narrower" },
+    Honest { doc: "QymBoxPc-Case.qcad", node: 11966, code: "ChamferTooBig", why: "a chamfer of 2 on a step the edit made lower" },
+    Honest { doc: "test_bridge_resize_body.qcad", node: 674, code: "OpFailed(ChamferAsym)", why: "a chamfer of 10 on a step 9 high" },
+    Honest { doc: "test_bridge_resize_body.qcad", node: 675, code: "FilletRadiusTooBig", why: "a rounding of R10 where the step left room for 5" },
+    Honest { doc: "test_bridge_resize_body.qcad", node: 676, code: "OpFailed(ChamferAsym)", why: "a chamfer of 10 on a step 9 high" },
+    Honest {
+        doc: "test_bridge_resize_body.qcad",
+        node: 677,
+        code: "EdgesNotFound",
+        why: "the edge between the rounding of R10 and the chamfer exists only while the step 10 high between them is eaten whole; at 11 a strip of the wall stands between them",
+    },
+    Honest { doc: "vacuumCleaner.qcad", node: 251, code: "FilletRadiusTooBig", why: "a rounding of R2 on a rim the parameter ram_w made 1 thick" },
+];
+
+/// Whether `node` red with `code` is a refusal of the list; one that is, is said on the output with its reason.
+fn honest(o: &Opened, node: Id, code: &str) -> bool {
+    let Some(h) = HONEST.iter().find(|h| h.doc == o.doc.name && h.node == node && code.starts_with(h.code)) else { return false };
+    eprintln!("{}: node {node} refuses honestly ({code}): {}", h.doc, h.why);
+    true
+}
+
+/// THE EDGES OF A BLEND FOUND BY NAME: how many of the picked edges of a rounding or a chamfer `node` holds are in its
+/// source body, each asked on its own, the geometric fallback not counted as found. `None` for a node with no picks.
+fn picked_found(p: &Project, node: Id) -> Option<PickedEdges> {
+    use qymcad_core::feature::FeatureKind;
+    let n = p.timeline.iter().find(|n| n.id == node)?;
+    let (src, edges) = match &n.kind {
+        FeatureKind::Fillet { src, edges, .. } | FeatureKind::Chamfer { src, edges, .. } => (*src, edges),
+        _ => return None,
+    };
+    let picked = edges.query.picked_descs();
+    let keep = p.snap_rebinds.load(Ordering::Relaxed);
+    let found = picked
+        .iter()
+        .filter(|d| {
+            let before = p.snap_rebinds.load(Ordering::Relaxed);
+            !p.resolve_edge_ids(node, src, &[**d]).is_empty() && p.snap_rebinds.load(Ordering::Relaxed) == before
+        })
+        .count();
+    p.snap_rebinds.store(keep, Ordering::Relaxed);
+    Some(PickedEdges { asked: picked.len(), found })
+}
+
+/// The picked edges of a blend: how many it holds, how many are found by name.
+struct PickedEdges {
+    asked: usize,
+    found: usize,
+}
+
+/// THE ERRORS AND WARNINGS A REBUILD LEFT that the document did not open with, each said with its node; an honest
+/// refusal of the list (`HONEST`) is not told. A blend that left edges out (`EdgesDropped`) is told by why: the names it
+/// did not find, and the edges the kernel left out, which are a refusal like any other.
 fn new_reds(o: &Opened) -> Vec<String> {
     let p = &o.project;
     let mut out = Vec::new();
@@ -349,11 +418,24 @@ fn new_reds(o: &Opened) -> Vec<String> {
     let fresh: Vec<_> = p.regen_errors.iter().filter(|(n, e)| o.errors.get(n) != Some(e)).collect();
     let rooted = fresh.iter().any(|(_, e)| !matches!(e, CoreError::SourceBodyNotBuilt));
     for (node, e) in fresh.into_iter().filter(|(_, e)| !(rooted && matches!(e, CoreError::SourceBodyNotBuilt))) {
+        let code = format!("{e:?}");
+        if honest(o, *node, &code) {
+            continue;
+        }
         let what = if is_lost_reference(e) { "lost a reference" } else { "went red" };
-        out.push(format!("node {node} {what}: {e:?}"));
+        out.push(format!("node {node} {what}: {code}"));
     }
-    for (node, e) in p.regen_warnings.iter().filter(|(n, e)| o.warnings.get(n) != Some(e) && is_lost_reference(e)) {
-        out.push(format!("node {node} lost a reference: {e:?}"));
+    for (node, e) in p.regen_warnings.iter().filter(|(n, e)| o.warnings.get(n) != Some(e)) {
+        let CoreError::EdgesDropped { dropped, .. } = e else { continue };
+        let picks = picked_found(p, *node).unwrap_or(PickedEdges { asked: 0, found: 0 });
+        let lost = picks.asked - picks.found;
+        if lost > 0 {
+            out.push(format!("node {node} lost {lost} of {} edge references by name", picks.asked));
+        }
+        let left_out = dropped.saturating_sub(lost);
+        if left_out > 0 && !honest(o, *node, "EdgesLeftOut") {
+            out.push(format!("node {node} went yellow: the kernel left {left_out} edges out"));
+        }
     }
     out.sort();
     out
@@ -397,7 +479,7 @@ pub fn edit_and_back(o: &mut Opened, e: &Edit, factor: f64) -> Vec<String> {
     let back = rebuild(o, None);
     let unlike = renamed(Change { was: &base, now: &Marks::of(&o.project) }, &o.project);
     if !back.is_empty() || !unlike.is_empty() {
-        let doc = Doc { name: String::new(), path: o.path.clone() };
+        let doc = o.doc.clone();
         *o = open(&doc);
     }
     out.extend(back.into_iter().map(|f| format!("{says}, undone: {f}")));
