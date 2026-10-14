@@ -32,7 +32,8 @@ pub(crate) fn silent(kernel: &crate::OcctKernel, ask: SilentNaming<'_>) -> Named
     // THE ROLES FIRST: the faces the operation made under numbers awaiting their names take them from the table now,
     // and a piece of such a face is told after the name its whole took
     let roles = kernel.roles.borrow_mut().remove(&body).unwrap_or_default();
-    let landed = land_roles(&roles, names);
+    let held: HashSet<u32> = live.iter().copied().chain(shape.absorbed_names().into_iter().flat_map(|a| [a.loser, a.winner])).chain(shape.face_splits().into_iter().map(|s| s.origin)).collect();
+    let landed = land_roles(&roles, &held, names);
     land(shape, &landed, &mut live);
     let named_as: HashMap<u32, u32> = landed.iter().map(|r| (r.was, r.now)).collect();
     // the names faces merged into one yielded, in the names the roles took: a wall of a tool merged with a face of the
@@ -85,25 +86,19 @@ fn land(shape: &crate::Shape, renames: &[Rename], live: &mut [u32]) {
     }
 }
 
-/// THE ROLES AN OPERATION GAVE, named by the table: the number each was handed under becomes its descriptor - the
-/// named ones first, then those named after the lowest of others (a cap after the walls of its region).
-pub(crate) fn land_roles(roles: &crate::door::Roles, names: &mut dyn NameMint) -> Vec<Rename> {
+/// THE ROLES AN OPERATION GAVE, named by the table: the number each was handed under becomes its descriptor. A name
+/// offered to a face the result may not hold (`RoleRecipe::Spare`) is written only when the result holds its number
+/// (`held`): the caps every wall of several regions offers would otherwise fill the table with names no face wears.
+pub(crate) fn land_roles(roles: &crate::door::Roles, held: &HashSet<u32>, names: &mut dyn NameMint) -> Vec<Rename> {
     use crate::door::RoleRecipe;
-    let mut given: HashMap<u32, u32> = HashMap::new();
     let mut renames: Vec<Rename> = Vec::new();
     for r in &roles.given {
-        if let RoleRecipe::Named(name) = r.recipe {
-            let now = names.intern_face(name);
-            given.insert(r.number, now);
-            renames.push(Rename { was: r.number, now });
-        }
-    }
-    for r in &roles.given {
-        if let RoleRecipe::AfterLowest(after) = &r.recipe {
-            let lowest = after.of.iter().filter_map(|n| given.get(n)).min().copied().unwrap_or(0);
-            let now = names.intern_face(GeoName { feature: after.feature, role: after.role, src: lowest as Id, split: 0 });
-            renames.push(Rename { was: r.number, now });
-        }
+        let name = match r.recipe {
+            RoleRecipe::Named(name) => name,
+            RoleRecipe::Spare(name) if held.contains(&r.number) => name,
+            RoleRecipe::Spare(_) => continue,
+        };
+        renames.push(Rename { was: r.number, now: names.intern_face(name) });
     }
     renames
 }

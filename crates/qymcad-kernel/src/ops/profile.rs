@@ -2,7 +2,7 @@
 //! face after the piece of the sketch entity its edge swept, the caps after the node. The model hands the sources of
 //! the sides (`Sides`); the rule is here.
 
-use crate::door::{AfterLowest, Roles};
+use crate::door::Roles;
 use qymcad_core::feature::Sides;
 use qymcad_core::geom::EDGE_FIELDS;
 use qymcad_core::names::{GeoName, Role};
@@ -17,28 +17,39 @@ pub struct NamedSides {
 
 /// THE SIDES AND CAPS OF A PROFILE OPERATION. A side face is `role` of the node from the source of its edge (`Wall`
 /// for an extrusion, `Revolved`, `Swept`, `Lofted`). One region needs no key: its caps are the start and the end of
-/// the node. Several regions make several bodies, and one cap name for all would be two faces under one name; so the
-/// caps of a region are named after the lowest name among its walls - "profile number k" no longer exists once the
-/// profiles merge into one face, while the set of its edges does - and the C++ side finds the region by the lowest of
-/// the numbers its walls are handed under.
+/// the node. Several regions make several faces, and one cap name for all would be two faces under one name; so the
+/// caps of a region are named after a wall it stands on. The profiles picked merge into faces before the sweep, and a
+/// side two of them share is gone from the face they make; so every wall offers the caps named after itself (`[wall,
+/// start, end]` for each), and the C++ side takes those of the lowest wall the face still has. The walls are numbered in
+/// the order of their recipe - the sketch entity, then the piece - so the lowest wall left is the first by the recipe,
+/// whatever the order the table met the names in; a cap name a face does not take is not written into the table.
 pub fn name_sides(profiles: &[Vec<f64>], sides: Sides<'_>, role: Role) -> NamedSides {
     let mut roles = Roles::default();
-    let numbers: Vec<u32> = sides.sources.iter().map(|s| roles.give(GeoName { feature: sides.feature, role, src: s.src, split: s.split })).collect();
+    let mut order: Vec<usize> = (0..sides.sources.len()).collect();
+    order.sort_by_key(|&k| (sides.sources[k].src, sides.sources[k].split));
+    let mut numbers: Vec<u32> = vec![0; sides.sources.len()];
+    for k in order {
+        let s = sides.sources[k];
+        numbers[k] = roles.give(GeoName { feature: sides.feature, role, src: s.src, split: s.split });
+    }
     let mut rewritten: Vec<Vec<f64>> = profiles.to_vec();
-    let mut regions: Vec<Vec<u32>> = Vec::with_capacity(profiles.len());
+    let mut walls: Vec<u32> = Vec::new();
     for prof in rewritten.iter_mut() {
         let loops = prof.first().copied().unwrap_or(0.0) as usize;
-        regions.push(rename_loops(prof, 1, loops, &numbers));
+        walls.extend(rename_loops(prof, 1, loops, &numbers));
     }
     let mut caps: Vec<u32> = Vec::new();
-    if regions.len() == 1 {
+    if profiles.len() == 1 {
         caps.extend([0, roles.give(GeoName::new(sides.feature, Role::CapStart, 0)), roles.give(GeoName::new(sides.feature, Role::CapEnd, 0))]);
     } else {
-        for walls in regions {
-            let key = walls.iter().copied().min().unwrap_or(0);
-            let start = roles.give_after(AfterLowest { feature: sides.feature, role: Role::CapStart, of: walls.clone() });
-            let end = roles.give_after(AfterLowest { feature: sides.feature, role: Role::CapEnd, of: walls });
-            caps.extend([key, start, end]);
+        walls.sort_unstable();
+        walls.dedup();
+        for wall in walls {
+            let Some(k) = numbers.iter().position(|n| *n == wall) else { continue };
+            let s = sides.sources[k];
+            let start = roles.spare(GeoName { feature: sides.feature, role: Role::CapStart, src: s.src, split: s.split });
+            let end = roles.spare(GeoName { feature: sides.feature, role: Role::CapEnd, src: s.src, split: s.split });
+            caps.extend([wall, start, end]);
         }
     }
     NamedSides { profiles: rewritten, caps, roles }
@@ -154,6 +165,7 @@ pub fn shifted(place: [f64; 12], by: f64) -> [f64; 12] {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::door::RoleRecipe;
     use qymcad_core::feature::SideSource;
 
     /// A loop block of `n` edges whose slots hold `places`.
@@ -183,17 +195,20 @@ mod tests {
         assert_eq!(kept, Reach { start: 0.0, length: 5.0 }, "a tool kept as drawn was moved");
     }
 
-    /// Two regions: each gets caps keyed by the lowest number of its walls, named after the lowest of their names; one
+    /// Two regions: every wall offers the caps named after itself, the walls numbered in the order of their recipe; one
     /// region gets the plain caps of the node.
     #[test]
-    fn caps_of_several_regions_are_keyed_by_their_walls() {
-        let sources = [SideSource { src: 11, split: 0 }, SideSource { src: 12, split: 0 }, SideSource { src: 13, split: 0 }];
+    fn caps_of_several_regions_are_offered_by_every_wall() {
+        let sources = [SideSource { src: 13, split: 0 }, SideSource { src: 11, split: 1 }, SideSource { src: 11, split: 0 }];
         let one = name_sides(&[[vec![1.0], block(&[1, 2])].concat()], Sides { feature: 5, sources: &sources }, Role::Wall);
         assert_eq!(one.caps[0], 0, "one region has no key");
         let two = name_sides(&[[vec![1.0], block(&[1, 2])].concat(), [vec![1.0], block(&[3])].concat()], Sides { feature: 5, sources: &sources }, Role::Wall);
         let walls_of = |p: &Vec<f64>| -> Vec<u32> { (0..p[1] as usize).map(|k| p[2 + k * EDGE_FIELDS + EDGE_FIELDS - 1] as u32).collect() };
-        assert_eq!(two.caps[0], *walls_of(&two.profiles[0]).iter().min().expect("walls"), "the key of a region is not the lowest number of its walls");
-        assert_eq!(two.caps[3], walls_of(&two.profiles[1])[0], "the key of the second region is not its wall");
-        assert_ne!(two.caps[1], two.caps[4], "two regions share a cap");
+        let [first, second] = [&two.profiles[0], &two.profiles[1]].map(walls_of);
+        assert!(second[0] < first[1] && first[1] < first[0], "the walls are not numbered by the recipe (11/0, 11/1, 13/0): {first:?} {second:?}");
+        let keys: Vec<u32> = two.caps.chunks(3).map(|c| c[0]).collect();
+        assert_eq!(keys, vec![second[0], first[1], first[0]], "not every wall offers its caps, in the order of their numbers");
+        let named = |number: u32| two.roles.given.iter().find(|r| r.number == number).map(|r| r.recipe.clone());
+        assert_eq!(named(two.caps[1]), Some(RoleRecipe::Spare(GeoName { feature: 5, role: Role::CapStart, src: 11, split: 0 })), "the cap is not named after its wall");
     }
 }

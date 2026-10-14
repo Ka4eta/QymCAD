@@ -401,12 +401,16 @@ void carry_binding(QymHistory& history, const TopTools_ListOfShape& before, TopA
             const TopoDS_Shape& e = ex.Current();
             if (!bound.IsBound(e) || !seen.Add(e)) continue;
             const int value = bound.Find(e);
+            // the smaller value wins an image two elements share
+            auto give = [&](const TopoDS_Shape& to) {
+                if (!moved.IsBound(to)) moved.Bind(to, value);
+                else if (value < moved.Find(to)) moved.ChangeFind(to) = value;
+            };
             const TopTools_ListOfShape& mod = history.Modified(e);
             if (mod.IsEmpty()) {
-                if (!history.Removed(e) && !moved.IsBound(e)) moved.Bind(e, value);
+                if (!history.Removed(e)) give(e);
             } else {
-                for (TopTools_ListIteratorOfListOfShape it(mod); it.More(); it.Next())
-                    if (!moved.IsBound(it.Value())) moved.Bind(it.Value(), value);
+                for (TopTools_ListIteratorOfListOfShape it(mod); it.More(); it.Next()) give(it.Value());
             }
         }
     }

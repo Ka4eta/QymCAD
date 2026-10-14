@@ -59,22 +59,13 @@ pub struct RoleName {
     pub recipe: RoleRecipe,
 }
 
-/// WHAT A ROLE IS CALLED: a name known when the operation is laid, or a name taken after other roles once they are
-/// named - the cap of one region of several is named after the lowest name among the walls of its region, and that is
-/// a descriptor the table gives only when the result lands.
+/// WHAT A ROLE IS CALLED: a name the result takes whatever it holds, or a name offered to a face the result may not
+/// hold - the caps each wall of several regions offers, of which a face takes those of one wall - and written into the
+/// table only when it does.
 #[derive(Clone, Debug, PartialEq)]
 pub enum RoleRecipe {
     Named(qymcad_core::names::GeoName),
-    AfterLowest(AfterLowest),
-}
-
-/// A NAME AFTER THE LOWEST OF THE NAMES OTHER ROLES TAKE: `role` of `feature`, its source the lowest descriptor the
-/// roles numbered `of` are given (0 when there are none).
-#[derive(Clone, Debug, PartialEq)]
-pub struct AfterLowest {
-    pub feature: Id,
-    pub role: qymcad_core::names::Role,
-    pub of: Vec<u32>,
+    Spare(qymcad_core::names::GeoName),
 }
 
 impl Roles {
@@ -83,9 +74,9 @@ impl Roles {
         self.hand(RoleRecipe::Named(name))
     }
 
-    /// The number a face named after other roles is handed under; those roles are given before it.
-    pub fn give_after(&mut self, after: AfterLowest) -> u32 {
-        self.hand(RoleRecipe::AfterLowest(after))
+    /// The number a name is offered under that the result may not take.
+    pub fn spare(&mut self, name: qymcad_core::names::GeoName) -> u32 {
+        self.hand(RoleRecipe::Spare(name))
     }
 
     fn hand(&mut self, recipe: RoleRecipe) -> u32 {
