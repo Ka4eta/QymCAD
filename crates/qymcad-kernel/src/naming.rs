@@ -45,7 +45,7 @@ pub(crate) fn silent(kernel: &crate::OcctKernel, ask: SilentNaming<'_>) -> Named
         // the record is single-use: cleared before any name is given, so no early return leaves it alive for the next
         // operation to fold into its own group (measured: 26 faces instead of 56, a face pull no longer building)
         shape.clear_face_splits();
-        let renames = pieces(&splits, &shape.edge_face_pairs(), &live, names);
+        let renames = pieces(&splits, &shape.edge_face_pairs(), &live, feature, names);
         land(shape, &renames, &mut live);
     }
     // in waves: a face in a corner has orphans for neighbours, and the faces the first wave names anchor the second
@@ -133,10 +133,13 @@ fn neighbours(pairs: &[EdgeFaces]) -> HashMap<u32, Vec<u32>> {
 }
 
 /// THE PIECES OF A SPLIT FACE, after the face they were cut from. Which piece keeps the name of the whole is told by the
-/// recipe, not by the order of the history, which shifts with any edit above: by the named faces beside it (measured:
-/// with the order, 16 of 36 fillet references landed on the wrong edges). The number of a face is the last separator,
-/// where the recipe is silent.
-pub(crate) fn pieces(splits: &[FaceSplit], pairs: &[EdgeFaces], live: &[u32], names: &mut dyn NameMint) -> Vec<Rename> {
+/// recipe, not by the order of the history, which shifts with any edit above: by what cut it - the faces beside it the
+/// node itself made, the walls of the tool of a cut, the blends of a rounding - and then by the other named faces beside
+/// it, each list in the order of the recipe (`InRecipe`), not of the table. Measured with every neighbour by its
+/// descriptor: an edit above took a rounding of an older node away from one of two pieces of a wall, and the piece that
+/// did not move gave its name to the other (16 of 36 fillet references once landed on the wrong edges with the order of
+/// the history). The number of a face is the last separator, where the recipe is silent.
+pub(crate) fn pieces(splits: &[FaceSplit], pairs: &[EdgeFaces], live: &[u32], feature: Id, names: &mut dyn NameMint) -> Vec<Rename> {
     let nb = neighbours(pairs);
     let live: HashSet<u32> = live.iter().copied().collect();
     // in the order of the originals, not of a hash: a step back takes the names it gave away and a step forward gives
@@ -152,11 +155,22 @@ pub(crate) fn pieces(splits: &[FaceSplit], pairs: &[EdgeFaces], live: &[u32], na
             members.push(origin); // the piece holding the name of the whole takes part in the split too
         }
         let own: HashSet<u32> = members.iter().copied().collect();
-        let key = |f: u32| -> Vec<u32> {
-            let mut v: Vec<u32> = nb.get(&f).map(|ns| ns.iter().copied().filter(|n| names.knows(*n) && !own.contains(n)).collect()).unwrap_or_default();
-            v.sort_unstable();
-            v.dedup();
-            v
+        let key = |f: u32| -> PieceKey {
+            let mut key = PieceKey::default();
+            for n in nb.get(&f).into_iter().flatten().filter(|n| !own.contains(n)) {
+                let Some(g) = names.face(*n) else { continue };
+                let at = InRecipe { feature: g.feature, role: g.role as u8, src: g.src, split: g.split };
+                if g.feature == feature {
+                    key.cut_by.push(at)
+                } else {
+                    key.beside.push(at)
+                }
+            }
+            for list in [&mut key.cut_by, &mut key.beside] {
+                list.sort_unstable();
+                list.dedup();
+            }
+            key
         };
         members.sort_by(|a, b| key(*a).cmp(&key(*b)).then(a.cmp(b)));
         for (k, f) in members.iter().enumerate() {
@@ -179,6 +193,22 @@ pub(crate) fn pieces(splits: &[FaceSplit], pairs: &[EdgeFaces], live: &[u32], na
         }
     }
     renames
+}
+
+/// WHAT TELLS A PIECE OF A SPLIT FACE: the faces the node made beside it, then the other named faces beside it.
+#[derive(Default, PartialEq, Eq, PartialOrd, Ord)]
+struct PieceKey {
+    cut_by: Vec<InRecipe>,
+    beside: Vec<InRecipe>,
+}
+
+/// A NAME IN THE ORDER OF ITS RECIPE: the node, the role, the source, the piece - not the place the table holds it at.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct InRecipe {
+    feature: Id,
+    role: u8,
+    src: Id,
+    split: u16,
 }
 
 /// ONE WAVE OF SEAMS: an orphan with a named neighbour is named after the smallest of them, its number among the orphans
