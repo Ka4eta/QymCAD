@@ -5,6 +5,7 @@ pub(crate) use qymcad_ui_state::ensure_brep;
 #[allow(unused_imports)] // used by the checks through this module, which is the address they know
 pub(crate) use qymcad_ui_state::regenerate_now;
 use super::*;
+use qymcad_kernel::worker;
 use crate::gui::export_folder::{export_folder, project_folder, remember_export};
 use crate::gui::file_ask::Question;
 
@@ -82,7 +83,7 @@ impl App {
     pub(super) fn spawn_import_shapes(&mut self, regen: bool) {
         let project = self.project.clone();
         let (tx, rx) = std::sync::mpsc::channel();
-        std::thread::spawn(move || {
+        worker(move || {
             let shapes = restore_import_shapes_for(&project);
             let _ = tx.send(JobResult::ImportShapes { shapes, regen });
         });
@@ -318,7 +319,7 @@ impl App {
         let (tx, rx) = std::sync::mpsc::channel();
         let pulse = std::sync::Arc::new(qymcad_ui_state::RegenPulse { stamp, ..Default::default() });
         let watch = pulse.clone();
-        std::thread::spawn(move || rebuild_in_worker(proj, shapes, quality_k, watch, stamp, tx));
+        worker(move || rebuild_in_worker(proj, shapes, quality_k, watch, stamp, tx));
         // WHAT EXACTLY IS BEING REBUILT IS ASKED IN ADVANCE, and how to announce it depends on the answer.
         //
         // Reported: a cut in a single part pops up a modal window and makes you wait. A modal window over a
@@ -824,7 +825,7 @@ pub(crate) fn write_mesh_to(ed: qymcad_ui_state::Editing, live: &mut LiveGeom, p
     let tree = job.tree.clone();
     let p = path.to_string_lossy().into_owned();
     let (tx, rx) = std::sync::mpsc::channel();
-    std::thread::spawn(move || {
+    worker(move || {
         // A PANIC IN THE EXPORT DOES NOT TAKE THE LIVE B-rep WITH IT, as a rebuild's does not (`rebuild_in_worker`): the
         // bodies came into this thread from the cache and go back only in the result, so the work that may panic is
         // caught and the shapes are sent home whatever came of it. Unwind-safe as asserted: after a panic only `moved`
@@ -1051,7 +1052,7 @@ pub(crate) fn write_exact_to(live: &mut LiveGeom, project: &mut Project, regen: 
     let note = note.to_string();
     let tree = job.tree.clone();
     let (tx, rx) = std::sync::mpsc::channel();
-    std::thread::spawn(move || {
+    worker(move || {
         // A PANIC IN THE EXPORT DOES NOT TAKE THE LIVE B-rep WITH IT: caught as in `write_mesh_to`, the shapes sent home
         // whatever came of the write.
         let status = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {

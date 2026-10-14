@@ -12,6 +12,7 @@ pub mod imports;
 #[cfg(test)]
 mod inside;
 pub mod kernel;
+mod workers;
 mod naming;
 pub mod ops;
 pub mod recognise;
@@ -20,4 +21,5 @@ mod shape;
 pub mod specimen;
 pub use recognise::{recognise, Recognised};
 pub use kernel::{kernel_gate, OcctKernel};
+pub use workers::{wait_for_workers, worker};
 pub use shape::*;

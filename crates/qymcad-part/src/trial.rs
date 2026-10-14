@@ -70,7 +70,7 @@ pub fn trial_refusal(pc: &mut PartCtx, ctx: &egui::Context) -> Trial {
     let job = gather(pc);
     let answer: Arc<Mutex<Option<qymcad_ui_state::TrialAnswer>>> = Arc::new(Mutex::new(None));
     let out = answer.clone();
-    std::thread::spawn(move || {
+    qymcad_kernel::worker(move || {
         // a trial names no field: the command's first one says it
         let (words, faces) = run_trial(job);
         let verdict = words.map_or(Trial::Clear, |w| Trial::Refused(first, w));

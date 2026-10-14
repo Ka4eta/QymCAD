@@ -3057,7 +3057,7 @@ pub(super) fn open_exact(regen: &mut Rebuilding, path: String, format: qymcad_ke
     let name = exact_entry(format).name();
     let (tx, rx) = std::sync::mpsc::channel();
     let p = path.clone();
-    std::thread::spawn(move || {
+    qymcad_kernel::worker(move || {
         // ONE READING for both the bodies shown and the live solids: reading the file twice cost the whole wait twice
         let res = match qymcad_kernel::read_exact_tree(format, &p, 0.5) {
             Ok(qymcad_kernel::ExactTree { bodies, shapes, nodes }) if !bodies.is_empty() => JobResult::ExactImported { path: p, format, bodies, shapes, nodes },
@@ -4094,6 +4094,7 @@ mod modal_barrier;
 mod open_keeps_brep;
 mod regen_live_view;
 mod the_program_ends_during_a_rebuild;
+mod the_program_ends_during_a_trial;
 mod recognise_then_delete;
 mod extrude_arrow_mouse;
 mod angle_dim_drag;
