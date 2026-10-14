@@ -258,7 +258,65 @@ fn the_language_setting_survives_a_restart_and_is_applied() {
     );
     // THE SETTINGS RECORD LIVES IN `state.rs` NOW, not beside the application. The rule is unchanged - the
     // language is a field of the settings, and so travels with them into the file - only the address is.
-    assert!(crate::gui::render_source::has(include_str!("../../../qymcad-ui-state/src/lib.rs"), "language: String"), "the language must live in the settings (and so be saved)");
+    assert!(
+        crate::gui::render_source::has(
+            concat!(
+                include_str!("../../../qymcad-ui-state/src/contexts.rs"),
+                "\n",
+                include_str!("../../../qymcad-ui-state/src/corners.rs"),
+                "\n",
+                include_str!("../../../qymcad-ui-state/src/dims.rs"),
+                "\n",
+                include_str!("../../../qymcad-ui-state/src/edits.rs"),
+                "\n",
+                include_str!("../../../qymcad-ui-state/src/fields.rs"),
+                "\n",
+                include_str!("../../../qymcad-ui-state/src/fonts.rs"),
+                "\n",
+                include_str!("../../../qymcad-ui-state/src/geom.rs"),
+                "\n",
+                include_str!("../../../qymcad-ui-state/src/gizmos.rs"),
+                "\n",
+                include_str!("../../../qymcad-ui-state/src/handles.rs"),
+                "\n",
+                include_str!("../../../qymcad-ui-state/src/hotkeys.rs"),
+                "\n",
+                include_str!("../../../qymcad-ui-state/src/jobs.rs"),
+                "\n",
+                include_str!("../../../qymcad-ui-state/src/joints.rs"),
+                "\n",
+                include_str!("../../../qymcad-ui-state/src/navigation.rs"),
+                "\n",
+                include_str!("../../../qymcad-ui-state/src/painting.rs"),
+                "\n",
+                include_str!("../../../qymcad-ui-state/src/rebuild.rs"),
+                "\n",
+                include_str!("../../../qymcad-ui-state/src/records.rs"),
+                "\n",
+                include_str!("../../../qymcad-ui-state/src/scene.rs"),
+                "\n",
+                include_str!("../../../qymcad-ui-state/src/section.rs"),
+                "\n",
+                include_str!("../../../qymcad-ui-state/src/selection.rs"),
+                "\n",
+                include_str!("../../../qymcad-ui-state/src/settings.rs"),
+                "\n",
+                include_str!("../../../qymcad-ui-state/src/sketch_diag.rs"),
+                "\n",
+                include_str!("../../../qymcad-ui-state/src/sketch_edit.rs"),
+                "\n",
+                include_str!("../../../qymcad-ui-state/src/text.rs"),
+                "\n",
+                include_str!("../../../qymcad-ui-state/src/tool_steps.rs"),
+                "\n",
+                include_str!("../../../qymcad-ui-state/src/tree.rs"),
+                "\n",
+                include_str!("../../../qymcad-ui-state/src/lib.rs")
+            ),
+            "language: String"
+        ),
+        "the language must live in the settings (and so be saved)"
+    );
 
     // an empty setting means "nothing was chosen", so the system decides rather than a silent English
     let mut app = crate::gui::App::default();
