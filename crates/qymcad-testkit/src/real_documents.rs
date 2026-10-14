@@ -390,7 +390,9 @@ fn picked_found(p: &Project, node: Id) -> Option<PickedEdges> {
         _ => return None,
     };
     let picked = edges.query.picked_descs();
+    // asking leaves no trace: neither the count of finds by place nor the steps the next rebuild would mark
     let keep = p.snap_rebinds.load(Ordering::Relaxed);
+    let marked = p.placed_now.lock().map(|s| s.clone()).unwrap_or_default();
     let found = picked
         .iter()
         .filter(|d| {
@@ -399,6 +401,9 @@ fn picked_found(p: &Project, node: Id) -> Option<PickedEdges> {
         })
         .count();
     p.snap_rebinds.store(keep, Ordering::Relaxed);
+    if let Ok(mut now) = p.placed_now.lock() {
+        *now = marked;
+    }
     Some(PickedEdges { asked: picked.len(), found })
 }
 

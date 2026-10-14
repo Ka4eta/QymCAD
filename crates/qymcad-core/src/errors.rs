@@ -277,6 +277,9 @@ pub enum CoreError {
     ThreadNotItsSize { face: f64, nominal: f64 },
     /// A WARNING, not a failure: the blend was built, but `dropped` of the `asked` edges could not be taken.
     EdgesDropped { asked: usize, dropped: usize },
+    /// A WARNING, not a failure: a reference of the step was found by place, not by name, and the person has not yet
+    /// said the right element was taken.
+    RefFoundByPlace,
     /// A body brought in from a file failed the checks of the door and could not be repaired: it is kept as it came.
     ImportKeptAsItCame,
     /// A shell cannot be built on this body: offsetting the faces fails inside the kernel, which raises an
@@ -469,6 +472,7 @@ impl CoreError {
             TooManyStarts { .. } => "error-too-many-starts".into(),
             ThreadNotItsSize { .. } => "error-thread-not-its-size".into(),
             EdgesDropped { .. } => "warn-edges-dropped".into(),
+            RefFoundByPlace => "warn-ref-found-by-place".into(),
             ImportKeptAsItCame => "warn-import-kept-as-it-came".into(),
             PushFaceOnSheet => "error-push-face-on-sheet".into(),
             NeedsSolidNotSheet => "error-needs-solid-not-sheet".into(),
@@ -592,6 +596,7 @@ impl std::fmt::Display for CoreError {
             TooManyStarts { starts, limit } => write!(f, "{starts} starts is too many (at most {limit})"),
             ThreadNotItsSize { face, nominal } => write!(f, "a thread of {nominal:.2} does not fit a face of {face:.2}"),
             EdgesDropped { asked, dropped } => write!(f, "{dropped} of the {asked} edges could not be taken"),
+            RefFoundByPlace => write!(f, "a reference was found by place, not by name"),
             ImportKeptAsItCame => write!(f, "the body brought in failed the checks and is kept as it came"),
             PushFaceOnSheet => write!(f, "push face on a sheet"),
             NeedsSolidNotSheet => write!(f, "solid tool on a sheet"),

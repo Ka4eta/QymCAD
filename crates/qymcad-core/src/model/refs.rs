@@ -61,7 +61,44 @@ impl Project {
                 }
             }
             report.rebinds.push(Rebind { node: sid, body, what });
+            self.note_found_by_place(sid);
         }
+    }
+
+    /// Say that a reference of step `node` was found by place: the rebuild marks the step when it ends.
+    pub(crate) fn note_found_by_place(&self, node: Id) {
+        if let Ok(mut now) = self.placed_now.lock() {
+            now.insert(node);
+        }
+    }
+
+    /// THE STEPS FOUND BY PLACE IN THIS REBUILD JOIN THOSE AWAITING THE PERSON, and each of those standing in the
+    /// timeline built, with nothing else to say, is yellow with the words (`CoreError::RefFoundByPlace`).
+    pub(crate) fn mark_found_by_place(&mut self) {
+        let now: Vec<Id> = self.placed_now.lock().map(|mut s| std::mem::take(&mut *s).into_iter().collect()).unwrap_or_default();
+        self.placed_refs.extend(now);
+        let live: std::collections::HashSet<Id> = self.timeline.iter().map(|n| n.id).collect();
+        self.placed_refs.retain(|n| live.contains(n));
+        for n in &self.placed_refs {
+            if !self.regen_errors.contains_key(n) && !self.regen_warnings.contains_key(n) {
+                self.regen_warnings.insert(*n, crate::errors::CoreError::RefFoundByPlace);
+            }
+        }
+    }
+
+    /// WHAT STEP `node` WARNS OF: what its last rebuild left it saying, or - in a document opened and not yet rebuilt -
+    /// that a reference of it was found by place and awaits the person.
+    pub fn node_warning(&self, node: Id) -> Option<crate::errors::CoreError> {
+        self.regen_warnings.get(&node).cloned().or_else(|| self.placed_refs.contains(&node).then_some(crate::errors::CoreError::RefFoundByPlace))
+    }
+
+    /// THE PERSON ACCEPTS what was found by place for step `node`: the mark goes, the reference stays as it was found.
+    /// Answers whether there was a mark.
+    pub fn accept_found_by_place(&mut self, node: Id) -> bool {
+        if matches!(self.regen_warnings.get(&node), Some(crate::errors::CoreError::RefFoundByPlace)) {
+            self.regen_warnings.remove(&node);
+        }
+        self.placed_refs.remove(&node)
     }
 
     /// Every face of a body as reference resolution sees it: the pool a query is evaluated against.
@@ -307,6 +344,7 @@ impl Project {
         let hit = best.0 < PLACE_EXACT && second >= PLACE_EXACT;
         if hit {
             self.snap_rebinds.fetch_add(1, std::sync::atomic::Ordering::Relaxed); // The fallback fired.
+            self.note_found_by_place(fid);
             if std::env::var("QYM_SNAP_DEBUG").is_ok() {
                 eprintln!("face fallback: feature {fid}, reference {stored} = {} -> {} = {}", self.names.describe(stored), best.1, self.names.describe(best.1));
             }
@@ -491,6 +529,7 @@ impl Project {
                     let second = scored.get(1).map(|x| x.0).unwrap_or(f64::MAX);
                     if best < PLACE_EXACT && second >= PLACE_EXACT && !out.contains(&bid) {
                         self.snap_rebinds.fetch_add(1, std::sync::atomic::Ordering::Relaxed); // The fallback fired.
+                        self.note_found_by_place(fid);
                         if std::env::var("QYM_SNAP_DEBUG").is_ok() {
                             eprintln!("edge fallback: feature {fid}, reference {} = {} -> {bid} = {}", eid, self.names.describe(eid), self.names.describe(bid));
                         }

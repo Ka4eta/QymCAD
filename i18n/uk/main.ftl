@@ -1069,6 +1069,7 @@ comp-grounded-hint = Зафіксований у збірці; з'єднання
 j-group-grounded = Деталь у групі із закріпленою й залишається на місці
 comp-external-refs = Зовнішні посилання
 cmdname-break-ref = Розірвати зв'язок
+cmdname-accept-place = Прийняти посилання
 comp-break-ref-hint = Розірвати зв'язок: геометрія завмре зліпком, редагування сусідньої деталі перестане її вести
 dax-two-points = Через 2 точки
 dax-need-points = потрібні >=2 датум-точки (створіть точки)
@@ -1741,6 +1742,8 @@ tree-group-name = Підзбірка
 tree-contours-toggle = Контури ескізів
 props-edit = Редагувати
 props-delete = Видалити
+props-accept-place = Прийняти
+props-accept-place-hint = Посилання залишається таким, як знайдено, і крок більше не позначено
 props-contour = Контур
 props-delete-contour = Видалити контур
 props-pick-other-face = Вибрати іншу грань

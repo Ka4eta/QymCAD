@@ -543,5 +543,7 @@ pub fn update_feat(pc: &mut qymcad_ui_state::PartCtx, fid: Id) -> Option<Id> {
         }
         _ => {}
     }
+    // the step opened and applied again is the person's word on what it takes: a mark of a reference found by place goes
+    pc.project.accept_found_by_place(fid);
     Some(fid)
 }

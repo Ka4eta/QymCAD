@@ -692,6 +692,17 @@ pub(crate) fn feature_props(pr: &mut qymcad_ui_state::PropsCtx, ui: &mut egui::U
     if pr.project.rollback.is_some_and(|r| r <= ti) {
         ui.label(egui::RichText::new(crate::i18n::tr("fp-below-rollback")).weak().small());
     }
+    // A REFERENCE FOUND BY PLACE, not by name: said in yellow, with the one button that accepts what was found
+    if pr.project.placed_refs.contains(&fid) {
+        ui.separator();
+        let text = crate::gui::error_words::error_text(&qymcad_core::errors::CoreError::RefFoundByPlace);
+        ui.label(egui::RichText::new(format!("{} {text}", ph::LINK_BREAK)).color(pr.scheme.pal.warning()).small());
+        if ui.button(format!("{} {}", ph::CHECK, crate::i18n::tr("props-accept-place"))).on_hover_text(crate::i18n::tr("props-accept-place-hint")).clicked() {
+            qymcad_ui_state::begin_edit(pr.edits, pr.project, crate::i18n::tr("cmdname-accept-place")); // THE BOUNDARY OF AN OPERATION
+            pr.project.accept_found_by_place(fid);
+            qymcad_ui_state::commit_edit(&mut pr.rebuild());
+        }
+    }
 
     ui.separator();
     ui.horizontal(|ui| {
