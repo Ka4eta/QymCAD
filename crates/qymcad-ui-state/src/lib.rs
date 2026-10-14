@@ -2992,6 +2992,25 @@ pub struct Busy {
     pub kind: BgKind,
 }
 
+/// HOW LONG A REBUILD LEFT RUNNING IS WAITED FOR when its job is dropped: as long as the end of the program waits for a
+/// rebuild (`wait_bg`).
+const DROPPED_REBUILD_WAIT: std::time::Duration = std::time::Duration::from_secs(120);
+
+/// A REBUILD LEFT RUNNING IS STOPPED AND WAITED FOR when its job is dropped - at the end of the program, or of a check -
+/// so the process never ends with a thread inside OCCT: the static destructors of OCCT, some made lazily during the work
+/// and so destroyed before any handler of the end runs, then pulled its pool and its allocator from under the rebuild.
+/// Its result comes back and is dropped here, the shapes in it freed on this thread. A job whose result was taken has a
+/// worker gone or going: the channel is closed and nothing is waited for. A rebuild is started only when no job is in
+/// hand, so no job is dropped while the window works. Reported behaviour: of 40 programs ended during a rebuild, 5 hung
+/// and 1 ended with SIGABRT.
+impl Drop for Busy {
+    fn drop(&mut self) {
+        let Some(pulse) = &self.pulse else { return };
+        pulse.stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        let _ = self.rx.recv_timeout(DROPPED_REBUILD_WAIT);
+    }
+}
+
 /// The sketch's diagnostics in one piece: the degrees of freedom and the redundancy, the free points, THE ARGUING
 /// SET of constraints and the redundant ones. Computed in a single pass in `sketch_diag`.
 /// The diagnostics of one sketch and what they were computed for.

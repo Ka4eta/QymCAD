@@ -2507,7 +2507,7 @@ mod sketch_plane_pick_frames_tests {
     //! rebuild window flickered back and forth leaving nothing possible to do. What runs here is A REAL frame
     //! loop: the plane pick calls `refresh_edges` every frame while the scheduler starts the deferred rebuild and
     //! takes its result. How many rebuilds start over 12 frames is counted: the right answer is ONE.
-    use super::{App, BgKind, Busy, JobResult, Picking, Sel};
+    use super::{App, BgKind, JobResult, Picking, Sel};
 
     /// One frame of the scheduler: if a rebuild was requested and the queue is free, start it and wait.
     /// This is what `tick_async` does in a live window, only without egui.
@@ -2518,8 +2518,8 @@ mod sketch_plane_pick_frames_tests {
             app.spawn_regen();
             *regens += 1;
         }
-        if let Some(Busy { rx, kind: BgKind::Regen, .. }) = app.regen.busy.take() {
-            match rx.recv().expect("the rebuild thread reported back") {
+        if let Some(busy) = app.regen.busy.take().filter(|b| b.kind == BgKind::Regen) {
+            match busy.rx.recv().expect("the rebuild thread reported back") {
                 JobResult::Regenerated { stamp, project, shapes, built, errors, cancelled } => app.finish_regen_checked(stamp, *project, shapes, built, errors, cancelled),
                 _ => panic!("a rebuild result was expected"),
             }

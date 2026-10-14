@@ -4093,6 +4093,7 @@ mod long_values;
 mod modal_barrier;
 mod open_keeps_brep;
 mod regen_live_view;
+mod the_program_ends_during_a_rebuild;
 mod recognise_then_delete;
 mod extrude_arrow_mouse;
 mod angle_dim_drag;
