@@ -27,7 +27,28 @@
 mod tests {
     /// The panels that put requests: the same list the source-reading guards use.
     const PANELS: [(&str, &str); 7] = [
-        ("Part", include_str!("../../../qymcad-part/src/lib.rs")),
+        (
+            "Part",
+            concat!(
+                include_str!("../../../qymcad-part/src/apply.rs"),
+                "\n",
+                include_str!("../../../qymcad-part/src/bars.rs"),
+                "\n",
+                include_str!("../../../qymcad-part/src/params.rs"),
+                "\n",
+                include_str!("../../../qymcad-part/src/picks.rs"),
+                "\n",
+                include_str!("../../../qymcad-part/src/popups.rs"),
+                "\n",
+                include_str!("../../../qymcad-part/src/reopen.rs"),
+                "\n",
+                include_str!("../../../qymcad-part/src/start.rs"),
+                "\n",
+                include_str!("../../../qymcad-part/src/topology.rs"),
+                "\n",
+                include_str!("../../../qymcad-part/src/lib.rs")
+            ),
+        ),
         ("Sketch", include_str!("../../../qymcad-sketch/src/lib.rs")),
         ("Assembly", include_str!("../../../qymcad-assembly/src/lib.rs")),
         ("bars", include_str!("panels_bars.rs")),
@@ -104,7 +125,25 @@ mod tests {
             include_str!("../../../qymcad-ui-state/src/lib.rs")
         ),
         include_str!("../../../qymcad-sketch/src/lib.rs"),
-        include_str!("../../../qymcad-part/src/lib.rs"),
+        concat!(
+            include_str!("../../../qymcad-part/src/apply.rs"),
+            "\n",
+            include_str!("../../../qymcad-part/src/bars.rs"),
+            "\n",
+            include_str!("../../../qymcad-part/src/params.rs"),
+            "\n",
+            include_str!("../../../qymcad-part/src/picks.rs"),
+            "\n",
+            include_str!("../../../qymcad-part/src/popups.rs"),
+            "\n",
+            include_str!("../../../qymcad-part/src/reopen.rs"),
+            "\n",
+            include_str!("../../../qymcad-part/src/start.rs"),
+            "\n",
+            include_str!("../../../qymcad-part/src/topology.rs"),
+            "\n",
+            include_str!("../../../qymcad-part/src/lib.rs")
+        ),
         include_str!("../../../qymcad-assembly/src/lib.rs"),
     ];
 

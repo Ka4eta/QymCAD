@@ -23,4 +23,28 @@ pub(crate) const PICK: &str = concat!(include_str!("../../../qymcad-pick/src/lib
 
 /// The Part, whole: the workbench crate plus what stayed with the application.
 #[cfg(test)]
-pub(crate) const PART: &str = concat!(include_str!("../../../qymcad-part/src/lib.rs"), "\n", include_str!("commands.rs"), "\n", include_str!("panels_bars.rs"),);
+pub(crate) const PART: &str = concat!(
+    concat!(
+        include_str!("../../../qymcad-part/src/apply.rs"),
+        "\n",
+        include_str!("../../../qymcad-part/src/bars.rs"),
+        "\n",
+        include_str!("../../../qymcad-part/src/params.rs"),
+        "\n",
+        include_str!("../../../qymcad-part/src/picks.rs"),
+        "\n",
+        include_str!("../../../qymcad-part/src/popups.rs"),
+        "\n",
+        include_str!("../../../qymcad-part/src/reopen.rs"),
+        "\n",
+        include_str!("../../../qymcad-part/src/start.rs"),
+        "\n",
+        include_str!("../../../qymcad-part/src/topology.rs"),
+        "\n",
+        include_str!("../../../qymcad-part/src/lib.rs")
+    ),
+    "\n",
+    include_str!("commands.rs"),
+    "\n",
+    include_str!("panels_bars.rs"),
+);

@@ -11,7 +11,25 @@
 /// The whole of the panels, in the order the file used to have them.
 #[cfg(test)]
 pub(crate) const PANELS: &str = concat!(
-    include_str!("../../../qymcad-part/src/lib.rs"),
+    concat!(
+        include_str!("../../../qymcad-part/src/apply.rs"),
+        "\n",
+        include_str!("../../../qymcad-part/src/bars.rs"),
+        "\n",
+        include_str!("../../../qymcad-part/src/params.rs"),
+        "\n",
+        include_str!("../../../qymcad-part/src/picks.rs"),
+        "\n",
+        include_str!("../../../qymcad-part/src/popups.rs"),
+        "\n",
+        include_str!("../../../qymcad-part/src/reopen.rs"),
+        "\n",
+        include_str!("../../../qymcad-part/src/start.rs"),
+        "\n",
+        include_str!("../../../qymcad-part/src/topology.rs"),
+        "\n",
+        include_str!("../../../qymcad-part/src/lib.rs")
+    ),
     "\n",
     include_str!("../../../qymcad-sketch/src/lib.rs"),
     "\n",
@@ -83,7 +101,25 @@ pub(crate) const WINDOWS: &str = concat!(
 /// without being a panel - the start screen, the command search and the menu that raises them.
 #[cfg(test)]
 const WINDOW_OPENERS: &str = concat!(
-    include_str!("../../../qymcad-part/src/lib.rs"),
+    concat!(
+        include_str!("../../../qymcad-part/src/apply.rs"),
+        "\n",
+        include_str!("../../../qymcad-part/src/bars.rs"),
+        "\n",
+        include_str!("../../../qymcad-part/src/params.rs"),
+        "\n",
+        include_str!("../../../qymcad-part/src/picks.rs"),
+        "\n",
+        include_str!("../../../qymcad-part/src/popups.rs"),
+        "\n",
+        include_str!("../../../qymcad-part/src/reopen.rs"),
+        "\n",
+        include_str!("../../../qymcad-part/src/start.rs"),
+        "\n",
+        include_str!("../../../qymcad-part/src/topology.rs"),
+        "\n",
+        include_str!("../../../qymcad-part/src/lib.rs")
+    ),
     "\n",
     include_str!("panels_bars.rs"),
     "\n",
@@ -104,7 +140,25 @@ const WINDOW_OPENERS: &str = concat!(
 /// deliberately absent - there `self.viewing.mode_3d = true` is correct, and it is the contexts that are being checked.
 #[cfg(test)]
 const CTX_USERS: &str = concat!(
-    include_str!("../../../qymcad-part/src/lib.rs"),
+    concat!(
+        include_str!("../../../qymcad-part/src/apply.rs"),
+        "\n",
+        include_str!("../../../qymcad-part/src/bars.rs"),
+        "\n",
+        include_str!("../../../qymcad-part/src/params.rs"),
+        "\n",
+        include_str!("../../../qymcad-part/src/picks.rs"),
+        "\n",
+        include_str!("../../../qymcad-part/src/popups.rs"),
+        "\n",
+        include_str!("../../../qymcad-part/src/reopen.rs"),
+        "\n",
+        include_str!("../../../qymcad-part/src/start.rs"),
+        "\n",
+        include_str!("../../../qymcad-part/src/topology.rs"),
+        "\n",
+        include_str!("../../../qymcad-part/src/lib.rs")
+    ),
     "\n",
     include_str!("../../../qymcad-sketch/src/lib.rs"),
     "\n",

@@ -170,7 +170,25 @@ mod tests {
 
         // AND BOTH PLACES ASK THROUGH IT. Read out of the source: a copy of "family, or else a word" in one
         // of them drifts from the other, and both answer the same question.
-        let bar = include_str!("../../../qymcad-part/src/lib.rs");
+        let bar = concat!(
+            include_str!("../../../qymcad-part/src/apply.rs"),
+            "\n",
+            include_str!("../../../qymcad-part/src/bars.rs"),
+            "\n",
+            include_str!("../../../qymcad-part/src/params.rs"),
+            "\n",
+            include_str!("../../../qymcad-part/src/picks.rs"),
+            "\n",
+            include_str!("../../../qymcad-part/src/popups.rs"),
+            "\n",
+            include_str!("../../../qymcad-part/src/reopen.rs"),
+            "\n",
+            include_str!("../../../qymcad-part/src/start.rs"),
+            "\n",
+            include_str!("../../../qymcad-part/src/topology.rs"),
+            "\n",
+            include_str!("../../../qymcad-part/src/lib.rs")
+        );
         let state = concat!(
             include_str!("../../../qymcad-ui-state/src/contexts.rs"),
             "\n",
