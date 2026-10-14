@@ -391,10 +391,8 @@ impl Project {
     /// Like `resolve_edge_ids`, but against an explicit list of current edges: regenerate has fresh ones
     /// from the kernel, while `regen_edges` may be empty or stale in the middle of a pass.
     ///
-    /// The repair metric is the distance from the old midpoint to the candidate segment, not midpoint to
-    /// midpoint. A merged collinear edge (produced by seam stitching) contains the old midpoint, giving an
-    /// unambiguous match, whereas midpoint-to-midpoint drifts by half the merge length and the edge drops
-    /// out.
+    /// The place is the middle of the edge and its direction, both as the reference saw them. An edge merged with a
+    /// collinear neighbour is found through the record of the merge before the place is asked.
     pub fn resolve_edge_ids_in(&self, es: &[crate::geom::MeshEdge], fid: Id, stored: &[u32]) -> Vec<u32> {
         if es.is_empty() {
             return stored.to_vec();
@@ -506,22 +504,14 @@ impl Project {
                 continue;
             }
             if let Some(&ElemSnapshot { at: mid, dir, .. }) = snaps.and_then(|v| v.iter().find(|s| s.id == eid)) {
-                let seg_dist = |e: &crate::geom::MeshEdge| -> f64 {
-                    let (a, b) = (e.a, e.b);
-                    let v = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
-                    let l2 = v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
-                    if l2 < 1e-18 {
-                        return ((e.mid[0] - mid[0]).powi(2) + (e.mid[1] - mid[1]).powi(2) + (e.mid[2] - mid[2]).powi(2)).sqrt();
-                    }
-                    let t = (((mid[0] - a[0]) * v[0] + (mid[1] - a[1]) * v[1] + (mid[2] - a[2]) * v[2]) / l2).clamp(0.0, 1.0);
-                    let p = [a[0] + v[0] * t, a[1] + v[1] * t, a[2] + v[2] * t];
-                    ((p[0] - mid[0]).powi(2) + (p[1] - mid[1]).powi(2) + (p[2] - mid[2]).powi(2)).sqrt()
-                };
+                // the middle where the reference saw it: an edge on the same line that only runs through that point is
+                // another edge (measured: the boundary of a rounding beside the edge, along the same line)
+                let off = |e: &crate::geom::MeshEdge| ((e.mid[0] - mid[0]).powi(2) + (e.mid[1] - mid[1]).powi(2) + (e.mid[2] - mid[2]).powi(2)).sqrt();
                 let mut scored: Vec<(f64, u32)> = es
                     .iter()
                     .map(|e| {
                         let dot = (e.dir[0] * dir[0] + e.dir[1] * dir[1] + e.dir[2] * dir[2]).abs().min(1.0);
-                        (seg_dist(e) + (1.0 - dot) * 10.0, e.id)
+                        (off(e) + (1.0 - dot) * 10.0, e.id)
                     })
                     .collect();
                 scored.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
@@ -569,5 +559,22 @@ mod tests {
         let before = p.snap_rebinds.load(std::sync::atomic::Ordering::Relaxed);
         assert_eq!(p.resolve_face_id(node, src, gone), Some(near), "the face standing exactly where the reference saw it was not taken");
         assert_eq!(p.snap_rebinds.load(std::sync::atomic::Ordering::Relaxed), before + 1, "a face found by place is not counted");
+    }
+
+    /// AN EDGE FOUND BY PLACE STANDS WHERE THE REFERENCE SAW ITS MIDDLE: an edge on the same line that only runs through
+    /// that point - the boundary of a rounding beside it - is another edge and is not taken.
+    #[test]
+    fn an_edge_on_the_same_line_through_the_old_middle_is_not_the_lost_edge() {
+        let mut p = Project::default();
+        let node = 2;
+        let pair = [7, 8].map(|k| p.names.intern_face(GeoName::new(9, Role::Wall, k)));
+        let gone = p.names.intern_edge(crate::names::EdgeName::new(pair[0], pair[1], 0));
+        let other = p.names.intern_edge(crate::names::EdgeName::new(pair[0], pair[1] + 5, 0));
+        let edge = |id: u32, a: f64, b: f64| crate::geom::MeshEdge { id, mid: [(a + b) / 2.0, 0.0, 0.0], dir: [1.0, 0.0, 0.0], a: [a, 0.0, 0.0], b: [b, 0.0, 0.0], ..Default::default() };
+        p.edge_refs.insert(node, vec![ElemSnapshot { id: gone, at: [5.0, 0.0, 0.0], dir: [1.0, 0.0, 0.0] }]);
+        let longer = [edge(other, 0.0, 30.0)];
+        assert!(p.resolve_edge_ids_in(&longer, node, &[gone]).is_empty(), "an edge on the same line through the old middle was taken for the lost one");
+        let there = [edge(other, 2.0, 8.0)];
+        assert_eq!(p.resolve_edge_ids_in(&there, node, &[gone]), vec![other], "the edge with its middle where the reference saw it was not taken");
     }
 }
