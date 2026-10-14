@@ -5,9 +5,10 @@
 # geometry - and one step of the full level, every crate's own checks. A step added to the gate is run here
 # by itself; a list of commands written out in this file would drift away from it.
 #
-# THE ACCEPTANCE PROBES ARE SPLIT OVER FOUR MACHINES (`gate.py --shard K/4`). On one machine of the developer
+# THE ACCEPTANCE PROBES ARE SPLIT OVER EIGHT MACHINES (`gate.py --shard K/8`). On one machine of the developer
 # the fast level took 1627 s, 1493 of them the acceptance probes; a runner has four cores, and the whole run on
-# one would wait well over an hour on every push to a pull request.
+# one would wait well over an hour on every push to a pull request. Over four machines a share took 35 - 40 min and
+# held the whole run that long; the runners of a public repository cost nothing.
 #
 # Linux only. The kernel is the same OCCT 7.9.3 the release builds, compiled from source once and taken from
 # the cache afterwards; the other two systems are built by `release.yml`, by the button.
@@ -116,16 +117,16 @@ jobs:
       # one red share does not stop the others: every red probe is reported in one run
       fail-fast: false
       matrix:
-        share: [1, 2, 3, 4]
+        share: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
       # SIX PROBES SIDE BY SIDE ON FOUR CORES, as the shares have always run: the budgets of the probes were set against
       # that load. The gate would pick four here (`pick_threads`: a runner has four threads).
-      - name: The acceptance probes without heavy geometry, share ${{ matrix.share }} of 4
+      - name: The acceptance probes without heavy geometry, share ${{ matrix.share }} of 8
         env:
           QYMCAD_TEST_THREADS: 6
-        run: python3 tools/gate.py fast --step "the acceptance" --skip-probe size_and_time --shard ${{ matrix.share }}/4
+        run: python3 tools/gate.py fast --step "the acceptance" --skip-probe size_and_time --shard ${{ matrix.share }}/8
       # THE PROBES OF TIME, ALONE AND AT TWICE THE BUDGET. Among five other probes on four cores a sample project of 3 MB
       # rebuilt in 39.4 s against 30; alone, with the budget doubled, a program twice as slow as it should be still
       # goes red. In the first share, which finished first.

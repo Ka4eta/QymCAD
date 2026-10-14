@@ -118,6 +118,12 @@ GRID_TIME = (
     ["cargo", "test", "-p", "qymcad-core", "--test", "a_line_of_a_connected_grid_is_dragged_within_a_frame", "--", "--test-threads=1"],
     {"QYMCAD_TIER": "time"},
 )
+# THE TOOLS ON A BIG SKETCH: a pattern of 200 rectangles turned in 320 ms against 247 among the others of the pool
+BIG_SKETCH_TIME = (
+    "the probes of time of a big sketch, one at a time",
+    ["cargo", "test", "-p", "qymcad-core", "--test", "every_tool_keeps_its_time_on_a_big_sketch", "--", "--test-threads=1"],
+    {"QYMCAD_TIER": "time"},
+)
 REPORT_TIME = (
     "the probes of time of the sketch of the report, one at a time",
     ["cargo", "test", "-p", "qymcad-testkit", "--test", "every_tool_keeps_its_time_on_the_sketch_of_the_report", "--", "--test-threads=1"],
@@ -137,6 +143,12 @@ EVERY_CRATE = ("every crate's own checks", ["python3", "tools/gate.py", "--pool"
 CHECK_TIMES = os.path.join(ROOT, "target", "gate-check-times.tsv")
 # A CHECK STILL RUNNING AFTER THIS is stopped and red: once a check of a parallel run hung 44 min with no CPU.
 CHECK_TIMEOUT_S = 1200
+# THE QUICK CHECKS GO IN BATCHES. A process a check pays the start of its program every time - the libraries of OCCT
+# loaded, the fonts and the words read: on a runner of four cores the step went from 696 s with `cargo test` to 973 s
+# with a process for each of its 3328 checks. A check that took less than `QUICK_S` the run before is run with others of
+# its program in one process, a batch of about `BATCH_S`; a slow check and one never timed still run alone.
+QUICK_S = 1.0
+BATCH_S = 5.0
 
 LEVELS = {
     "release": [
@@ -148,6 +160,7 @@ LEVELS = {
         DRAWING_TIME,
         WINDOW_TIME,
         GRID_TIME,
+        BIG_SKETCH_TIME,
         REPORT_TIME,
         # EVERY LANGUAGE WHOLE: a string missing in a language falls back to English, so the checks of every change pass
         # with English alone and a contributor is asked for no language they do not know; before a release each
@@ -176,6 +189,7 @@ LEVELS = {
         DRAWING_TIME,
         WINDOW_TIME,
         GRID_TIME,
+        BIG_SKETCH_TIME,
         REPORT_TIME,
     ],
     "fast": [
@@ -323,29 +337,59 @@ def read_times(text):
     return times
 
 
-def in_order(checks, times):
-    """THE ORDER OF THE POOL: a check never timed first, as it may be the slowest, then the slowest of the run before
-    first; the name breaks a tie, so the order is the same from run to run."""
-    return sorted(checks, key=lambda c: (c.key in times, -times.get(c.key, 0.0), c.key))
+class Job:
+    """ONE PROCESS OF THE POOL: checks of one program run together, and the time they are expected to take - none for a
+    check never timed."""
+
+    def __init__(self, checks, expected):
+        self.checks, self.expected = checks, expected
 
 
-def run_check(check):
-    """Run one check as a process of its own; answer (key, name, seconds, state, the words it said). The state is "ok",
-    "FAILED", or "ignored" when libtest passed it over."""
+def jobs_of(checks, times):
+    """THE PROCESSES OF THE POOL, in the order they start: a check never timed alone and first, as it may be the slowest;
+    then the slowest first - a check that took `QUICK_S` or more alone, the quicker ones of a program together in
+    batches of about `BATCH_S`. The name breaks a tie, so the order is the same from run to run."""
+    jobs, open_batch = [], {}
+    for c in sorted(checks, key=lambda c: c.key):
+        took = times.get(c.key)
+        if took is None or took >= QUICK_S:
+            jobs.append(Job([c], took))
+            continue
+        batch = open_batch.setdefault(c.prog.exe, Job([], 0.0))
+        batch.checks.append(c)
+        batch.expected += took
+        if batch.expected >= BATCH_S:
+            jobs.append(open_batch.pop(c.prog.exe))
+    jobs.extend(open_batch.values())
+    return sorted(jobs, key=lambda j: (j.expected is not None, -(j.expected or 0.0), j.checks[0].key))
+
+
+def run_job(job):
+    """Run the checks of `job` as one process; answer [(key, name, seconds, state, the words said)] a check, the time of
+    the process shared among them. A check libtest lists as failed is "FAILED", and
+    so is every check of a process that ended badly with no list of its failures."""
+    prog = job.checks[0].prog
     began = time.time()
     try:
         out = subprocess.run(
-            [check.prog.exe, "--exact", check.name, "--test-threads=1"],
-            cwd=check.prog.crate_dir, capture_output=True, text=True, env=check_env(check.prog), timeout=CHECK_TIMEOUT_S,
+            [prog.exe, "--exact"] + [c.name for c in job.checks] + ["--test-threads=1"],
+            cwd=prog.crate_dir, capture_output=True, text=True, env=check_env(prog), timeout=CHECK_TIMEOUT_S,
         )
-        said = out.stdout + out.stderr
-        state = "ok" if out.returncode == 0 else "FAILED"
-        if state == "ok" and re.search(r"^test .* \.\.\. ignored", said, re.M):
-            state = "ignored"
+        said, ended_well = out.stdout + out.stderr, out.returncode == 0
     except subprocess.TimeoutExpired as e:
-        said = f"{e.stdout or ''}{e.stderr or ''}\nstopped: still running after {CHECK_TIMEOUT_S} s"
-        state = "FAILED"
-    return check.key, check.name, time.time() - began, state, said
+        said, ended_well = f"{e.stdout or ''}{e.stderr or ''}\nstopped: still running after {CHECK_TIMEOUT_S} s", False
+    share = (time.time() - began) / len(job.checks)
+    states = states_of([c.name for c in job.checks], said, ended_well)
+    return [(c.key, c.name, share, states[c.name], said) for c in job.checks]
+
+
+def states_of(names, said, ended_well):
+    """THE STATE OF EACH OF `names` run in one process that said `said`: all "ok" when it ended well; else "FAILED" for
+    those libtest lists as failed at its end - read off that list, not off the line of each check, as OCCT prints into
+    that line (the IGES reader's count of entities) and the "ok" lands on a line of its own - and for all of them when
+    it ended badly with no list: it stopped, it crashed, it aborted after its checks."""
+    failed = set(re.findall(r"^    (\S+)$", said.rpartition("\nfailures:\n")[2], re.M)) if "\nfailures:\n" in said else set()
+    return {n: "ok" if ended_well or (failed and n not in failed) else "FAILED" for n in names}
 
 
 def pool(threads):
@@ -359,10 +403,13 @@ def pool(threads):
     sys.stdout.write(build.stderr)
     if build.returncode != 0:
         return build.returncode
+    progs = test_programs(build.stdout)
     checks = []
-    for prog in test_programs(build.stdout):
-        passed_over = set(listed(prog, ignored=True))
-        for name in listed(prog, ignored=False):
+    with ThreadPoolExecutor(max_workers=threads) as ex:
+        # the lists asked of every program side by side: one after another they were 762 starts of a program
+        lists = list(ex.map(lambda p: (p, listed(p, ignored=False), set(listed(p, ignored=True))), progs))
+    for prog, names, passed_over in lists:
+        for name in names:
             if name in passed_over:
                 print(f"test {name} ... ignored")
             else:
@@ -372,17 +419,17 @@ def pool(threads):
             before = read_times(f.read())
     except OSError:
         before = {}
-    order = in_order(checks, before)
-    print(f"{len(order)} checks in {len({c.prog.exe for c in order})} programs, {threads} side by side", flush=True)
+    jobs = jobs_of(checks, before)
+    print(f"{len(checks)} checks of {len(progs)} programs in {len(jobs)} processes, {threads} side by side", flush=True)
     took, red = {}, 0
     with ThreadPoolExecutor(max_workers=threads) as ex:
-        for done in as_completed([ex.submit(run_check, c) for c in order]):
-            key, name, seconds, state, said = done.result()
-            took[key] = seconds
-            print(f"test {name} ... {state}", flush=True)
-            if state == "FAILED":
-                red += 1
-                print(f"---- {key} ----\n{said}", flush=True)
+        for done in as_completed([ex.submit(run_job, j) for j in jobs]):
+            for key, name, seconds, state, said in done.result():
+                took[key] = seconds
+                print(f"test {name} ... {state}", flush=True)
+                if state == "FAILED":
+                    red += 1
+                    print(f"---- {key} ----\n{said}", flush=True)
     os.makedirs(os.path.dirname(CHECK_TIMES), exist_ok=True)
     with open(CHECK_TIMES, "w", encoding="utf-8") as f:
         f.writelines(f"{s:.2f}\t{k}\n" for k, s in sorted(took.items(), key=lambda t: -t[1]))
@@ -495,6 +542,11 @@ def self_test():
             wrong.append(f"{THREADS_VAR}={bad!r} was taken")
         except ValueError:
             pass
+    interleaved = "running 1 test\ntest iges::read ... \x1b[32;1mTotal number of loaded entities 49.\n\x1b[0m\nok\n\ntest result: ok. 1 passed"
+    expect("a check OCCT printed into the line of", states_of(["iges::read"], interleaved, True), {"iges::read": "ok"})
+    listed = "test a ... ok\ntest b ... FAILED\n\nfailures:\n\n---- b stdout ----\npanicked\n\nfailures:\n    b\n\ntest result: FAILED"
+    expect("the checks libtest lists as failed", states_of(["a", "b"], listed, False), {"a": "ok", "b": "FAILED"})
+    expect("a process that aborted after its checks", states_of(["a", "b"], "test a ... ok\ntest b ... ok\n", False), {"a": "FAILED", "b": "FAILED"})
     meminfo = "MemTotal:       32000000 kB\nMemAvailable:   18061028 kB\n"
     expect("the available memory of /proc/meminfo", read_mb(meminfo, "MemAvailable"), 17637)
     expect("a key that is not there", read_mb(meminfo, "SwapTotal"), None)
@@ -509,9 +561,13 @@ def self_test():
     ])
     progs = test_programs(built)
     expect("the test programs of the build", [(p.exe, p.crate_dir, p.crate, p.key) for p in progs], [("/w/target/debug/deps/feature-1", "/w/crates/qymcad-core", "qymcad-core", "qymcad-core/feature/test")])
-    a, b, c = (Check(progs[0], n) for n in ("a", "b", "c"))
-    known = {a.key: 3.0, b.key: 90.0}
-    expect("the order of the pool: the untimed, then the slowest", [x.name for x in in_order([a, b, c], known)], ["c", "b", "a"])
+    a, b, c, d, e = (Check(progs[0], n) for n in ("a", "b", "c", "d", "e"))
+    known = {a.key: 3.0, b.key: 90.0, d.key: 0.2, e.key: 0.3}
+    expect(
+        "the processes of the pool: the untimed alone first, then the slowest, the quick ones together",
+        [[x.name for x in j.checks] for j in jobs_of([a, b, c, d, e], known)],
+        [["c"], ["b"], ["a"], ["d", "e"]],
+    )
     for w in wrong:
         print(f"  wrong: {w}")
     print("the gate's reckoning: " + ("right" if not wrong else f"{len(wrong)} wrong"))
