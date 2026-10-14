@@ -12,7 +12,8 @@
                             `tools/publish.py` refuses without that mark for the commit it publishes
     tools/gate.py L --step NAME     only the step of the level whose name begins with NAME (and no mark)
     tools/gate.py L --except NAME   every step of the level but that one (and no mark)
-    tools/gate.py L --shard K/N     the acceptance probes of the level split in N shares, only the K-th run (and no mark)
+    tools/gate.py L --shard K/N     the acceptance probes and the checks of every crate split in N shares, only the K-th
+                                    run (and no mark)
     tools/gate.py L --skip-probe P  the acceptance probes matching P left out (and no mark)
     tools/gate.py time              the probes of time alone, one at a time; CI sets QYMCAD_TIME_SCALE=2
     tools/gate.py --self-test       the gate's own reckoning checked on cases: the threads it picks, the times it reads
@@ -411,7 +412,7 @@ def states_of(names, said, ended_well):
     return {n: "ok" if ended_well or (failed and n not in failed) else "FAILED" for n in names}
 
 
-def pool(threads):
+def pool(threads, share=(1, 1)):
     """THE CHECKS OF EVERY CRATE BUT THE ACCEPTANCE SET, run as one pool of processes (`EVERY_CRATE`). Speaks as `cargo
     test` does - the build's diagnostics, then `test NAME ... ok|FAILED|ignored` a check - so the gate reads it the same
     way; the words of a red check follow its line. Answers the code to exit with."""
@@ -434,6 +435,10 @@ def pool(threads):
                 print(f"test {name} ... ignored")
             else:
                 checks.append(Check(prog, name))
+    # A SHARE OF THE CHECKS, for one of several machines: every k-th of them by name, so each check is in exactly one
+    # share whatever times each machine remembers
+    k, n = share
+    checks = [c for i, c in enumerate(sorted(checks, key=lambda c: c.key)) if i % n == k - 1]
     try:
         with open(CHECK_TIMES, encoding="utf-8") as f:
             before = read_times(f.read())
@@ -450,10 +455,14 @@ def pool(threads):
                 if state == "FAILED":
                     red += 1
                     print(f"---- {key} ----\n{said}", flush=True)
+    # the times of this run over those of the run before: a share times its own checks and keeps the others' as they were
     os.makedirs(os.path.dirname(CHECK_TIMES), exist_ok=True)
     with open(CHECK_TIMES, "w", encoding="utf-8") as f:
-        f.writelines(f"{s:.2f}\t{k}\n" for k, s in sorted(took.items(), key=lambda t: -t[1]))
-    # THE EXAMPLES IN THE DOCUMENTATION, run by `cargo test` after the programs: none today, and a new one is run
+        f.writelines(f"{t:.2f}\t{key}\n" for key, t in sorted({**before, **took}.items(), key=lambda kv: -kv[1]))
+    if k != 1:
+        return 1 if red else 0
+    # THE EXAMPLES IN THE DOCUMENTATION, run by `cargo test` after the programs (by the first share): none today, and a
+    # new one is run
     doc = subprocess.run(CRATES + ["--doc"], cwd=ROOT, capture_output=True, text=True)
     sys.stdout.write(doc.stdout + doc.stderr)
     return 1 if red or doc.returncode != 0 else 0
@@ -599,14 +608,15 @@ def main():
     if sys.argv[1:] == ["--self-test"]:
         return self_test()
     if sys.argv[1:2] == ["--pool"]:
-        # the pool of the checks of every crate, run by the step `EVERY_CRATE` with the threads picked
-        return pool(int(sys.argv[2].partition("=")[2]))
+        # the pool of the checks of every crate, run by the step `EVERY_CRATE` with the threads picked, and a share of it
+        share = next((tuple(int(x) for x in a.partition("=")[2].split("/")) for a in sys.argv[3:] if a.startswith("--share=")), (1, 1))
+        return pool(int(sys.argv[2].partition("=")[2]), share)
     ap = argparse.ArgumentParser(description="Run a level of the checks and report it.")
     ap.add_argument("level", choices=sorted(LEVELS))
     ap.add_argument("--step", help="run only the step whose name begins with this")
     ap.add_argument("--except", dest="skip", help="run every step but the one whose name begins with this")
     ap.add_argument("--skip-probe", action="append", default=[], help="leave the acceptance probes matching this out (repeatable)")
-    ap.add_argument("--shard", help="K/N: of the acceptance probes, run only the K-th of N shares (1-based)")
+    ap.add_argument("--shard", help="K/N: of the acceptance probes and of the checks of every crate, run only the K-th of N shares (1-based)")
     args = ap.parse_args()
     steps = [
         s for s in LEVELS[args.level]
@@ -625,7 +635,10 @@ def main():
         except (ValueError, AssertionError):
             print(f"--shard takes K/N with 1 <= K <= N, not {args.shard!r}")
             return 2
-        steps = [(name, shard_of(cmd, env, k, n), env) if cmd[:len(ACCEPTANCE)] == ACCEPTANCE else (name, cmd, env) for name, cmd, env in steps]
+        steps = [
+            (name, shard_of(cmd, env, k, n), env) if cmd[: len(ACCEPTANCE)] == ACCEPTANCE else (name, cmd + [f"--share={k}/{n}"], env) if "--pool" in cmd else (name, cmd, env)
+            for name, cmd, env in steps
+        ]
     if any(PICKED in cmd for _, cmd, _ in steps):
         try:
             pick = pick_threads(this_machine(), os.environ.get(THREADS_VAR))

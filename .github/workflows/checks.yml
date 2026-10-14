@@ -40,8 +40,8 @@ env:
   LD_LIBRARY_PATH: /home/runner/occt/lib
 
 jobs:
-  # NOTHING PERSONAL GOES IN, and the kernel is in the cache before the five jobs below start: five jobs missing it
-  # together would build it five times. The general shapes only - a home path, a mail address, a reference to a
+  # NOTHING PERSONAL GOES IN, and the kernel is in the cache before the jobs below start: the jobs missing it
+  # together would build it as many times. The general shapes only - a home path, a mail address, a reference to a
   # closed document; a personal list of words is not available to a run of somebody else's pull request.
   kernel:
     runs-on: ubuntu-24.04
@@ -82,11 +82,11 @@ jobs:
         with:
           cargo: "false"
 
-  # The fast level but its acceptance probes, then every crate's own checks.
-  rules-and-crates:
+  # The fast level but its acceptance probes.
+  rules:
     needs: kernel
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
@@ -94,15 +94,48 @@ jobs:
           save-cargo: "true"
       - name: The fast level, the acceptance probes left to the shares
         run: python3 tools/gate.py fast --except "the acceptance"
-      - name: Every crate's own checks
-        if: success() || failure()
-        run: python3 tools/gate.py full --step "every crate"
       # The gate prints the names of the red checks; what each of them said is in its log, kept for a fortnight.
       - name: The words of the gate
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: gate-logs-rules-and-crates
+          name: gate-logs-rules
+          path: target/gate-*.log
+          retention-days: 14
+      - name: Disk left
+        if: always()
+        run: df -h / && du -sh target || true
+
+  # EVERY CRATE'S OWN CHECKS, OVER TWO MACHINES. On one, after the fast level, the job took 15.7 min - 5.4 the fast
+  # level, 9.1 every crate; apart and split, each machine builds the test programs and runs half of the checks.
+  crates:
+    needs: kernel
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        share: [1, 2]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      # THE TIMES OF THE CHECKS OF THE RUN BEFORE: without them every check runs as a process of its own and the
+      # slowest do not start first (`gate.py`, `CHECK_TIMES`); the newest saved is taken back.
+      - name: The times of the checks of the run before
+        uses: actions/cache@v6
+        with:
+          path: target/gate-check-times.tsv
+          key: check-times-${{ matrix.share }}-${{ github.run_id }}
+          restore-keys: |
+            check-times-${{ matrix.share }}-
+            check-times-
+      - name: Every crate's own checks, share ${{ matrix.share }} of 2
+        run: python3 tools/gate.py full --step "every crate" --shard ${{ matrix.share }}/2
+      - name: The words of the gate
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: gate-logs-crates-${{ matrix.share }}
           path: target/gate-*.log
           retention-days: 14
       - name: Disk left
