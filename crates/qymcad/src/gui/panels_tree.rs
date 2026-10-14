@@ -235,3 +235,5 @@ mod build;
 pub(crate) use build::*;
 mod copy;
 pub(crate) use copy::*;
+
+mod a_moved_bar_rebuilds_only_below_it;

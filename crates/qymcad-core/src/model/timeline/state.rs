@@ -28,10 +28,12 @@ impl Project {
     /// forcibly across the whole project, which on an assembly of a thousand imports takes tens of seconds.
     pub fn changed_bodies_vs(&self, other: &Project) -> Vec<Id> {
         let mut out = Vec::new();
-        // the rollback bar decides which recipes are built at all: moved, it changes every body, as `set_rollback`
-        // marks every node - undone and done again, the bar left each body with the meshes of the other state
-        let bar_moved = self.rollback != other.rollback;
-        for n in &self.timeline {
+        // the rollback bar decides which recipes are built at all: moved, it changes the bodies from the higher of
+        // its two places down, as `set_rollback` marks them - undone and done again, the bar left each of them with
+        // the meshes of the other state
+        let moved_from = if self.rollback != other.rollback { self.rollback_place().min(other.rollback_place()) } else { usize::MAX };
+        for (i, n) in self.timeline.iter().enumerate() {
+            let bar_moved = i >= moved_from;
             let outs = n.kind.bodies();
             if outs.is_empty() {
                 continue;

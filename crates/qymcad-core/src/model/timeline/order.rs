@@ -3,13 +3,22 @@
 use super::*;
 
 impl Project {
-    /// Rollback bar: build only the first `n` timeline nodes (`None` builds everything). Marks everything
-    /// dirty.
+    /// Rollback bar: build only the first `n` timeline nodes (`None` builds everything). Marks dirty the nodes from
+    /// the higher of its two places down: a node above both rests on nothing the bar moved across, as with suppression.
+    /// Reported behaviour: the bar dragged one row up, above a rounding, and every node was marked - the rebuild took
+    /// all 27 nodes of the part, its two threads among them, for minutes.
     pub fn set_rollback(&mut self, n: Option<usize>) {
+        let was = self.rollback_place();
         self.rollback = n.filter(|&n| n < self.timeline.len());
-        for nd in &mut self.timeline {
+        let from = was.min(self.rollback_place());
+        for nd in self.timeline.iter_mut().skip(from) {
             nd.dirty = true;
         }
+    }
+
+    /// WHERE THE ROLLBACK BAR STANDS: the count of nodes built.
+    pub fn rollback_place(&self) -> usize {
+        self.rollback.unwrap_or(self.timeline.len())
     }
 
     /// Append a node to the timeline, or insert it at the rollback bar when one is active, which is how
@@ -87,9 +96,6 @@ impl Project {
         // resting on its body keep the previous shape, so the model on screen stops being the result of its own
         // timeline; switching the feature back on then appears to change nothing until a full rebuild is
         // forced.
-        //
-        // The rollback bar (`set_rollback`) has always marked everything, and suppression is the same kind of
-        // structural edit.
         //
         // Marking runs from the node downwards rather than over everything: the timeline is ordered, and what
         // stands above cannot rest on the suppressed feature by construction.
