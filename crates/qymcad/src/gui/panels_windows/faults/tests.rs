@@ -313,3 +313,37 @@ fn a_driver_without_its_dimension_is_said_and_led_to_the_table() {
     let row = hand.painted_words().into_iter().find(|w| w.text.contains(&missing) && w.rect.max.y < 860.0);
     assert!(row.as_ref().is_some_and(|w| w.colour == pal.warning()), "the row of the driver in the table does not say in yellow that its dimension is gone: {:?}", row.map(|w| (w.text, w.colour)));
 }
+
+/// A DOCUMENT WITH A PARAMETER NAMED `pi` IS NOT SILENT ON OPENING: naming refuses the name, but a document read from
+/// disk may hold it, and a formula reads the constant there. The badge counts it, a click says in yellow what is wrong
+/// and leads to the table narrowed to the parameter, where its row says the reason.
+#[test]
+fn a_parameter_named_like_a_constant_is_counted_said_and_led_to() {
+    let dir = std::env::temp_dir().join("qym_faults_constant_name");
+    std::fs::create_dir_all(&dir).expect("the directory for the check");
+    let path = dir.join("pi.qcad").to_string_lossy().into_owned();
+    let mut saved = App::default();
+    saved.project.parameters.push(qymcad_core::model::Param { name: "pi".into(), expr: "7".into(), value: 7.0 });
+    crate::gui::set_project_path(&mut saved.disk.project_path, &mut saved.set, path.clone());
+    saved.save_project();
+    saved.wait_bg();
+
+    let mut app = App::default();
+    app.regen.ui_running = true;
+    crate::gui::io_jobs::spawn_project_load(&mut app.regen, path);
+    app.drain_busy_for_test();
+    assert!(app.project.parameters.iter().any(|p| p.name == "pi"), "setup: the document opened without its parameter `pi`");
+    let pal = app.scheme.pal.clone();
+    let mut hand = Hand::new(&mut app);
+    hand.settle();
+    let badge = hand.status_badge(qymcad_ui_state::Tone::Warning).expect("no yellow badge for the parameter `pi` out of reach of formulas");
+    hand.click_screen(badge.rect.center());
+    let words = hand.status_painted();
+    let line = message(&words).expect("the status line says something");
+    let what = crate::i18n::tr("par-name-is-constant");
+    assert!(line.text.contains("pi") && line.text.contains(&what) && line.colour == pal.warning(), "a click on the badge did not say in yellow what is wrong: {:?}", line.text);
+    assert!(hand.window_titled(&crate::i18n::tr("win-params")).is_some(), "the click did not open the table of parameters");
+    assert_eq!(hand.app.par_search, "pi", "the table is not narrowed to the parameter");
+    let why = crate::gui::error_words::ident_refusal_text("pi");
+    assert!(hand.painted_words().iter().any(|w| w.text.contains(&why) && w.rect.max.y < 860.0), "the table does not say why the name `pi` will not do");
+}

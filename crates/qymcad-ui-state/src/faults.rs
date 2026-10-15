@@ -286,13 +286,19 @@ fn mate_faults(project: &Project) -> Vec<Fault> {
     out
 }
 
-/// THE PARAMETERS whose formula gives no value, and the drivers whose dimension is gone.
+/// THE PARAMETERS whose formula gives no value or whose name a formula reads as a constant, and the drivers whose
+/// dimension is gone.
 fn parameter_faults(project: &Project) -> Vec<Fault> {
     let mut out = Vec::new();
     for p in project.parameters.iter().filter(|p| !p.expr.trim().is_empty()) {
         if let Err(e) = project.eval_expr(&p.expr) {
             out.push(Fault { tone: Tone::Error, words: qymcad_i18n::error_words::expr_error_text(&e), path: p.name.clone(), place: FaultPlace::Parameter(p.name.clone()), owner: None });
         }
+    }
+    // A PARAMETER NAMED `e`, `pi` OR `tau`: naming refuses such a name, but a document read from disk may hold one. A
+    // formula reads the constant there, so the parameter has a value in the table and no formula reaches it.
+    for p in project.parameters.iter().filter(|p| qymcad_core::expr::is_constant(&p.name)) {
+        out.push(Fault { tone: Tone::Warning, words: qymcad_i18n::tr("par-name-is-constant"), path: p.name.clone(), place: FaultPlace::Parameter(p.name.clone()), owner: None });
     }
     for (k, d) in project.named_dims.iter().enumerate() {
         if project.named_dim_value(d).is_none() {
