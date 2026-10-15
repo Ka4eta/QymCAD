@@ -81,7 +81,7 @@ impl qymcad_shell::Fills for App {
             "command_bar" => {
                 if let Some(k) = COMMAND_BARS.into_iter().find(|k| self.live(k)) {
                     // each bar under its own key: one bar giving way to another is new widgets, not old ones renamed
-                    ui.push_id(k, |ui| self.fill(k, ui, edge));
+                    qymcad_shell::keyed(ui, ("the bar of the command", k), |ui| self.fill(k, ui, edge));
                 }
             }
             "menubar" => crate::gui::panels_bars::menu_bar(&mut self.bar_ctx(&mut bar_asks), ui),

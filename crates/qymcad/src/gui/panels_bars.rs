@@ -329,7 +329,7 @@ pub(crate) fn status_bar(sc: &mut qymcad_ui_state::StatusCtx, ui: &mut egui::Ui)
         // WHAT COMES AND GOES ON THE LINE, each part in a scope of its own that is there whether it shows anything or not:
         // egui numbers what follows by what came before, and the readout of the pointer, renumbered on entering a sketch,
         // was marked with egui's red frame of a widget that changed its id
-        ui.push_id("status said", |ui| {
+        qymcad_shell::keyed(ui, ("the status line", "said"), |ui| {
             let said = qymcad_ui_state::notice_text(&scheme.pal, status, qymcad_ui_state::NoticeSize::Line);
             let fault_said = matches!(status.tone, qymcad_ui_state::Tone::Warning | qymcad_ui_state::Tone::Error) && !faults.is_empty();
             // the words of a fault lead where the badges lead: it is the line a person reads first
@@ -348,8 +348,8 @@ pub(crate) fn status_bar(sc: &mut qymcad_ui_state::StatusCtx, ui: &mut egui::Ui)
                 }
             }
         });
-        ui.push_id("status update", |ui| update_note(scheme, win, ui));
-        ui.push_id("status sketch", |ui| {
+        qymcad_shell::keyed(ui, ("the status line", "update"), |ui| update_note(scheme, win, ui));
+        qymcad_shell::keyed(ui, ("the status line", "sketch"), |ui| {
             if let Some(sid) = sketch_ses.editing {
                 if let Some(si) = project.sketches.iter().position(|s| s.id == sid) {
                     let (line, col) = crate::gui::sketching::sketch_dof_line(cache, project, scheme, si);
@@ -358,7 +358,7 @@ pub(crate) fn status_bar(sc: &mut qymcad_ui_state::StatusCtx, ui: &mut egui::Ui)
                 }
             }
         });
-        ui.push_id("status readout", |ui| {
+        qymcad_shell::keyed(ui, ("the status line", "readout"), |ui| {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.label(crate::i18n::tr("bar-units-mm"));
                 ui.separator();

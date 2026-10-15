@@ -239,12 +239,12 @@ fn tile_ui(shell: &qymcad_shell::Shell, key: &'static str, tile: egui::Rect, ui:
     // along see-through, so the source holds nothing to see
     // every part of a tile under the key of its panel: a tile laid where another stood is a new widget, not an old one
     // whose id changed
-    let mut child = ui.new_child(egui::UiBuilder::new().max_rect(body.shrink(3.0)).layout(egui::Layout::left_to_right(egui::Align::Center)).id_salt(("tile-name", key)));
+    let mut child = ui.new_child(egui::UiBuilder::new().max_rect(body.shrink(3.0)).layout(egui::Layout::left_to_right(egui::Align::Center)).id(egui::Id::new(("tile-name", key))));
     child.add(label);
     if pinned {
         ui.interact(body, carried, egui::Sense::hover()).on_hover_text(crate::i18n::tr1("settings-layout-pinned", "name", &name));
     } else {
-        let mut handle = ui.new_child(egui::UiBuilder::new().max_rect(body).id_salt(("tile-handle", key)));
+        let mut handle = ui.new_child(egui::UiBuilder::new().max_rect(body).id(egui::Id::new(("tile-handle", key))));
         handle.dnd_drag_source(carried, Carried { key }, |ui| ui.allocate_space(body.size())).response.on_hover_text(&name);
     }
     if lifted {
@@ -256,7 +256,7 @@ fn tile_ui(shell: &qymcad_shell::Shell, key: &'static str, tile: egui::Rect, ui:
             Switch::Eye => {
                 let glyph = if hidden { ph::EYE_SLASH } else { ph::EYE };
                 let hint = if hidden { "settings-layout-show" } else { "settings-layout-hide" };
-                let eye = ui.scope_builder(egui::UiBuilder::new().max_rect(at).id_salt(("tile-eye", key)), |ui| ui.add_sized(at.size(), egui::Button::new(glyph).small().frame(false))).inner;
+                let eye = ui.scope_builder(egui::UiBuilder::new().max_rect(at).id(egui::Id::new(("tile-eye", key))), |ui| ui.add_sized(at.size(), egui::Button::new(glyph).small().frame(false))).inner;
                 if eye.on_hover_text(crate::i18n::tr1(hint, "name", &name)).clicked() {
                     pick.seen = Some(if hidden { qymcad_shell::Seen::Shown } else { qymcad_shell::Seen::Hidden });
                 }
@@ -265,7 +265,7 @@ fn tile_ui(shell: &qymcad_shell::Shell, key: &'static str, tile: egui::Rect, ui:
                 let on = place.over == qymcad_shell::Over::Over;
                 let hint = if on { "settings-layout-beside" } else { "settings-layout-over" };
                 let button = egui::Button::new(ph::STACK_SIMPLE).small().frame(false).selected(on);
-                let over = ui.scope_builder(egui::UiBuilder::new().max_rect(at).id_salt(("tile-over", key)), |ui| ui.add_sized(at.size(), button)).inner;
+                let over = ui.scope_builder(egui::UiBuilder::new().max_rect(at).id(egui::Id::new(("tile-over", key))), |ui| ui.add_sized(at.size(), button)).inner;
                 if over.on_hover_text(crate::i18n::tr1(hint, "name", &name)).clicked() {
                     pick.over = Some(if on { qymcad_shell::Over::Beside } else { qymcad_shell::Over::Over });
                 }

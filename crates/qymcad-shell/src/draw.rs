@@ -49,6 +49,18 @@ fn note(ctx: &egui::Context, key: &'static str, rect: egui::Rect) {
     });
 }
 
+/// WHAT A PLACE DRAWS, UNDER THE ID OF ITS OWN KEY: the ids of all it draws come from `id` alone.
+///
+/// A scope seeded the usual way (`push_id`, `UiBuilder::id_salt`) mixes the salt with the parent's id for what it
+/// keeps, but gives its widgets ids that also carry the count of what the parent drew before it (`Ui::unique_id`).
+/// Whatever stands in a strip, a stack, a list of tiles or a line whose other parts come and go is drawn after a
+/// different count from one frame to the next, and egui marks its widgets with a red frame - "the rectangle changed
+/// its id". An explicit id (`UiBuilder::id`) is what egui gives for "moved in the tree of the window without losing
+/// its state"; `id` must then be drawn once a frame.
+pub fn keyed<R>(ui: &mut egui::Ui, id: impl egui::AsId, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    ui.scope_builder(egui::UiBuilder::new().id(egui::Id::new(id)), add).inner
+}
+
 pub(crate) fn run_slot(shell: &Shell, slot: Slot, ui: &mut egui::Ui, host: &mut dyn Fills) {
     match slot {
         Slot::Menu => {
@@ -80,12 +92,12 @@ pub(crate) fn run_slot(shell: &Shell, slot: Slot, ui: &mut egui::Ui, host: &mut 
             // id" - in the frames of the change. Measured on the status line on entering a sketch: 17 frames with
             // another id. egui does the same for a panel it hides (`skip_ahead_auto_ids`).
             let mut taken = 0;
-            for strip in shell.strips(edge) {
+            for (index, strip) in shell.strips(edge).into_iter().enumerate() {
                 let members: Vec<&'static str> = strip.into_iter().filter(|k| drawn_beside(shell, k, host)).collect();
                 if members.is_empty() {
                     ui.skip_ahead_auto_ids(1);
                 } else {
-                    one_strip(shell, edge, &members, ui, host);
+                    one_strip(Strip { edge, index }, shell, &members, ui, host);
                 }
                 taken += 1;
             }
@@ -124,11 +136,21 @@ fn ground(frame: egui::Frame, opacity: f32) -> egui::Frame {
     frame.fill(frame.fill.gamma_multiply(opacity.clamp(0.0, 1.0)))
 }
 
+/// A strip of an edge: the edge and its number from the edge inward.
+#[derive(Clone, Copy)]
+struct Strip {
+    edge: Edge,
+    index: usize,
+}
+
 /// ONE STRIP: an egui panel at the edge, and in it the panels of the strip.
-fn one_strip(shell: &Shell, edge: Edge, members: &[&'static str], ui: &mut egui::Ui, host: &mut dyn Fills) {
+fn one_strip(strip: Strip, shell: &Shell, members: &[&'static str], ui: &mut egui::Ui, host: &mut dyn Fills) {
+    let Strip { edge, index } = strip;
     let regs: Vec<&Place> = members.iter().filter_map(|k| shell.registered(k)).collect();
     let first = members[0];
-    let id = egui::Id::new(("shell-strip", edge, first));
+    // THE PANEL IS THE STRIP, the n-th from the edge, whatever stands in it: a panel joining it or leaving it does not
+    // make another panel of the place - which egui would mark with a red frame, and which would forget its width
+    let id = egui::Id::new(("shell-strip", edge, index));
     let kept = members.iter().find_map(|k| shell.place_of(k).and_then(|p| p.across));
     let registered = regs.iter().filter_map(|p| p.size).reduce(f32::max);
     let resizable = regs.iter().any(|p| p.resizable);
@@ -156,7 +178,7 @@ fn one_strip(shell: &Shell, edge: Edge, members: &[&'static str], ui: &mut egui:
         if let [only] = members {
             // under the key of the panel, as in a stack: a panel taken into a stack or out of one keeps the ids of what
             // it draws, and egui sees no widget change its id where it stands
-            ui.push_id(("shell-member", *only), |ui| host.fill(only, ui, Some(edge)));
+            keyed(ui, ("shell-member", *only), |ui| host.fill(only, ui, Some(edge)));
             Vec::new()
         } else {
             stack(shell, edge, members, ui, host)
@@ -225,7 +247,7 @@ fn stack(shell: &Shell, edge: Edge, members: &[&'static str], ui: &mut egui::Ui,
         } else {
             egui::Rect::from_min_size(egui::pos2(at, full.min.y), egui::vec2(*len, full.height()))
         };
-        let mut child = ui.new_child(egui::UiBuilder::new().max_rect(rect).layout(*ui.layout()).id_salt(("shell-member", *k)));
+        let mut child = ui.new_child(egui::UiBuilder::new().max_rect(rect).layout(*ui.layout()).id(egui::Id::new(("shell-member", *k))));
         child.set_clip_rect(rect.intersect(ui.clip_rect()));
         host.fill(k, &mut child, Some(edge));
         let used = child.min_rect();

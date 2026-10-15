@@ -283,3 +283,45 @@ fn chain_of_changes(mut s: Session, out: &mut Vec<String>) {
         clashes(&mut s, "a panel dropped on the diagram", out);
     }
 }
+
+probe! {
+    /// NO TWO WIDGETS TAKE ONE ID WHILE A PANEL IS CARRIED on the diagram: pressed on the tree, led slowly over the
+    /// properties, the bar of the path, the seams and the view, frame by frame, and let go on the properties; then the
+    /// settings put away and the window laid out anew, the bar of tools carried to the top the same way. Reported
+    /// behaviour: red frames of egui's complaint while the diagram is dragged and while the panels of the window are laid
+    /// out again.
+    fn no_two_widgets_take_one_id_while_a_panel_is_carried() {
+        let mut out = Vec::new();
+        let mut s = Session::start();
+        s.key(Key::Escape);
+        build::into_the_first_part(&mut s);
+        settings_at(&mut s, "settings-sec-layout");
+        clashes(&mut s, "the settings", &mut out);
+        let corner = s.find(&s.word("settings-layout-menu"), pos2(640.0, 300.0)).expect("the diagram is drawn").center();
+        let tree = s.find(&s.word("panel-tree"), corner).expect("the tree stands on the diagram").center();
+        let props = s.find(&s.word("panel-props"), corner).expect("the properties stand on the diagram").center();
+        let path = s.find(&s.word("panel-toolbar"), corner).expect("the bar of the path stands on the diagram").center();
+        let tools = s.find(&s.word("panel-wbtools"), corner).expect("the bar of tools stands on the diagram").center();
+        let view = s.find(&s.word("settings-layout-view"), corner).map(|r| r.center()).unwrap_or(corner + vec2(200.0, 150.0));
+        // the tree led over everything on the diagram and let go on the upper half of the properties
+        s.move_to(tree);
+        s.press(qymcad::PointerButton::Primary);
+        for stop in [view, path, pos2(path.x, corner.y + 10.0), props + vec2(0.0, 40.0), props - vec2(0.0, 30.0)] {
+            s.move_to(stop);
+            clashes(&mut s, "the tree carried on the diagram", &mut out);
+        }
+        s.release(qymcad::PointerButton::Primary);
+        clashes(&mut s, "the tree let go on the properties", &mut out);
+        // the bar of tools onto the seam under the menu: a strip of its own at the top
+        s.drag(tools, pos2(corner.x + 200.0, corner.y + 10.0), qymcad::PointerButton::Primary, qymcad::Modifiers::NONE);
+        clashes(&mut s, "the bar of tools let go at the top", &mut out);
+        let title = s.word("win-settings");
+        s.close_window(&title);
+        clashes(&mut s, "the window laid out anew", &mut out);
+        // the workbench changed in the new layout
+        let xy = s.word("plane-xy-table");
+        s.press_word(&xy);
+        clashes(&mut s, "a sketch in the new layout", &mut out);
+        assert!(out.is_empty(), "egui marked widgets that took another id ({}):\n{}", out.len(), out.join("\n"));
+    }
+}

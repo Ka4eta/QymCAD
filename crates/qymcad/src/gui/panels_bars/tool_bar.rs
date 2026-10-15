@@ -19,9 +19,8 @@ const CAPTION_SIZE: f32 = 11.0;
 pub(crate) fn wb_toolbar(bc: &mut qymcad_ui_state::BarCtx, ui: &mut egui::Ui, edge: Option<qymcad_shell::Edge>) {
     let edge = edge.unwrap_or(qymcad_shell::Edge::Left);
     let bench = bc.workbench.code();
-    // the bar of each workbench under its own key, and each button under the code of its command: a button taking the
-    // place of another is a new widget, which egui would otherwise take for an old one whose id changed
-    ui.push_id(bench, |ui| bar_of(bc, ui, edge, bench));
+    // the bar of each workbench under its own key, whatever was drawn before it
+    qymcad_shell::keyed(ui, ("the bar of", bench), |ui| bar_of(bc, ui, edge, bench));
 }
 
 /// THE BAR OF `bench`, laid and pressed.
@@ -65,7 +64,7 @@ fn bar_of(bc: &mut qymcad_ui_state::BarCtx, ui: &mut egui::Ui, edge: qymcad_shel
         let c = arranged.on_bar[p.item];
         let img = qymcad_ui_state::icon_image(ui, c.icon, look.size * ICON_SHARE);
         let button = egui::Button::image(img).selected(pressed(c.launch, bc));
-        let r = ui.scope_builder(egui::UiBuilder::new().max_rect(p.rect).id_salt(c.code), |ui| ui.add_sized(p.rect.size(), button)).inner.on_hover_text(hint(c, bc));
+        let r = ui.scope_builder(place_of(bench, p.rect), |ui| ui.add_sized(p.rect.size(), button)).inner.on_hover_text(hint(c, bc));
         qymcad_shell::note_button(ui.ctx(), p.rect, qymcad_shell::Button::Plain);
         if r.clicked() {
             chosen = Some(c);
@@ -79,7 +78,7 @@ fn bar_of(bc: &mut qymcad_ui_state::BarCtx, ui: &mut egui::Ui, edge: qymcad_shel
         let rest: Vec<&'static Command> = plan.in_more.iter().map(|i| arranged.on_bar[*i]).chain(arranged.in_more.iter().copied()).collect();
         let lit = rest.iter().any(|c| pressed(c.launch, bc));
         let more = egui::Button::new(egui::RichText::new(ph::DOTS_THREE).size(look.size * ICON_SHARE)).selected(lit);
-        let r = ui.put(at, more).on_hover_text(crate::i18n::tr("bar-more-hint"));
+        let r = ui.scope_builder(place_of(bench, at), |ui| ui.put(at, more)).inner.on_hover_text(crate::i18n::tr("bar-more-hint"));
         qymcad_shell::note_button(ui.ctx(), at, qymcad_shell::Button::More);
         egui::Popup::menu(&r).show(|ui| {
             for c in rest {
@@ -95,4 +94,13 @@ fn bar_of(bc: &mut qymcad_ui_state::BarCtx, ui: &mut egui::Ui, edge: qymcad_shel
     if let Some(c) = chosen {
         crate::command_catalog::press(c, bc);
     }
+}
+
+/// A PLACE ON THE BAR, KNOWN BY WHERE IT STANDS, for a button or for "More": a button keeps nothing between frames, which
+/// is when egui says the place may be its identity. A button put into "More" leaves its place to the next one, or to
+/// "More" itself; under the code of its command that would be one widget gone and another come at the same rectangle,
+/// which egui marks with a red frame.
+fn place_of(bench: &str, rect: egui::Rect) -> egui::UiBuilder {
+    let corner = [rect.min.x.round() as i32, rect.min.y.round() as i32];
+    egui::UiBuilder::new().max_rect(rect).id(egui::Id::new(("a place of the bar", bench, corner)))
 }
