@@ -399,6 +399,12 @@ const HONEST: &[Honest] = &[
         code: "EdgesNotFound",
         why: "the edge between the rounding of R10 and the chamfer exists only while the step 10 high between them is eaten whole; at 11 a strip of the wall stands between them",
     },
+    Honest {
+        doc: "vacuumCleaner.qcad",
+        node: 177,
+        code: "FilletEdgesOneByOne",
+        why: "a rounding of R8.6 that fits up to R8.6 as drawn (R8.7 does not); a sketch dimension 10% off leaves room for R7.6 at most",
+    },
     Honest { doc: "vacuumCleaner.qcad", node: 251, code: "FilletRadiusTooBig", why: "a rounding of R2 on a rim the parameter ram_w made 1 thick" },
 ];
 
