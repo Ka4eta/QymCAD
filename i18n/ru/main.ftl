@@ -2769,6 +2769,7 @@ faults-warnings-hint = Предупреждений в документе: { $n 
 faults-row-hint = Щёлкните, чтобы перейти туда
 faults-none = В документе нет ошибок и предупреждений.
 fault-sketch-conflict = Связи эскиза противоречат друг другу: { $n } не могут выполняться одновременно
+fault-said = { $where }: { $what }
 io-rebuild-left-errors = Не построено операций: { $n }. Первая, { $where }:
 io-rebuild-left-warnings = Построено не полностью операций: { $n }. Первая, { $where }:
 io-placement-left-errors = Не выполняется связей: { $n }. Первая, { $where }:

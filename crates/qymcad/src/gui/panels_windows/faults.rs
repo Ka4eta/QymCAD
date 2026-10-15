@@ -44,7 +44,9 @@ pub(crate) fn faults_window(wc: &mut qymcad_ui_state::WinCtx, ctx: &egui::Contex
         });
     });
     if let Some(f) = chosen.and_then(|i| rows.get(i)) {
-        qymcad_ui_state::lead_to(f, wc.project, wc.win, wc.par_search, wc.ask);
+        // the words are about the document: the next rebuild replaces them as its own line (see `StatusCtx::rebuild_line`)
+        *wc.status = qymcad_ui_state::lead_to(f, wc.project, wc.win, wc.par_search, wc.ask);
+        wc.regen.line = wc.status.clone();
     }
     if !open {
         wc.win.close(WinKind::Faults);

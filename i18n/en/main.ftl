@@ -2769,6 +2769,7 @@ faults-warnings-hint = Warnings in the document: { $n }. Click to go to them.
 faults-row-hint = Click to go there
 faults-none = There are no errors or warnings in the document.
 fault-sketch-conflict = The constraints of the sketch conflict: { $n } of them cannot hold at once
+fault-said = { $where }: { $what }
 io-rebuild-left-errors = Operations that did not build: { $n }. The first, { $where }:
 io-rebuild-left-warnings = Operations built only in part: { $n }. The first, { $where }:
 io-placement-left-errors = Mates that do not hold: { $n }. The first, { $where }:

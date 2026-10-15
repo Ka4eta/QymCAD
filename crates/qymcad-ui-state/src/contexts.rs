@@ -919,13 +919,22 @@ pub struct StatusCtx<'a> {
     /// that a start happened, and the setting says how often to ask.
     pub set: &'a mut Settings,
     pub sketch_ses: &'a SketchSession,
-    pub status: &'a Notice,
+    /// What the line says, and the rebuild's own line beside it.
+    pub line: StatusLine<'a>,
     /// The badge leads to the window, so the line must be able to open it.
     pub win: &'a mut Windows,
     /// A fault of a parameter opens the table narrowed to its name.
     pub par_search: &'a mut String,
     /// A click on a single fault goes there: the request is carried out after the frame, as the windows' are.
     pub ask: &'a mut Vec<WinAsk>,
+}
+
+/// WHAT THE STATUS LINE SAYS, written when a click goes straight to a fault, and THE REBUILD'S OWN LINE
+/// (`Rebuilding::line`): the words of a fault are about the document, so they are written to both, and the end of the
+/// next rebuild replaces them as it replaces its own - a fault fixed must not stay red over a document that built.
+pub struct StatusLine<'a> {
+    pub said: &'a mut Notice,
+    pub rebuild: &'a mut Notice,
 }
 
 /// THE MESH FORMATS a body can be written as. Their names and extensions live in the table of formats

@@ -309,8 +309,9 @@ fn fault_badge(ui: &mut egui::Ui, pal: &crate::palette::Palette, count: qymcad_u
 /// DEFINEDNESS is the sketcher's main state, and in CAD it belongs in the status line: one looks at the
 /// drawing rather than hunting for it in a panel off to the side.
 pub(crate) fn status_bar(sc: &mut qymcad_ui_state::StatusCtx, ui: &mut egui::Ui) {
-    let qymcad_ui_state::StatusCtx { cache, cursor, project, scheme, set, sketch_ses, status, win, par_search, ask } = sc;
-    let (cursor, status) = (*cursor, *status);
+    let qymcad_ui_state::StatusCtx { cache, cursor, project, scheme, set, sketch_ses, line, win, par_search, ask } = sc;
+    let status = &mut *line.said;
+    let cursor = *cursor;
     // THE CHECK FOR A NEWER VERSION IS STARTED HERE, and shown here, so that the two cannot drift apart.
     //
     // A frame is where it belongs: nothing else in the program knows that a start happened, and this
@@ -331,7 +332,10 @@ pub(crate) fn status_bar(sc: &mut qymcad_ui_state::StatusCtx, ui: &mut egui::Ui)
         let badge_clicked = fault_badges(ui, &scheme.pal, &faults);
         let lead = words_clicked || badge_clicked;
         if lead {
-            qymcad_ui_state::lead_to_faults(&faults, project, win, par_search, ask);
+            if let Some(said) = qymcad_ui_state::lead_to_faults(&faults, project, win, par_search, ask) {
+                *line.rebuild = said.clone();
+                *status = said;
+            }
         }
         update_note(scheme, win, ui);
         if let Some(sid) = sketch_ses.editing {

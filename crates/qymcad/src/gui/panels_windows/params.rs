@@ -168,7 +168,7 @@ pub(crate) fn params_rows_ui(wc: &mut qymcad_ui_state::WinCtx, ui: &mut egui::Ui
                     None => {
                         // THE DIMENSION IS GONE (its sketch or its constraint was deleted) - that is said out loud
                         // rather than shown as a blank: the driver is still in the formulas and has no value.
-                        ui.label(egui::RichText::new(crate::i18n::tr1("par-dim-missing", "name", &nm)).weak());
+                        qymcad_ui_state::say(ui, &wc.scheme.pal, &Notice::warning(crate::i18n::tr1("par-dim-missing", "name", &nm)), qymcad_ui_state::NoticeSize::Small);
                         ui.label("");
                     }
                 }

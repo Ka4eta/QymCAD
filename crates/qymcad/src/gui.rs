@@ -1367,7 +1367,7 @@ impl qymcad_shell::Fills for App {
                     scheme: &self.scheme,
                     set: &mut self.set,
                     sketch_ses: &self.sketch_ses,
-                    status: &self.status,
+                    line: qymcad_ui_state::StatusLine { said: &mut self.status, rebuild: &mut self.regen.line },
                     win: &mut self.win,
                     par_search: &mut self.par_search,
                     ask: &mut win_asks,

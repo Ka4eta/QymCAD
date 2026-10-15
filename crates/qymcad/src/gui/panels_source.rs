@@ -707,6 +707,7 @@ mod tests {
             "PartCtx::workbench",        // read
             "PropsCtx::workbench",       // read
             "StatusCtx::cursor",         // read: where the pointer is, printed as two numbers and changed by nobody
+            "StatusCtx::line",           // a pair of references: what the line says is written through them, not into a copy
             "TextCtx::tool_text_height", // read: the height the preview of the text tool is baked at
             "TextCtx::writes_note",      // read: a note asks its letters of the interface's font
             "TreeCtx::workbench",        // read

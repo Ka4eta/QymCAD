@@ -286,3 +286,30 @@ fn a_fault_led_to_is_shown_in_the_tree() {
     let shown = row(&mut hand).expect("the rounding led to stays out of the view of the tree");
     assert!(shown.min.y > 0.0, "the row of the rounding stands above the window, at {shown:?}");
 }
+
+/// A DRIVER WHOSE DIMENSION IS GONE is said where the click lands and fixed where it is kept: a click on its yellow
+/// badge says on the status line what is wrong and where, and opens the table of parameters narrowed to the driver -
+/// where its row says the dimension was not found, in yellow, beside the bin that takes it away.
+///
+/// Reported behaviour: the warning badge lit, a click on it went into a sketch of the part and said nothing, and not
+/// one node of the tree was yellow.
+#[test]
+fn a_driver_without_its_dimension_is_said_and_led_to_the_table() {
+    let mut app = crate::gui::screen_keys::tests::plate();
+    let sid = app.project.sketches[0].id;
+    // the driver names a dimension of the sketch the sketch no longer holds
+    app.project.named_dims.push(qymcad_core::model::NamedDim { name: "T_out".into(), target: qymcad_core::model::DimTarget::Sketch { sketch: sid, refs: vec![0x6000_7777] } });
+    let pal = app.scheme.pal.clone();
+    let mut hand = Hand::new(&mut app);
+    hand.settle();
+    let badge = hand.status_badge(qymcad_ui_state::Tone::Warning).expect("the yellow badge of the driver");
+    hand.click_screen(badge.rect.center());
+    let words = hand.status_painted();
+    let line = message(&words).expect("the status line says something");
+    assert!(line.text.contains("T_out") && line.colour == pal.warning(), "a click on the badge did not say in yellow what is wrong: {:?}", line.text);
+    assert!(hand.window_titled(&crate::i18n::tr("win-params")).is_some(), "the click did not open the table of parameters");
+    assert_eq!(hand.app.par_search, "T_out", "the table is not narrowed to the driver");
+    let missing = crate::i18n::tr1("par-dim-missing", "name", "T_out");
+    let row = hand.painted_words().into_iter().find(|w| w.text.contains(&missing) && w.rect.max.y < 860.0);
+    assert!(row.as_ref().is_some_and(|w| w.colour == pal.warning()), "the row of the driver in the table does not say in yellow that its dimension is gone: {:?}", row.map(|w| (w.text, w.colour)));
+}

@@ -130,25 +130,42 @@ pub struct GoTo {
 /// GO TO A FAULT: step into its component and select it, as a click on a driver's path in the window of parameters
 /// does - both push the same request. A parameter of the document has nothing to select: the window of parameters
 /// opens with the table narrowed to its name.
-pub fn lead_to(fault: &Fault, project: &Project, win: &mut Windows, par_search: &mut String, ask: &mut Vec<WinAsk>) {
-    match fault_goes_to(project, &fault.place) {
-        Some(g) => ask.push(WinAsk::GoTo { owner: g.owner, sel: g.sel }),
-        None => {
-            if let FaultPlace::Parameter(name) = &fault.place {
-                *par_search = name.clone();
-            }
+///
+/// A DRIVER WHOSE DIMENSION IS GONE leads to the table as well, narrowed to its name: the row there says the dimension
+/// was not found and carries the bin that takes the driver away, while its sketch has nothing left to show. Reported
+/// behaviour: the warning badge led into a sketch of the part, and nothing on screen said what was wrong.
+///
+/// Returns what to say on the status line: what is wrong and where, in the tone of the fault - arriving somewhere
+/// without the words is arriving without knowing why.
+pub fn lead_to(fault: &Fault, project: &Project, win: &mut Windows, par_search: &mut String, ask: &mut Vec<WinAsk>) -> Notice {
+    let to_table = match &fault.place {
+        FaultPlace::Parameter(name) => Some(name.clone()),
+        FaultPlace::Driver(k) => Some(project.named_dims.get(*k).map(|d| d.name.clone()).unwrap_or_default()),
+        _ => None,
+    };
+    match (to_table, fault_goes_to(project, &fault.place)) {
+        (Some(name), _) => {
+            *par_search = name;
             win.open(WinKind::Params);
         }
+        (None, Some(g)) => ask.push(WinAsk::GoTo { owner: g.owner, sel: g.sel }),
+        (None, None) => {}
     }
+    let words = if fault.path.is_empty() { fault.words.clone() } else { qymcad_i18n::tr2("fault-said", "where", &fault.path, "what", &fault.words) };
+    Notice { tone: fault.tone, words }
 }
 
 /// A CLICK ON THE COUNTER OR ON THE WORDS OF A FAULT: with one fault it goes straight there, with more the window of
 /// faults opens - a list to choose from is a step that one fault does not need.
-pub fn lead_to_faults(faults: &[Fault], project: &Project, win: &mut Windows, par_search: &mut String, ask: &mut Vec<WinAsk>) {
+/// Returns what to say on the status line when it went straight to the one fault.
+pub fn lead_to_faults(faults: &[Fault], project: &Project, win: &mut Windows, par_search: &mut String, ask: &mut Vec<WinAsk>) -> Option<Notice> {
     match faults {
-        [] => {}
-        [one] => lead_to(one, project, win, par_search, ask),
-        _ => win.open(WinKind::Faults),
+        [] => None,
+        [one] => Some(lead_to(one, project, win, par_search, ask)),
+        _ => {
+            win.open(WinKind::Faults);
+            None
+        }
     }
 }
 
@@ -279,7 +296,9 @@ fn parameter_faults(project: &Project) -> Vec<Fault> {
     }
     for (k, d) in project.named_dims.iter().enumerate() {
         if project.named_dim_value(d).is_none() {
-            out.push(Fault { tone: Tone::Warning, words: qymcad_i18n::tr1("par-dim-missing", "name", &d.name), path: d.name.clone(), place: FaultPlace::Driver(k), owner: None });
+            // the path is where the dimension stood: the name is in the words already
+            let path = path_in_words(&project.driver_path(&d.target));
+            out.push(Fault { tone: Tone::Warning, words: qymcad_i18n::tr1("par-dim-missing", "name", &d.name), path, place: FaultPlace::Driver(k), owner: None });
         }
     }
     out
