@@ -575,14 +575,6 @@ struct QymChainHistory : QymHistory {
     TopTools_ListOfShape made;
 };
 
-/// WHO KEEPS AN IMAGE TWO ELEMENTS BECAME; the other is recorded as yielded to it either way, so a reference to it still
-/// finds the element. `First`: the first carried, as an operation hands its elements on - two edges of a base and a tool
-/// lying together in a boolean, the base's first; the two long sides of a strip taken out, the first side. `ByName`: in
-/// the monolith, coplanar faces glued - a name of the document beats a role of the operation, which beats a positional
-/// number, and of one rank the smaller name wins. Measured: the name
-/// rule over every operation, the strips included, made a rounding of R2 on a sample leave two of its four corners out.
-enum class QymMerge { First, ByName };
-
 /// WHAT THE RESULT OF AN OPERATION IS MADE OF.
 struct QymResultSpec {
     std::vector<QymOperand> operands;
@@ -593,8 +585,6 @@ struct QymResultSpec {
     bool unify = false;
     /// What the recipe names itself, between the names carried and the numbers handed out; empty when nothing.
     QymRecipe recipe = {};
-    /// Who keeps an image two elements became.
-    QymMerge merge = QymMerge::First;
 };
 
 /// THE RESULT OF AN OPERATION WITH ITS NAMES, built from `res` by `history` as `spec` says. Null when `res` is null.

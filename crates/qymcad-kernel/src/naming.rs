@@ -69,6 +69,9 @@ pub(crate) fn silent(kernel: &crate::OcctKernel, ask: SilentNaming<'_>) -> Named
     let pairs = shape.edge_face_pairs();
     if !pairs.is_empty() {
         let renames = edges(&pairs, &shape.edge_end_faces(), &shape.edges_with_ids().1, names);
+        // a name that told another pair yielded to the name of the pair: a reference to it, or to a piece of its pair,
+        // follows the record in every later rebuild, not only in this one
+        named.absorbed.extend(renames.iter().filter(|r| names.edge(r.was).is_some()).map(|r| qymcad_core::feature::Absorbed { loser: r.was, winner: r.now }));
         shape.rename_edges(&renames);
         named.edges = renames;
     }
@@ -289,15 +292,27 @@ fn place_key(place: &FacePlace) -> Id {
 /// a slot between the same walls, the cap at one and the floor at the other - and the number of an edge is the last
 /// separator. The number within a pair is the first one free on the body: a newcomer of a pair given the number a
 /// neighbour wears made two edges one address (measured: 8 of 24 edges of a shelled pocket).
+///
+/// AN EDGE NAMED BESIDE A FACE GONE FROM THE BODY is named again by the pair it runs between. A strip taken out between a
+/// rounding and a wall makes its two long sides one edge, and whichever of the two names it kept, that name says "beside
+/// the strip". The renaming goes to the document with the others, the old name recorded as yielded to the new one.
+/// Measured on a sample: with the smaller name kept, the rounding above the strip lost two of its four edges. A name of
+/// another pair whose faces are all in the body - a piece for its whole, a wall a cut put along a seam - stays: a
+/// reference to it is read through its pair (`NameTable::canonical_edge`), and renaming those too left 28 edges of a
+/// rounding of a sample unfound after an edit.
 pub(crate) fn edges(pairs: &[EdgeFaces], ends: &[EdgeEnds], body_edges: &[u32], names: &mut dyn NameMint) -> Vec<Rename> {
     // the names worn on the whole body, not only by the edges with a pair: a seam and a degenerate edge have none, and
     // their names stayed free to be handed out twice
     let mut worn: HashSet<u32> = body_edges.iter().chain(pairs.iter().map(|p| &p.edge)).copied().filter(|e| names.knows(*e)).collect();
     let mut by_pair: BTreeMap<[u32; 2], Vec<u32>> = BTreeMap::new();
+    let faces: HashSet<u32> = pairs.iter().flat_map(|p| p.faces).collect();
     for p in pairs {
         let [a, b] = p.faces;
-        // already named through the history; or nowhere to take a name from
-        if names.knows(p.edge) || !names.knows(a) || !names.knows(b) {
+        // nowhere to take a name from; or named through the history, and the name tells no face gone from the body
+        if !names.knows(a) || !names.knows(b) {
+            continue;
+        }
+        if names.knows(p.edge) && names.edge(p.edge).is_none_or(|n| n.faces.iter().all(|f| faces.contains(f))) {
             continue;
         }
         by_pair.entry([a.min(b), a.max(b)]).or_default().push(p.edge);
@@ -360,6 +375,18 @@ mod tests {
         let first = name_of(7, 8, &mut table);
         let swapped = name_of(8, 7, &mut table);
         assert_eq!(first, swapped, "the upper and the lower edge of one pair swapped names with their numbers");
+    }
+
+    /// AN EDGE WHOSE NAME TELLS ANOTHER PAIR is named after the pair it runs between: the two long sides of a strip taken
+    /// out become one edge between a rounding and a wall, and the name it kept says "beside the strip", a face gone.
+    #[test]
+    fn an_edge_named_beside_a_face_gone_takes_the_name_of_its_pair() {
+        let mut table = NameTable::default();
+        let [strip, wall, blend] = [GeoName::new(5, Role::Wall, 1), GeoName::new(5, Role::Wall, 2), GeoName::new(6, Role::Blend, 1)].map(|n| table.intern_face(n));
+        let kept = table.intern_edge(EdgeName::new(strip, wall, 0));
+        let renames = edges(&[EdgeFaces { edge: kept, faces: [blend, wall] }], &[], &[kept], &mut table);
+        let now = renames.iter().find(|r| r.was == kept).and_then(|r| table.edge(r.now));
+        assert_eq!(now, Some(EdgeName::new(blend, wall, 0)), "the edge kept a name beside a face it does not touch");
     }
 
     /// A face with no history and no named neighbour is named by where it lies, and the same place at twice the scale

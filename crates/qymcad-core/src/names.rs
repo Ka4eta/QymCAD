@@ -434,12 +434,22 @@ impl NameTable {
     /// a new one from, since nothing carries it.
     pub fn absorbed_target(&self, desc: u32) -> Option<u32> {
         if let Some(e) = self.edge(desc) {
+            // An edge that yielded its own name - in a merge, or as a name that told another pair than the one the
+            // edge runs between - is recorded under its name, and the record says where it went before its faces are
+            // asked; the name its faces translate to may have yielded the same way. Measured on a sample: a reference to
+            // "piece 1 of a wall beside itself" went through its whole to the edge once wearing "the wall beside
+            // itself", now named after the wall a cut put beside it, and without the second record it took the seam of
+            // the wall, the one other edge of that pair: the rounding lost its surface without a word.
+            if let Some(&t) = self.absorbed.get(&desc) {
+                return Some(t);
+            }
             let a = self.absorbed_face(e.faces[0]).unwrap_or(e.faces[0]);
             let b = self.absorbed_face(e.faces[1]).unwrap_or(e.faces[1]);
             if a == e.faces[0] && b == e.faces[1] {
                 return None; // neither face was absorbed, so there is nothing to translate
             }
-            return self.eindex.get(&EdgeName::new(a, b, e.index)).copied();
+            let t = *self.eindex.get(&EdgeName::new(a, b, e.index))?;
+            return Some(self.absorbed.get(&t).copied().unwrap_or(t));
         }
         self.absorbed_face(desc)
     }

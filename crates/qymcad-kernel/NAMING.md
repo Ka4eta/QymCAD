@@ -49,7 +49,10 @@ a tag in the high bits.
   by its name before one translated onto it, then to the lower place. An edge a description gave (every edge of a
   face) has no place in a pick, and its blend is named after the edge.
 * **An edge** (`EdgeName`): the pair of faces it runs between and its number within the pair. An edge has no recipe of
-  its own; it is where two surfaces meet.
+  its own; it is where two surfaces meet. A name carried through the history that names a face gone from the body - the
+  two sides of a strip taken out, both "beside the strip" - is named again after the pair the edge runs between, the old
+  name recorded as yielded to the new one (`naming::edges`, `an_edge_named_beside_a_face_gone_takes_the_name_of_its_pair`).
+  A name of another pair whose faces are all in the body stays; a reference reads it through its pair.
 * **A vertex** (`VertexName`): the three smallest descriptors of the edges meeting at it.
 
 ## How the bridge names a result
@@ -59,9 +62,11 @@ In `qym_result`, in this order:
 1. **The names of the operands are carried through the history** (`carry_ids_with`): `Modified`, `Generated`, removed.
    The body worked on gives every name; a tool gives only the names its roles made.
 2. **The roles are named** (`naming::land_roles`).
-3. **Two elements became one** - coplanar faces glued into the monolith, the two sides of a strip taken out
-   (`merge_names`): a name of the document beats a role of the operation, a role beats a positional number, and of
-   one rank the smaller descriptor wins (`a_merged_wall_keeps_the_name_of_the_base`).
+3. **Two elements became one** - coplanar faces glued into the monolith, the two sides of a strip taken out, an edge of
+   the base and of the tool lying together (`merge_names`), by one rule in every operation: a name of the document
+   beats a role of the operation, a role beats a positional number, and of one rank the smaller descriptor wins
+   (`a_merged_wall_keeps_the_name_of_the_base`). The order of a walk never decides. A name another element already
+   wears - its source went on elsewhere too - is not in the draw: one name, one element.
 4. **A face split in pieces** keeps the name of the whole on one piece; a piece is told first by the faces the node
    made beside it - what cut it - then by the other named faces beside it, in the order of the recipe
    (`naming::pieces`, `a_split_face_is_told_by_what_cut_it`).
@@ -98,7 +103,8 @@ The document, not the bridge, resolves a reference, in this order (`qymcad_core:
 `Project::resolve_face_id`, `Project::resolve_edge_ids_in`):
 
 1. **The name**, as it is.
-2. **A recorded merge**: the name it yielded to; a piece returns to its whole.
+2. **A recorded merge**: the name it yielded to; a piece returns to its whole, and the edge of the wholes follows the
+   name it yielded to in turn (`a_reference_to_a_piece_follows_the_name_its_whole_yielded`).
 3. **The canonical pair** of an edge: its faces reduced to their wholes, when one edge has that pair.
 4. **The structure of the name** (`NameTable::same_recipe`): the one live face of the same node, role and source, or
    the one edge between two such faces; two candidates give none.

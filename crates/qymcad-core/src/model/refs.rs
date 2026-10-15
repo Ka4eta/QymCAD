@@ -604,4 +604,26 @@ mod tests {
         let there = [edge(other, 2.0, 8.0)];
         assert_eq!(p.resolve_edge_ids_in(&there, node, &[gone]), vec![other], "the edge with its middle where the reference saw it was not taken");
     }
+
+    /// A REFERENCE TO A PIECE FOLLOWS ITS WHOLE AND THEN THE NAME THE WHOLE'S EDGE YIELDED TO. A rounding picked "piece 1
+    /// of a round wall beside itself"; the edge once wearing "the wall beside itself" lies, after a cut, between the wall
+    /// and the wall of the cut, and is named after them, the old name recorded as yielded. Read through its pair alone,
+    /// the reference took the seam of the wall - the one other edge between the wall and itself - and the rounding lost
+    /// its surface without a word (measured on a sample: 33 faces of a body in the file, 32 rebuilt).
+    #[test]
+    fn a_reference_to_a_piece_follows_the_name_its_whole_yielded() {
+        let mut p = Project::default();
+        let node = 2;
+        let round = p.names.intern_face(GeoName::new(5, Role::Wall, 96));
+        let piece = p.names.intern_face(GeoName { split: 1, ..GeoName::new(5, Role::Wall, 96) });
+        let cut = p.names.intern_face(GeoName::new(6, Role::Wall, 157));
+        let picked = p.names.intern_edge(crate::names::EdgeName::new(piece, piece, 0));
+        let carried = p.names.intern_edge(crate::names::EdgeName::new(round, round, 0));
+        let beside_cut = p.names.intern_edge(crate::names::EdgeName::new(round, cut, 0));
+        let seam = p.names.intern_edge(crate::names::EdgeName::new(round, round, 1));
+        p.names.absorb(carried, beside_cut);
+        let edge = |id: u32, x: f64| crate::geom::MeshEdge { id, mid: [x, 0.0, 0.0], dir: [0.0, 0.0, 1.0], ..Default::default() };
+        let live = [edge(beside_cut, 0.0), edge(seam, 10.0)];
+        assert_eq!(p.resolve_edge_ids_in(&live, node, &[picked]), vec![beside_cut], "the reference to a piece took another edge of its pair");
+    }
 }

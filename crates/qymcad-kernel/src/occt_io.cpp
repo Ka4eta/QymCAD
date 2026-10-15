@@ -1189,8 +1189,9 @@ extern "C" int qym_shape_drop_slivers(QymShape* s, double width) {
         // of each element. Carried by where things lay to 1e-6, the faces the strips were cut from lost their names -
         // the end walls of a staircase whose chamfer stepped back moved 2e-7 at a corner, and every blend after it
         // renamed them, lighting both ends of the part in the preview of the next tool. The two long sides of a strip
-        // become one edge: the first keeps its name, the other is recorded as yielded to it, so a reference to either
-        // still finds the edge.
+        // become one edge, its name chosen by rank as in every merge (`merge_names`); both sides were named after the
+        // strip, and the edge is named again after the faces it now runs between (`naming::edges`), each old name
+        // recorded as yielded to the new one.
         QymBuilderHistory copied(copier);
         QymRepairHistory fixed(fix->Context(), QymRepairAsk::Apply);
         QymChainHistory history(copied, fixed);
