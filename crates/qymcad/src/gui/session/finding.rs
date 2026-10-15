@@ -161,7 +161,10 @@ impl Session {
             let bar: Vec<Pos2> = self.win.plates.clone();
             self.click(more);
             let rows: Vec<Pos2> = self.win.plates.iter().copied().filter(|p| !bar.contains(p)).collect();
-            self.pointer_off_the_plates();
+            // the pointer rests where nothing is, or the hint of "More" stays up over the first row and egui opens no
+            // second one
+            let aside = self.canvas();
+            self.rest_over(pos2(aside.max.x - 8.0, 10.0));
             if let Some(at) = rows.into_iter().find(|&at| self.hint_comes_up(at, hint)) {
                 return Some(at);
             }
@@ -177,7 +180,8 @@ impl Session {
             let bar: Vec<Pos2> = self.win.plates.clone();
             self.click(more);
             let rows: Vec<Pos2> = self.win.plates.iter().copied().filter(|p| !bar.contains(p)).collect();
-            self.pointer_off_the_plates();
+            let aside = self.canvas();
+            self.rest_over(pos2(aside.max.x - 8.0, 10.0));
             for at in rows {
                 hints.push(self.hint_at(at).join(" "));
             }
@@ -286,12 +290,13 @@ impl Session {
     pub fn hint_at(&mut self, at: Pos2) -> Vec<String> {
         self.settle();
         let before: Vec<String> = self.win.drawn.iter().map(|(t, _)| t.clone()).collect();
-        self.rest_over(at);
-        // the frames of the rest each draw the hint once: its words count once
+        // COUNTED, not looked for: the name of a command in a "More" list may be the very words of its hint, and the
+        // hint coming up then writes them a second time
+        let rested = self.rest_over(at);
         let mut came: Vec<String> = Vec::new();
-        for (t, _) in &self.win.drawn {
-            if !t.is_empty() && !before.contains(t) && !came.contains(t) {
-                came.push(t.clone());
+        for t in rested.risen_over(&before) {
+            if !t.is_empty() && !came.contains(&t) {
+                came.push(t);
             }
         }
         came

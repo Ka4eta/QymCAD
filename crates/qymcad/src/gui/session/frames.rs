@@ -93,6 +93,8 @@ impl Session {
     pub(crate) fn hint_comes_up(&mut self, at: Pos2, hint: &str) -> bool {
         // COUNTED, not looked for: the name of a command in a "More" list may be the very words of its hint, and the
         // hint coming up then writes them a second time
+        // and from one frame: a rest before leaves the words of its three frames together
+        self.settle();
         let before = self.win.drawn.iter().filter(|(t, _)| t == hint).count();
         self.rest_over(at).most_of(hint) > before
     }
@@ -194,5 +196,19 @@ impl Rested {
     /// The most times one frame wrote `text`.
     fn most_of(&self, text: &str) -> usize {
         self.frames.iter().map(|f| f.iter().filter(|t| *t == text).count()).max().unwrap_or(0)
+    }
+
+    /// THE WORDS THAT ROSE while the pointer rested: written in some frame more times than in `before`.
+    pub(crate) fn risen_over(&self, before: &[String]) -> Vec<String> {
+        let mut out: Vec<String> = Vec::new();
+        for f in &self.frames {
+            for t in f {
+                let was = before.iter().filter(|b| *b == t).count();
+                if !out.contains(t) && f.iter().filter(|x| *x == t).count() > was {
+                    out.push(t.clone());
+                }
+            }
+        }
+        out
     }
 }
