@@ -62,6 +62,13 @@ pub(super) fn painted_in(shapes: &[egui::epaint::ClippedShape]) -> Vec<PaintedWo
 }
 
 #[cfg(test)]
+/// A FILLED GROUND OF THE SCREEN and its colour.
+pub(super) struct Ground {
+    pub rect: egui::Rect,
+    pub fill: egui::Color32,
+}
+
+#[cfg(test)]
 pub(super) struct Hand<'a> {
     pub app: &'a mut super::App,
     pub rect: egui::Rect,
@@ -422,6 +429,29 @@ impl<'a> Hand<'a> {
     pub fn laid_out(&mut self, key: &str) -> Option<egui::Rect> {
         self.frame(Vec::new());
         qymcad_shell::laid_out(&self.win.ctx, key)
+    }
+
+    /// THE GROUND `word` IS WRITTEN ON in the last frame, the place of it nearest to `near`: the smallest filled rectangle
+    /// holding the words, and its colour.
+    pub fn ground_of(&self, word: &str, near: egui::Pos2) -> Option<Ground> {
+        fn grounds(s: &egui::Shape, out: &mut Vec<Ground>) {
+            match s {
+                egui::Shape::Rect(r) if r.fill.a() > 0 => out.push(Ground { rect: r.rect, fill: r.fill }),
+                egui::Shape::Vec(v) => v.iter().for_each(|x| grounds(x, out)),
+                _ => {}
+            }
+        }
+        let text = self.win.drawn.iter().filter(|(t, _)| t == word).map(|(_, r)| *r).min_by(|a, b| a.center().distance(near).total_cmp(&b.center().distance(near)))?;
+        let mut all = Vec::new();
+        for cs in &self.win.shapes {
+            grounds(&cs.shape, &mut all);
+        }
+        all.into_iter().filter(|g| g.rect.expand(0.5).contains_rect(text)).min_by(|a, b| a.rect.area().total_cmp(&b.rect.area()))
+    }
+
+    /// The size of the window, in points.
+    pub fn screen(&self) -> egui::Vec2 {
+        self.win.screen
     }
 
     /// THE BUTTONS OF THE BARS OF TOOLS the last frame drew.

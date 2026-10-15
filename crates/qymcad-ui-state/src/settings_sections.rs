@@ -108,7 +108,15 @@ impl SettingsSection {
             ],
             Part => &["settings-default-extrude", "settings-default-offset", "settings-bar-buttons"],
             Assembly => &["settings-show-contours", "settings-show-joints", "settings-show-interference", "settings-bar-buttons"],
-            Layout => &["settings-layout-place", "settings-bar-size", "settings-bar-lines", "settings-bar-align", "settings-bar-opacity", "settings-layout-reset"],
+            Layout => &[
+                "settings-layout-place",
+                "settings-bar-size",
+                "settings-bar-lines",
+                "settings-bar-align",
+                "settings-bar-opacity",
+                "settings-bar-group-names",
+                "settings-layout-reset",
+            ],
         }
     }
 

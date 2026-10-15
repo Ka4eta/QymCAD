@@ -95,9 +95,15 @@ fn key(panel: Panel) -> &'static str {
 /// The panel that shares the edge with `panel` in a stack.
 fn partner(panel: Panel) -> Panel {
     match panel {
-        Panel::Properties => Panel::Status,
+        Panel::Properties => Panel::Toolbar,
         _ => Panel::Properties,
     }
+}
+
+/// THE STATUS LINE IS PINNED to the bottom, as in every program: a record that puts it elsewhere is not followed, and
+/// it stands alone in its strip; it may still be hidden.
+fn pinned(panel: Panel) -> bool {
+    panel == Panel::Status
 }
 
 /// THE RECORD OF THE SETTINGS with the panels put as `puts` says, written over the factory one.
@@ -201,7 +207,8 @@ fn faults(cell: Cell) -> Vec<String> {
         (Seen::Hidden, Some(r)) => out.push(format!("hidden, it is drawn at {r:?}")),
         (Seen::Shown, None) => out.push("shown, it is not drawn".to_string()),
         (Seen::Shown, Some(r)) => {
-            let at_edge = match cell.edge {
+            let edge = if pinned(cell.panel) { Edge::Bottom } else { cell.edge };
+            let at_edge = match edge {
                 Edge::Left => r.max.x <= canvas.min.x + 1.5,
                 Edge::Right => r.min.x >= canvas.max.x - 1.5,
                 Edge::Top => r.max.y <= canvas.min.y + 1.5,
@@ -214,12 +221,12 @@ fn faults(cell: Cell) -> Vec<String> {
                 out.push(format!("out of the window: {r:?}"));
             }
             if cell.panel == Panel::WorkbenchTools {
-                out.extend(buttons_cut(&mut s, cell.edge, r));
+                out.extend(buttons_cut(&mut s, edge, r));
             }
         }
         (Seen::Hidden, None) => {}
     }
-    if cell.company == Company::Stacked {
+    if cell.company == Company::Stacked && !pinned(cell.panel) {
         let other = partner(cell.panel);
         match (drawn.iter().find(|l| l.panel == other).map(|l| l.rect), mine.filter(|_| seen == Seen::Shown)) {
             (None, _) => out.push(format!("its partner {other:?} is not drawn")),

@@ -8,7 +8,7 @@ use super::*;
 
 // the bar of the tools of a workbench, drawn from the catalogue
 mod tool_bar;
-pub(crate) use tool_bar::wb_toolbar;
+pub(crate) use tool_bar::{wb_toolbar, BAR_MARGIN};
 
 impl App {
     /// The command bar of the Part workbench, through its own doorway.

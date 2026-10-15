@@ -26,7 +26,7 @@ use std::collections::BTreeMap;
 mod bar;
 mod draw;
 
-pub use bar::{note_button, noted_buttons, noted_more, plan_bar, BarAlign, BarItem, BarLines, BarLook, BarPlace, BarPlan, Button, MoreSlot};
+pub use bar::{note_button, noted_buttons, noted_more, plan_bar, BarAlign, BarCaption, BarItem, BarLines, BarLook, BarPlace, BarPlan, Button, Captions, MoreSlot};
 pub use draw::laid_out;
 
 /// The kinds of place an interface has. Not a list of panels: a KIND, of which there may be many.
@@ -160,6 +160,18 @@ pub struct Place {
     pub hiding: Hiding,
     /// What its content takes across the strip, without the frame, when that is known ahead - a bar of buttons.
     pub content: Option<ContentSize>,
+    /// May the person move it to another edge?
+    pub pin: Pin,
+    /// The margin inside its frame on every side, when it is not the frame's own.
+    pub margin: Option<f32>,
+}
+
+/// MAY A PLACE BE MOVED? One a person looks for in one place - the status line at the bottom, as in every program -
+/// stays at its edge; it is still shown on the diagram, locked, and may still be hidden.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Pin {
+    Movable,
+    Pinned,
 }
 
 /// WHAT THE CONTENT OF A PLACE TAKES ACROSS ITS STRIP: at a side, and at the top or the bottom.
@@ -179,7 +191,17 @@ pub enum Hiding {
 
 impl Place {
     pub fn new(key: &'static str, slot: Slot) -> Self {
-        Self { key, slot, size: None, resizable: false, framed: false, separator: true, hiding: Hiding::Allowed, content: None }
+        Self { key, slot, size: None, resizable: false, framed: false, separator: true, hiding: Hiding::Allowed, content: None, pin: Pin::Movable, margin: None }
+    }
+    /// The place stays at the edge it is registered at.
+    pub fn pinned(mut self) -> Self {
+        self.pin = Pin::Pinned;
+        self
+    }
+    /// The same margin inside the frame on every side.
+    pub fn margin(mut self, m: f32) -> Self {
+        self.margin = Some(m);
+        self
     }
     /// The strip is as thick as the content says, plus its frame: neither resized by hand nor started at a guess.
     pub fn content(mut self, size: ContentSize) -> Self {
@@ -261,7 +283,17 @@ impl Shell {
     /// among them. The layout editor and the menu of panels walk THIS rather than a list of their own: a place
     /// added by any workbench shows up there without that code being touched.
     pub fn movable(&self) -> Vec<&'static str> {
+        self.places.iter().filter(|p| p.slot.edge().is_some() && p.pin == Pin::Movable).map(|p| p.key).collect()
+    }
+
+    /// THE KEYS SHOWN ON THE DIAGRAM OF THE LAYOUT: every place at an edge, the pinned ones among them.
+    pub fn at_edges(&self) -> Vec<&'static str> {
         self.places.iter().filter(|p| p.slot.edge().is_some()).map(|p| p.key).collect()
+    }
+
+    /// May the place be moved to another edge?
+    pub fn pinned(&self, key: &str) -> bool {
+        self.registered(key).is_some_and(|p| p.pin == Pin::Pinned)
     }
 
     fn registered(&self, key: &str) -> Option<&Place> {
@@ -295,6 +327,8 @@ impl Shell {
     /// back where it was registered leaves no record.
     pub fn set_place(&mut self, key: &str, place: PanelPlace) {
         let Some(home) = self.home(key) else { return };
+        // a pinned place keeps where it was registered; only whether it is seen is the person's
+        let place = if self.pinned(key) { PanelPlace { seen: place.seen, ..home } } else { place };
         if place == home {
             self.moved.remove(key);
         } else {
@@ -362,6 +396,9 @@ impl Shell {
     /// TAKE A PLACE TO `to`. The strips of the edge it comes to are numbered afresh, so the numbers kept say the
     /// order the person sees; its sizes are dropped, as they belonged to where it stood before.
     pub fn move_to(&mut self, key: &str, to: Target) {
+        if self.pinned(key) {
+            return;
+        }
         let Some(now) = self.place_of(key) else { return };
         let key = key_of(&self.places, key);
         let edge = match to {
@@ -406,7 +443,11 @@ impl Shell {
             .filter(|(k, _)| self.home(k).is_some())
             .map(|(k, p)| {
                 let seen = if self.hideable(&k) { p.seen } else { Seen::Shown };
-                (k, PanelPlace { seen, ..p })
+                let kept = match self.home(&k).filter(|_| self.pinned(&k)) {
+                    Some(home) => PanelPlace { seen, ..home },
+                    None => PanelPlace { seen, ..p },
+                };
+                (k, kept)
             })
             .collect();
     }

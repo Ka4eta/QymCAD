@@ -53,6 +53,25 @@ impl Session {
         qymcad_shell::laid_out(&self.win.ctx, id).or_else(|| egui::PanelState::load(&self.win.ctx, egui::Id::new(id)).map(|p| p.outer_rect))
     }
 
+    /// THE WORDS A WINDOW OF THE PROGRAM SHOWS: the runs of words the last frame drew clipped to `area` - the content of a
+    /// window, and not what lies under it.
+    pub fn words_within(&mut self, area: Rect) -> Vec<WordAt> {
+        fn collect(s: &egui::Shape, out: &mut Vec<WordAt>) {
+            match s {
+                egui::Shape::Text(t) => out.push(WordAt { text: t.galley.text().to_string(), rect: Rect::from_min_size(t.pos, t.galley.size()) }),
+                egui::Shape::Vec(v) => v.iter().for_each(|x| collect(x, out)),
+                _ => {}
+            }
+        }
+        self.settle();
+        let mut out = Vec::new();
+        for cs in self.win.shapes.iter().filter(|cs| area.expand(1.0).contains_rect(cs.clip_rect)) {
+            collect(&cs.shape, &mut out);
+        }
+        out.retain(|w| !w.text.trim().is_empty());
+        out
+    }
+
     /// THE BUTTONS OF THE BARS OF TOOLS the last frame drew, and the rows of an open "More" list: where each stands.
     pub fn bar_buttons(&mut self) -> Vec<Rect> {
         self.settle();

@@ -1,8 +1,8 @@
 # The layout of the panels
 
-The tree, the properties, the bar of tools, the path at the top, the bar of the command in hand and the status line
-can stand at any edge of the window, one beside another or one under another, and any of them but the bar of the
-command can be hidden. The menu always stays at the top and the view in the middle.
+The tree, the properties, the bar of tools, the path at the top and the bar of the command in hand can stand at any edge
+of the window, one beside another or one under another, and any of them but the bar of the command can be hidden. The
+menu always stays at the top, the view in the middle and the status line at the bottom; the status line can be hidden.
 
 ## Moving a panel
 
@@ -31,8 +31,11 @@ In **Settings -> Layout**:
 * **Size of the buttons** — from 20 to 48 points. The icons are drawn for the size and stay sharp.
 * **Lines of buttons** — one or two: columns at a side, rows at the top and the bottom.
 * **Buttons stand** — at the start, in the middle or at the end of the bar.
-* **Opacity of the bar** — from 30 to 100 percent. On the diagram a bar at the top or the bottom has a second button,
-  **over the view**: the bar then lies over the model and the view is not narrowed by it.
+* **Opacity of the bar** — from 30 to 100 percent. A bar seen through lies over the model, and the model shows under
+  it. On the diagram a bar at the top or the bottom also has a button **over the view**: the bar then lies over the
+  model even when it is solid, and the view is not narrowed by it.
+* **Names of the groups on the bar** — the name of each group of buttons is written on the bar: at a side before the
+  group, at the top or the bottom above it. The name of a button is always in its hint.
 
 What does not fit on the bar goes into **More** at its end; press it and pick the command from the list.
 

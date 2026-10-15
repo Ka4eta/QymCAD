@@ -209,7 +209,7 @@ fn a_place_never_hidden_stays_shown() {
 
 /// The look of the bars in these checks: buttons of 30 points.
 fn look(lines: BarLines, align: BarAlign) -> BarLook {
-    BarLook { size: 30.0, lines, align }
+    BarLook { size: 30.0, lines, align, captions: Captions::Hidden }
 }
 
 /// `n` items of one group.
@@ -309,4 +309,25 @@ fn more_stands_when_the_person_put_commands_into_it() {
     assert!(plan.in_more.is_empty());
     let more = plan.more.expect("More stands although everything fits");
     assert_eq!(more.min, egui::pos2(33.0, 33.0), "More takes the free lane after the third button");
+}
+
+/// THE CAPTIONS OF THE GROUPS: at a side a line across the bar before each group, the buttons after it; at the top a line
+/// above each group, the buttons under it and the bar that much thicker.
+#[test]
+fn the_captions_of_the_groups_stand_before_and_above_them() {
+    let items = [BarItem { group: 0 }, BarItem { group: 0 }, BarItem { group: 1 }];
+    let with = BarLook { captions: Captions::Shown, ..look(BarLines::One, BarAlign::Start) };
+    let side = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(30.0, 600.0));
+    let plan = plan_bar(Edge::Left, &with, side, &items, MoreSlot::WhenFull);
+    assert_eq!(plan.captions.len(), 2, "a caption a group");
+    assert_eq!(plan.captions[0].rect.min.y, 0.0);
+    assert_eq!(plan.on_bar[0].rect.min.y, bar::CAPTION + bar::GAP, "the first button stands under the caption of its group");
+    assert!(plan.captions[1].rect.min.y >= plan.on_bar[1].rect.max.y && plan.captions[1].rect.max.y <= plan.on_bar[2].rect.min.y, "the second caption stands between the groups");
+    assert!(plan.lines.is_empty(), "at a side the caption stands in place of the line");
+    let top = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(600.0, 60.0));
+    let plan = plan_bar(Edge::Top, &with, top, &items, MoreSlot::WhenFull);
+    assert_eq!(plan.on_bar[0].rect.min.y, bar::CAPTION + bar::GAP, "at the top the buttons stand under the line of captions");
+    assert_eq!(plan.captions[1].rect.min.x, plan.on_bar[2].rect.min.x, "a caption starts over its group");
+    assert_eq!(with.across(Edge::Top), 30.0 + bar::CAPTION + bar::GAP);
+    assert_eq!(with.across(Edge::Left), 30.0, "at a side the captions take no room across");
 }

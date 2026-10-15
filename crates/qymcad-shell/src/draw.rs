@@ -64,7 +64,11 @@ pub(crate) fn run_slot(shell: &Shell, slot: Slot, ui: &mut egui::Ui, host: &mut 
                 if host.live(p.key) {
                     let r = egui::CentralPanel::default().show(ui, |ui| host.fill(p.key, ui, None));
                     note(ui.ctx(), p.key, r.response.rect);
-                    over_the_view(shell, r.response.rect, ui, host);
+                    // over the view itself, not over the margin of the middle round it: a bar laid on that margin
+                    // shows a dark band under it, not the model
+                    let margin = egui::Frame::central_panel(ui.style()).total_margin();
+                    let inside = egui::Rect::from_min_max(r.response.rect.min + margin.left_top(), r.response.rect.max - margin.right_bottom());
+                    over_the_view(shell, inside, ui, host);
                 }
             }
         }
@@ -82,7 +86,23 @@ pub(crate) fn run_slot(shell: &Shell, slot: Slot, ui: &mut egui::Ui, host: &mut 
 
 /// Is the panel drawn in a strip this frame: wanted, shown and not over the view?
 fn drawn_beside(shell: &Shell, key: &'static str, host: &dyn Fills) -> bool {
-    shell.place_of(key).is_some_and(|p| p.seen == Seen::Shown && (p.over == Over::Beside || p.edge.upright())) && host.live(key)
+    shell.place_of(key).is_some_and(|p| p.seen == Seen::Shown && !stands_over(p, key, host)) && host.live(key)
+}
+
+/// DOES THE PANEL STAND OVER THE VIEW: asked to, or seen through. A translucent panel beside the view would show the
+/// empty window under it, not the model; laid over the view it shows the model, which is what the transparency is for.
+fn stands_over(p: PanelPlace, key: &'static str, host: &dyn Fills) -> bool {
+    p.over == Over::Over || host.opacity(key) < 1.0
+}
+
+/// THE FRAME OF A PLACE: the host's bar frame or the plain one of a panel, with the place's own margin.
+fn frame_of(regs: &[&Place], host: &dyn Fills, style: &egui::Style) -> egui::Frame {
+    let framed = regs.iter().all(|p| p.framed);
+    let frame = if framed { host.bar_frame() } else { egui::Frame::side_top_panel(style) };
+    match regs.iter().find_map(|p| p.margin) {
+        Some(m) => frame.inner_margin(egui::Margin::same(m.round() as i8)),
+        None => frame,
+    }
 }
 
 /// THE GROUND OF A PLACE with the opacity the host asks for.
@@ -107,8 +127,7 @@ fn one_strip(shell: &Shell, edge: Edge, members: &[&'static str], ui: &mut egui:
         Edge::Top => egui::Panel::top(id),
         Edge::Bottom => egui::Panel::bottom(id),
     };
-    let framed = regs.iter().all(|p| p.framed);
-    let frame = if framed { host.bar_frame() } else { egui::Frame::side_top_panel(ui.style()) };
+    let frame = frame_of(&regs, host, ui.style());
     let margin = frame.total_margin().sum();
     let content = regs.iter().filter_map(|p| p.content).map(|c| if edge.upright() { c.side + margin.x } else { c.flat + margin.y }).reduce(f32::max);
     let registered = registered.or(content);
@@ -278,25 +297,51 @@ fn border(edge: Edge, members: &[&'static str], lengths: &[f32], i: usize, befor
     }
 }
 
-/// THE PANELS STANDING OVER THE VIEW: at its top edge going down, at its bottom edge going up; the view under them
-/// is not narrowed, and their ground lets it show through as much as the host says.
+/// THE PANELS STANDING OVER THE VIEW: at its top edge going down, at its bottom edge going up, at its sides going inward;
+/// the view under them is not narrowed, and their ground lets it show through as much as the host says.
 fn over_the_view(shell: &Shell, view: egui::Rect, ui: &mut egui::Ui, host: &mut dyn Fills) {
-    for edge in [Edge::Top, Edge::Bottom] {
-        let mut at = if edge == Edge::Top { view.min.y } else { view.max.y };
+    for edge in Edge::ALL {
+        let mut room = view;
         for k in shell.strips(edge).into_iter().flatten() {
-            let wanted = shell.place_of(k).is_some_and(|p| p.seen == Seen::Shown && p.over == Over::Over);
+            let wanted = shell.place_of(k).is_some_and(|p| p.seen == Seen::Shown && stands_over(p, k, host));
             if !wanted || !host.live(k) {
                 continue;
             }
-            let frame = ground(host.bar_frame(), host.opacity(k));
-            let (pivot, pos) = if edge == Edge::Top { (egui::Align2::LEFT_TOP, egui::pos2(view.min.x, at)) } else { (egui::Align2::LEFT_BOTTOM, egui::pos2(view.min.x, at)) };
+            let Some(reg) = shell.registered(k) else { continue };
+            let frame = ground(frame_of(&[reg], host, ui.style()), host.opacity(k));
+            let margin = frame.total_margin().sum();
+            // across the edge: what the content says it takes, or what was registered, or the content's own
+            let across = reg.content.map(|c| if edge.upright() { c.side + margin.x } else { c.flat + margin.y }).or(reg.size);
+            let (pivot, pos) = match edge {
+                Edge::Top => (egui::Align2::LEFT_TOP, room.left_top()),
+                Edge::Bottom => (egui::Align2::LEFT_BOTTOM, room.left_bottom()),
+                Edge::Left => (egui::Align2::LEFT_TOP, room.left_top()),
+                Edge::Right => (egui::Align2::RIGHT_TOP, room.right_top()),
+            };
             let r = egui::Area::new(egui::Id::new(("shell-over", k))).order(egui::Order::Middle).pivot(pivot).fixed_pos(pos).constrain(false).show(ui.ctx(), |ui| {
-                ui.set_width(view.width() - frame.total_margin().sum().x);
-                frame.show(ui, |ui| host.fill(k, ui, Some(edge)));
+                let inner = if edge.upright() {
+                    egui::vec2(across.unwrap_or(SIDE) - margin.x, room.height() - margin.y)
+                } else {
+                    egui::vec2(room.width() - margin.x, across.map_or(0.0, |a| a - margin.y))
+                };
+                frame.show(ui, |ui| {
+                    ui.set_min_size(inner);
+                    if edge.upright() {
+                        ui.set_max_size(inner);
+                    } else {
+                        ui.set_max_width(inner.x);
+                    }
+                    host.fill(k, ui, Some(edge));
+                });
             });
             let rect = r.response.rect;
             note(ui.ctx(), k, rect);
-            at = if edge == Edge::Top { rect.max.y } else { rect.min.y };
+            room = match edge {
+                Edge::Top => egui::Rect::from_min_max(egui::pos2(room.min.x, rect.max.y), room.max),
+                Edge::Bottom => egui::Rect::from_min_max(room.min, egui::pos2(room.max.x, rect.min.y)),
+                Edge::Left => egui::Rect::from_min_max(egui::pos2(rect.max.x, room.min.y), room.max),
+                Edge::Right => egui::Rect::from_min_max(room.min, egui::pos2(rect.min.x, room.max.y)),
+            };
         }
     }
 }

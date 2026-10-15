@@ -17,7 +17,7 @@ fn machine_with(kept: Record) -> Machine {
     let Record { bar, place } = kept;
     let mut m = Machine::default();
     let record = m.kept.record("settings").expect("the factory machine keeps its settings").to_string();
-    let factory_bar = "bar:(size:34.0,lines:Two,align:Start,opacity:100)";
+    let factory_bar = "bar:(size:34.0,lines:Two,align:Start,opacity:100,captions:Hidden)";
     assert!(record.contains(factory_bar) && record.contains("layout:{}"), "the record of the settings is not shaped as expected: {record}");
     let record = record.replacen(factory_bar, &format!("bar:({bar})"), 1).replacen("layout:{}", &format!("layout:{{{place}}}"), 1);
     m.kept.set_record("settings", record);

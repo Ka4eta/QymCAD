@@ -27,6 +27,7 @@ mod panel_layout;
 mod parts_library;
 mod project_checks;
 mod language_and_keys;
+mod layout_review;
 mod matrix_components;
 mod matrix_constraints;
 mod matrix_datums;

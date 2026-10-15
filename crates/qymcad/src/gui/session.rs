@@ -334,6 +334,13 @@ pub struct JointInfo {
     pub violated: bool,
 }
 
+/// A RUN OF WORDS ON SCREEN and where it stands.
+#[derive(Clone, Debug, PartialEq)]
+pub struct WordAt {
+    pub text: String,
+    pub rect: Rect,
+}
+
 /// THE ONE ARGUMENT OF A LINE OF THE CATALOGUE: its name and what it is filled with.
 #[derive(Clone, Copy, Debug)]
 pub struct Arg<'a> {

@@ -19,8 +19,18 @@ struct CarriedButton {
 }
 
 /// The thickness of a strip on the diagram: at a side, and at the top or the bottom.
-const SIDE_STRIP: f32 = 84.0;
+const SIDE_STRIP: f32 = 104.0;
 const FLAT_STRIP: f32 = 30.0;
+
+/// The height of the diagram: room for two strips at the top, one at the bottom and a stack of two at a side, every name
+/// whole.
+const DIAGRAM_HEIGHT: f32 = 300.0;
+
+/// The side of a switch on a tile: the eye, the place over the view.
+const SWITCH: f32 = 16.0;
+
+/// The words on a tile, small enough for the longest name to stand in two lines of a strip at a side.
+const TILE_TEXT: f32 = 11.0;
 
 /// The band of the menu at the top of the diagram.
 const MENU_BAND: f32 = 18.0;
@@ -92,8 +102,13 @@ fn seam(edge: qymcad_shell::Edge, strips: &[egui::Rect], before: usize, room: eg
 pub(crate) fn layout_diagram(set: &mut qymcad_ui_state::Settings, ui: &mut egui::Ui) {
     let mut shell = crate::gui::shell(set);
     ui.label(egui::RichText::new(crate::i18n::tr("settings-layout-drag-hint")).weak().small());
-    let width = ui.available_width().clamp(320.0, 560.0);
-    let (whole, _) = ui.allocate_exact_size(egui::vec2(width, 250.0), egui::Sense::hover());
+    let width = ui.available_width().clamp(360.0, 640.0);
+    // A BLOCK OF ITS OWN: the diagram is claimed whole first, and everything on it is laid in a child bounded by it, so
+    // nothing after it can stand over it. Reported behaviour: the sliders of the bar lay over the tiles of the diagram.
+    let (whole, _) = ui.allocate_exact_size(egui::vec2(width, DIAGRAM_HEIGHT), egui::Sense::hover());
+    let mut block = ui.new_child(egui::UiBuilder::new().max_rect(whole).id_salt("layout-diagram"));
+    block.set_clip_rect(whole.intersect(ui.clip_rect()));
+    let ui = &mut block;
     let painter = ui.painter_at(whole);
     let vis = ui.visuals().clone();
     painter.rect_filled(whole, 4.0, vis.extreme_bg_color);
@@ -103,7 +118,7 @@ pub(crate) fn layout_diagram(set: &mut qymcad_ui_state::Settings, ui: &mut egui:
         menu.left_center() + egui::vec2(6.0, 0.0),
         egui::Align2::LEFT_CENTER,
         format!("{}  {}", ph::LOCK_SIMPLE, crate::i18n::tr("settings-layout-menu")),
-        egui::FontId::proportional(11.0),
+        egui::FontId::proportional(TILE_TEXT),
         vis.weak_text_color(),
     );
     // the strips: the top and the bottom across the whole width, the sides between them, as the window lays them
@@ -179,33 +194,51 @@ struct TilePick {
     over: Option<qymcad_shell::Over>,
 }
 
-/// ONE PANEL ON THE DIAGRAM: its name to carry it by, its eye, and at the top or the bottom its place over the view.
+/// ONE PANEL ON THE DIAGRAM: its whole name, wrapped where the tile is narrow, to carry it by; its eye; at the top or the
+/// bottom its place over the view. A pinned panel wears a lock and is not carried.
 fn tile_ui(shell: &qymcad_shell::Shell, key: &'static str, tile: egui::Rect, ui: &mut egui::Ui) -> TilePick {
     let mut pick = TilePick { seen: None, over: None };
     let Some(place) = shell.place_of(key) else { return pick };
     let name = crate::i18n::tr(&format!("panel-{key}"));
     let hidden = place.seen == qymcad_shell::Seen::Hidden;
+    let pinned = shell.pinned(key);
     let vis = ui.visuals().clone();
-    let icon = 16.0;
-    // the switches stand at the end of the tile, out of the part it is carried by
     let mut switches = Vec::new();
     if shell.hideable(key) {
         switches.push(Switch::Eye);
     }
-    if !place.edge.upright() {
+    if !place.edge.upright() && !pinned {
         switches.push(Switch::Over);
     }
-    let body = egui::Rect::from_min_max(tile.min, egui::pos2(tile.max.x - icon * switches.len() as f32, tile.max.y));
-    let fill = if hidden { vis.faint_bg_color } else { vis.widgets.inactive.weak_bg_fill };
+    // the switches in a row at the top right corner; the name takes the rest of the tile
+    let row = SWITCH * switches.len() as f32;
+    let body = if place.edge.upright() {
+        egui::Rect::from_min_max(egui::pos2(tile.min.x, tile.min.y + SWITCH), tile.max)
+    } else {
+        egui::Rect::from_min_max(tile.min, egui::pos2(tile.max.x - row, tile.max.y))
+    };
+    let carried = egui::Id::new(("layout-tile", key));
+    let lifted = ui.ctx().is_being_dragged(carried);
+    let fill = if hidden || lifted { vis.faint_bg_color } else { vis.widgets.inactive.weak_bg_fill };
     ui.painter().rect_filled(tile, 3.0, fill);
-    let mut child = ui.new_child(egui::UiBuilder::new().max_rect(body).layout(egui::Layout::left_to_right(egui::Align::Center)));
-    child.dnd_drag_source(egui::Id::new(("layout-tile", key)), Carried { key }, |ui| {
-        ui.set_min_size(body.size());
-        let text = egui::RichText::new(&name).small();
-        ui.add(egui::Label::new(if hidden { text.weak() } else { text }).truncate());
-    });
+    let text = if pinned { format!("{} {name}", ph::LOCK_SIMPLE) } else { name.clone() };
+    let words = egui::RichText::new(text).size(TILE_TEXT);
+    let label = egui::Label::new(if hidden { words.weak() } else { words }).wrap().selectable(false);
+    // THE NAME STAYS ON THE TILE, and what is carried is the plate under the pointer: a drag source carries its content
+    // along see-through, so the source holds nothing to see
+    let mut child = ui.new_child(egui::UiBuilder::new().max_rect(body.shrink(3.0)).layout(egui::Layout::left_to_right(egui::Align::Center)));
+    child.add(label);
+    if pinned {
+        ui.interact(body, carried, egui::Sense::hover()).on_hover_text(crate::i18n::tr1("settings-layout-pinned", "name", &name));
+    } else {
+        let mut handle = ui.new_child(egui::UiBuilder::new().max_rect(body));
+        handle.dnd_drag_source(carried, Carried { key }, |ui| ui.allocate_space(body.size())).response.on_hover_text(&name);
+    }
+    if lifted {
+        carried_plate(ui.ctx(), &name);
+    }
     for (i, sw) in switches.iter().enumerate() {
-        let at = egui::Rect::from_min_size(egui::pos2(body.max.x + i as f32 * icon, tile.center().y - icon / 2.0), egui::vec2(icon, icon));
+        let at = egui::Rect::from_min_size(egui::pos2(tile.max.x - row + i as f32 * SWITCH, tile.min.y + 1.0), egui::vec2(SWITCH, SWITCH));
         match sw {
             Switch::Eye => {
                 let glyph = if hidden { ph::EYE_SLASH } else { ph::EYE };
@@ -226,15 +259,34 @@ fn tile_ui(shell: &qymcad_shell::Shell, key: &'static str, tile: egui::Rect, ui:
     pick
 }
 
+/// THE PANEL IN HAND while it is carried: a small solid plate under the pointer with the name of the panel, in the
+/// colours of the theme and with a shadow, kept inside the window. Reported behaviour: a see-through copy of the long
+/// tile was carried, its words running out of the window.
+fn carried_plate(ctx: &egui::Context, name: &str) {
+    let Some(at) = ctx.pointer_interact_pos() else { return };
+    let screen = ctx.content_rect();
+    let pos = egui::pos2((at.x + 12.0).min(screen.max.x - 180.0).max(screen.min.x), (at.y + 12.0).min(screen.max.y - 30.0).max(screen.min.y));
+    egui::Area::new(egui::Id::new("layout-carried")).order(egui::Order::Tooltip).fixed_pos(pos).interactable(false).show(ctx, |ui| {
+        let frame = egui::Frame::popup(ui.style()).fill(ui.visuals().widgets.active.bg_fill.to_opaque());
+        frame.show(ui, |ui| {
+            ui.set_max_width(160.0);
+            ui.add(egui::Label::new(egui::RichText::new(name).size(TILE_TEXT).color(ui.visuals().strong_text_color())).wrap());
+        });
+    });
+}
+
 /// A switch on a tile of the diagram.
 enum Switch {
     Eye,
     Over,
 }
 
-/// THE LOOK OF THE BARS OF TOOLS: the size of a button, the lines of buttons, where they stand, how opaque the bar is.
+/// THE LOOK OF THE BARS OF TOOLS, a group of its own under the diagram: each row a caption on the left and its field on
+/// the right, in one grid.
 pub(crate) fn bar_look(set: &mut qymcad_ui_state::Settings, ui: &mut egui::Ui, show: &dyn Fn(&str) -> bool) {
-    egui::Grid::new("settings_bar_look").num_columns(2).spacing([8.0, 4.0]).show(ui, |ui| {
+    ui.add_space(8.0);
+    ui.label(egui::RichText::new(crate::i18n::tr("settings-layout-bar")).strong());
+    egui::Grid::new("settings_bar_look").num_columns(2).spacing([12.0, 6.0]).show(ui, |ui| {
         if show("settings-bar-size") {
             ui.label(crate::i18n::tr("settings-bar-size"));
             let range = qymcad_ui_state::BAR_SIZES;
@@ -266,6 +318,14 @@ pub(crate) fn bar_look(set: &mut qymcad_ui_state::Settings, ui: &mut egui::Ui, s
         if show("settings-bar-opacity") {
             ui.label(crate::i18n::tr("settings-bar-opacity"));
             ui.add(egui::Slider::new(&mut set.bar.opacity, qymcad_ui_state::BAR_OPACITY).suffix(" %"));
+            ui.end_row();
+        }
+        if show("settings-bar-group-names") {
+            ui.label(crate::i18n::tr("settings-bar-group-names"));
+            let mut shown = set.bar.captions == qymcad_shell::Captions::Shown;
+            if ui.checkbox(&mut shown, "").changed() {
+                set.bar.captions = if shown { qymcad_shell::Captions::Shown } else { qymcad_shell::Captions::Hidden };
+            }
             ui.end_row();
         }
     });
@@ -372,6 +432,41 @@ pub(crate) fn panels_menu(set: &mut qymcad_ui_state::Settings, ui: &mut egui::Ui
 
 #[cfg(test)]
 mod tests {
+    use crate::gui::hand::Hand;
+
+    /// The words a person reads for `key`.
+    fn tr(key: &str) -> String {
+        crate::i18n::tr(key)
+    }
+
+    /// A PANEL CARRIED ON THE DIAGRAM IS A SOLID PLATE UNDER THE POINTER: the frames of a real drag - the button held,
+    /// the pointer led in steps - show the name of the panel near the pointer on a small opaque ground inside the window.
+    /// Reported behaviour: a see-through copy of the long tile was carried, its words running out of the window.
+    #[test]
+    fn a_panel_carried_on_the_diagram_is_a_solid_plate_under_the_pointer() {
+        let (mut app, _ctx) = crate::gui::import_door::tests::running();
+        let mut hand = Hand::new(&mut app);
+        let origin = egui::pos2(0.0, 0.0);
+        assert!(hand.press_word(&tr("menu-windows"), origin) && hand.press_word(&tr("win-settings"), origin), "the settings do not open");
+        assert!(hand.press_word(&tr("settings-sec-layout"), egui::pos2(700.0, 200.0)), "the section of the layout is not in the settings");
+        let corner = hand.written_at(&tr("settings-layout-menu")).expect("the diagram is drawn").center();
+        let name = tr("panel-props");
+        let from = hand.written_near(&name, corner).expect("the properties stand on the diagram").center();
+        let to = from + egui::vec2(-240.0, 60.0);
+        let button = |pos, pressed| egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() };
+        hand.frame(vec![egui::Event::PointerMoved(from)]);
+        hand.frame(vec![button(from, true)]);
+        for k in 1..=20 {
+            hand.frame(vec![egui::Event::PointerMoved(from + (to - from) * (k as f32 / 20.0))]);
+        }
+        let plate = hand.ground_of(&name, to).expect("the name of the panel is not written near the pointer while it is carried");
+        hand.frame(vec![button(to, false)]);
+        let screen = egui::Rect::from_min_size(origin, hand.screen());
+        assert_eq!(plate.fill.a(), 255, "the plate under the pointer is see-through: {:?}", plate.fill);
+        assert!(screen.contains_rect(plate.rect), "the plate {:?} runs out of the window {screen:?}", plate.rect);
+        assert!(plate.rect.width() <= 200.0 && plate.rect.center().distance(to) < 120.0, "the plate {:?} is not a small one beside the pointer at {to:?}", plate.rect);
+    }
+
     /// THE SETTINGS OF THE LAYOUT AND THE BAR OF TOOLS NAME NO PANEL AND NO WORKBENCH: they walk what the shell and the
     /// catalogue hold. A key or a code written here is a workbench that cannot be taken out, or a panel a new one would
     /// not be set up beside.

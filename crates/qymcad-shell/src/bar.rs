@@ -13,6 +13,17 @@ pub const GAP: f32 = 3.0;
 /// The gap between two groups, a line across its middle.
 pub const GROUP_GAP: f32 = 9.0;
 
+/// THE HEIGHT OF THE CAPTION OF A GROUP: one line of small words.
+pub const CAPTION: f32 = 15.0;
+
+/// Are the names of the groups written on the bar? Always in the hints; on the bar as a line, when asked for.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, serde::Serialize, serde::Deserialize)]
+pub enum Captions {
+    #[default]
+    Hidden,
+    Shown,
+}
+
 /// How many lines of buttons a bar has across its edge: columns at a side, rows at the top and the bottom.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub enum BarLines {
@@ -45,13 +56,25 @@ pub struct BarLook {
     pub size: f32,
     pub lines: BarLines,
     pub align: BarAlign,
+    pub captions: Captions,
 }
 
 impl BarLook {
-    /// The thickness of the bar across its edge: its lines of buttons.
-    pub fn across(&self) -> f32 {
+    /// The thickness of the bar across `edge`: its lines of buttons, and at the top or the bottom the line of the
+    /// captions above them.
+    pub fn across(&self, edge: Edge) -> f32 {
         let n = self.lines.count() as f32;
-        n * self.size + (n - 1.0) * GAP
+        n * self.size + (n - 1.0) * GAP + self.head(edge)
+    }
+
+    /// What the captions take across the bar: a line above the buttons at the top or the bottom; at a side they stand
+    /// along it, before each group.
+    fn head(&self, edge: Edge) -> f32 {
+        if self.captions == Captions::Shown && !edge.upright() {
+            CAPTION + GAP
+        } else {
+            0.0
+        }
     }
 }
 
@@ -60,6 +83,13 @@ impl BarLook {
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct BarItem {
     pub group: u32,
+}
+
+/// THE CAPTION OF A GROUP laid on the bar: the first item of the group, and where its words stand.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct BarCaption {
+    pub item: usize,
+    pub rect: egui::Rect,
 }
 
 /// A button laid on the bar: which of the items, and where.
@@ -80,6 +110,8 @@ pub struct BarPlan {
     pub more: Option<egui::Rect>,
     /// The items that stand in "More", in their order.
     pub in_more: Vec<usize>,
+    /// The captions of the groups, when they are written on the bar.
+    pub captions: Vec<BarCaption>,
     /// The room the bar takes, from the top left of the room given.
     pub used: egui::Rect,
 }
@@ -92,26 +124,52 @@ struct Walk {
     lane: Vec<usize>,
     /// Where along the edge each group line stands, before the item it is named by.
     lines: Vec<f32>,
+    /// Where along the edge each caption starts, by the first item of its group.
+    captions: Vec<Start>,
     /// The end of the last slot.
     end: f32,
 }
 
+/// Where along the edge something starts, by the item it starts before.
+struct Start {
+    item: usize,
+    at: f32,
+}
+
+/// WHERE A BAR IS WALKED: at a side, where the captions stand along the edge, or at the top or the bottom.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Along {
+    Side,
+    Flat,
+}
+
 /// WALK THE ITEMS ALONG THE EDGE: lanes across first, then the next slot; a new group starts a slot, after a gap
-/// with a line in it.
-fn walk(items: &[BarItem], look: &BarLook) -> Walk {
+/// with a line in it. With the captions written, at a side a caption takes a slot of its own before each group, and at
+/// the top or the bottom it stands above the group, so the slots do not move.
+fn walk(items: &[BarItem], look: &BarLook, along: Along) -> Walk {
     let lanes = look.lines.count();
-    let mut w = Walk { at: Vec::new(), lane: Vec::new(), lines: Vec::new(), end: 0.0 };
+    let captions = look.captions == Captions::Shown;
+    let mut w = Walk { at: Vec::new(), lane: Vec::new(), lines: Vec::new(), captions: Vec::new(), end: 0.0 };
     let mut slot = 0.0;
     let mut lane = 0;
     for (i, it) in items.iter().enumerate() {
+        let starts = i == 0 || it.group != items[i - 1].group;
         if i > 0 {
-            if it.group != items[i - 1].group {
+            if starts {
                 slot += look.size + GROUP_GAP;
-                w.lines.push(slot - GROUP_GAP / 2.0);
+                if !(captions && along == Along::Side) {
+                    w.lines.push(slot - GROUP_GAP / 2.0);
+                }
                 lane = 0;
             } else if lane == lanes {
                 slot += look.size + GAP;
                 lane = 0;
+            }
+        }
+        if starts && captions {
+            w.captions.push(Start { item: i, at: slot });
+            if along == Along::Side {
+                slot += CAPTION + GAP;
             }
         }
         w.at.push(slot);
@@ -133,8 +191,9 @@ pub enum MoreSlot {
 /// before a "More" button at the end are laid, the rest stand in it.
 pub fn plan_bar(edge: Edge, look: &BarLook, room: egui::Rect, items: &[BarItem], more: MoreSlot) -> BarPlan {
     let upright = edge.upright();
+    let along = if upright { Along::Side } else { Along::Flat };
     let along_room = if upright { room.height() } else { room.width() };
-    let mut w = walk(items, look);
+    let mut w = walk(items, look, along);
     let mut shown = items.len();
     let mut more_at = None;
     let free_after = |w: &Walk, n: usize| {
@@ -153,7 +212,7 @@ pub fn plan_bar(edge: Edge, look: &BarLook, room: egui::Rect, items: &[BarItem],
         // the longest start of the items that leaves room for "More" in a free lane of its last slot or a slot after it
         shown = 0;
         for k in (0..items.len()).rev() {
-            let prefix = walk(&items[..k], look);
+            let prefix = walk(&items[..k], look, along);
             if fits(&prefix, k) {
                 shown = k;
                 more_at = Some(free_after(&prefix, k));
@@ -171,13 +230,14 @@ pub fn plan_bar(edge: Edge, look: &BarLook, room: egui::Rect, items: &[BarItem],
         BarAlign::Centre => ((along_room - end) / 2.0).max(0.0),
         BarAlign::End => (along_room - end).max(0.0),
     };
+    let head = look.head(edge);
     let place = |slot: f32, lane: usize| {
         let across = lane as f32 * (look.size + GAP);
-        let min = if upright { egui::pos2(room.min.x + across, room.min.y + shift + slot) } else { egui::pos2(room.min.x + shift + slot, room.min.y + across) };
+        let min = if upright { egui::pos2(room.min.x + across, room.min.y + shift + slot) } else { egui::pos2(room.min.x + shift + slot, room.min.y + head + across) };
         egui::Rect::from_min_size(min, egui::vec2(look.size, look.size))
     };
-    let thick = look.across();
-    let mut plan = BarPlan { on_bar: Vec::new(), lines: Vec::new(), more: None, in_more: Vec::new(), used: egui::Rect::NOTHING };
+    let thick = look.across(edge);
+    let mut plan = BarPlan { on_bar: Vec::new(), lines: Vec::new(), more: None, in_more: Vec::new(), captions: Vec::new(), used: egui::Rect::NOTHING };
     for i in 0..shown {
         plan.on_bar.push(BarPlace { item: i, rect: place(w.at[i], w.lane[i]) });
     }
@@ -186,15 +246,27 @@ pub fn plan_bar(edge: Edge, look: &BarLook, room: egui::Rect, items: &[BarItem],
         plan.lines.push(if upright {
             egui::Rect::from_min_max(egui::pos2(room.min.x, room.min.y + mid), egui::pos2(room.min.x + thick, room.min.y + mid))
         } else {
-            egui::Rect::from_min_max(egui::pos2(room.min.x + mid, room.min.y), egui::pos2(room.min.x + mid, room.min.y + thick))
+            egui::Rect::from_min_max(egui::pos2(room.min.x + mid, room.min.y + head), egui::pos2(room.min.x + mid, room.min.y + thick))
         });
+    }
+    // a caption reaches along its group: at a side across the whole bar, at the top or the bottom over the group's slots
+    for (k, c) in w.captions.iter().enumerate() {
+        let ends = w.captions.get(k + 1).map(|n| n.item).unwrap_or(shown);
+        let last = ends.saturating_sub(1).max(c.item);
+        let rect = if upright {
+            egui::Rect::from_min_size(egui::pos2(room.min.x, room.min.y + shift + c.at), egui::vec2(thick, CAPTION))
+        } else {
+            let to = w.at.get(last).map(|a| a + look.size).unwrap_or(c.at + look.size);
+            egui::Rect::from_min_max(egui::pos2(room.min.x + shift + c.at, room.min.y), egui::pos2(room.min.x + shift + to, room.min.y + CAPTION))
+        };
+        plan.captions.push(BarCaption { item: c.item, rect });
     }
     if let Some((slot, lane)) = more_at {
         plan.more = Some(place(slot, lane));
         plan.in_more = (shown..items.len()).collect();
     }
-    let along = shift + end;
-    plan.used = if upright { egui::Rect::from_min_size(room.min, egui::vec2(thick, along)) } else { egui::Rect::from_min_size(room.min, egui::vec2(along, thick)) };
+    let length = shift + end;
+    plan.used = if upright { egui::Rect::from_min_size(room.min, egui::vec2(thick, length)) } else { egui::Rect::from_min_size(room.min, egui::vec2(length, thick)) };
     plan
 }
 

@@ -16,10 +16,13 @@ pub(crate) fn shell(set: &Settings) -> qymcad_shell::Shell {
     s.put(Place::new("menubar", Slot::Menu));
     s.put(Place::new("toolbar", Slot::Top));
     s.put(Place::new("command_bar", Slot::Top).framed().never_hidden());
-    s.put(Place::new("status", Slot::Bottom));
-    // the bar of tools is as thick as its lines of buttons, whatever edge it stands at
-    let across = set.bar.look().across();
-    s.put(Place::new("wbtools", Slot::Left).content(qymcad_shell::ContentSize { side: across, flat: across }).bare());
+    // THE STATUS LINE STAYS AT THE BOTTOM, as in every program: a person looks for it there; it may be hidden
+    s.put(Place::new("status", Slot::Bottom).pinned());
+    // the bar of tools is as thick as its lines of buttons, and its captions where they stand across it, with an even
+    // margin of BAR_MARGIN round them
+    let look = set.bar.look();
+    let content = qymcad_shell::ContentSize { side: look.across(qymcad_shell::Edge::Left), flat: look.across(qymcad_shell::Edge::Top) };
+    s.put(Place::new("wbtools", Slot::Left).content(content).margin(crate::gui::panels_bars::BAR_MARGIN).bare());
     s.put(Place::new("tree", Slot::Left).sized(260.0, true));
     s.put(Place::new("props", Slot::Right).sized(290.0, true));
     s.put(Place::new("viewport", Slot::Centre));

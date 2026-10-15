@@ -8,6 +8,13 @@ use crate::command_catalog::Named;
 /// The side of an icon against the side of its button: 22 points on the button of 34 the bar had when it was fixed.
 const ICON_SHARE: f32 = 22.0 / 34.0;
 
+/// THE MARGIN ROUND THE BUTTONS OF THE BAR, the same on every side. Reported behaviour: at the top the buttons touched
+/// the upper edge of the bar and stood off the lower one, at a side they touched the left edge and stood off the right.
+pub(crate) const BAR_MARGIN: f32 = 3.0;
+
+/// The size of the words of the caption of a group: a little larger than the 8.5 points of the captions the bar had before.
+const CAPTION_SIZE: f32 = 11.0;
+
 /// THE BAR OF THE WORKBENCH OPEN at `edge` (none: as at a side).
 pub(crate) fn wb_toolbar(bc: &mut qymcad_ui_state::BarCtx, ui: &mut egui::Ui, edge: Option<qymcad_shell::Edge>) {
     use qymcad_ui_state::catalogue::{arrange, hint, pressed, Command};
@@ -30,8 +37,22 @@ pub(crate) fn wb_toolbar(bc: &mut qymcad_ui_state::BarCtx, ui: &mut egui::Ui, ed
         })
         .collect();
     let slot = if arranged.in_more.is_empty() { qymcad_shell::MoreSlot::WhenFull } else { qymcad_shell::MoreSlot::Always };
-    let plan = qymcad_shell::plan_bar(edge, &look, ui.available_rect_before_wrap(), &items, slot);
+    // THE BUTTONS IN THE MIDDLE OF THE STRIP ACROSS IT: a strip shared with a wider panel leaves room on one side only
+    let mut room = ui.available_rect_before_wrap();
+    let spare = if edge.upright() { room.width() - look.across(edge) } else { room.height() - look.across(edge) };
+    if spare > 0.0 {
+        room = if edge.upright() { room.shrink2(egui::vec2(spare / 2.0, 0.0)) } else { room.shrink2(egui::vec2(0.0, spare / 2.0)) };
+    }
+    let plan = qymcad_shell::plan_bar(edge, &look, room, &items, slot);
     ui.allocate_rect(plan.used, egui::Sense::hover());
+    for caption in &plan.captions {
+        let text = crate::i18n::tr(arranged.on_bar[caption.item].group);
+        let font = egui::FontId::proportional(CAPTION_SIZE);
+        let colour = ui.visuals().weak_text_color();
+        let galley = ui.painter().layout_no_wrap(text, font, colour);
+        let at = egui::pos2(caption.rect.min.x + 1.0, caption.rect.center().y - galley.size().y / 2.0);
+        ui.painter().with_clip_rect(caption.rect).galley(at, galley, colour);
+    }
     let mut chosen: Option<&'static Command> = None;
     for p in &plan.on_bar {
         let c = arranged.on_bar[p.item];

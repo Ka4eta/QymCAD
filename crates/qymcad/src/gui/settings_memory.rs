@@ -26,7 +26,7 @@ mod tests {
                 moved.insert("status".to_string(), qymcad_shell::PanelPlace { edge: qymcad_shell::Edge::Bottom, seen: qymcad_shell::Seen::Hidden, ..Default::default() });
                 moved
             },
-            bar: qymcad_ui_state::BarSetting { size: 26.0, lines: qymcad_shell::BarLines::One, align: qymcad_shell::BarAlign::Centre, opacity: 60 },
+            bar: qymcad_ui_state::BarSetting { size: 26.0, lines: qymcad_shell::BarLines::One, align: qymcad_shell::BarAlign::Centre, opacity: 60, captions: qymcad_shell::Captions::Shown },
             bar_sets: {
                 let mut sets = std::collections::BTreeMap::new();
                 sets.insert("sketch".to_string(), qymcad_ui_state::BarSet { order: vec!["sketch.circle".into(), "sketch.line".into()], in_more: vec!["sketch.spline".into()] });

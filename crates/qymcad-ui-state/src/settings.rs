@@ -611,6 +611,8 @@ pub struct BarSetting {
     pub align: qymcad_shell::BarAlign,
     /// How opaque the ground of the bar is, in percent, `BAR_OPACITY` apart.
     pub opacity: u8,
+    /// The names of the groups written on the bar as a line, besides the hints.
+    pub captions: qymcad_shell::Captions,
 }
 
 /// THE SIDES A BUTTON OF A BAR MAY HAVE: from a dense bar on a small screen to a large one under a finger.
@@ -622,14 +624,14 @@ pub const BAR_OPACITY: std::ops::RangeInclusive<u8> = 30..=100;
 impl Default for BarSetting {
     fn default() -> Self {
         // 34 points: the height the buttons had when they were fixed, 40 x 34
-        Self { size: 34.0, lines: qymcad_shell::BarLines::Two, align: qymcad_shell::BarAlign::Start, opacity: 100 }
+        Self { size: 34.0, lines: qymcad_shell::BarLines::Two, align: qymcad_shell::BarAlign::Start, opacity: 100, captions: qymcad_shell::Captions::Hidden }
     }
 }
 
 impl BarSetting {
     /// The look the shell lays a bar by.
     pub fn look(&self) -> qymcad_shell::BarLook {
-        qymcad_shell::BarLook { size: self.size.clamp(*BAR_SIZES.start(), *BAR_SIZES.end()), lines: self.lines, align: self.align }
+        qymcad_shell::BarLook { size: self.size.clamp(*BAR_SIZES.start(), *BAR_SIZES.end()), lines: self.lines, align: self.align, captions: self.captions }
     }
 }
 
