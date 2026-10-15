@@ -72,10 +72,11 @@ The caps of a profile operation of several regions are named after the profile t
 person picked; a face merged from several profiles takes the caps of the lowest of them (`ops::profile::name_sides`,
 `caps_of_merged_regions_are_named_by_their_profiles`).
 
-**Where an algorithm gives no history**, the bridge reads it from something else, each named with its reason: the simple
-offset of a sheet (`QymTwinHistory`: one for one, held only after each face is checked to have gone the distance), the
-patch over a boundary (`note_beside_boundary`). The turn of the seam of a round face is carried by its own history: the
-record of the cutting asked of what it rebuilt (`QymRepairAsk::Apply`), then the modifier of the turn.
+**Where an algorithm gives no history**, the bridge reads it from something else, named with its reason: the patch over
+a boundary (`note_beside_boundary`). The turn of the seam of a round face is carried by its own history: the record of
+the cutting asked of what it rebuilt (`QymRepairAsk::Apply`), then the modifier of the turn. The simple offset of a
+sheet is run by a modifier the bridge keeps (`SimpleOffset`), whose image of each face and edge is its history; the
+algorithm that wraps the same modifier answers none.
 
 ## How a reference finds its element
 

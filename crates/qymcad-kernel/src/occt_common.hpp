@@ -85,6 +85,7 @@
 #include <BRepTools_ReShape.hxx>
 #include <BRepTools_Modification.hxx>
 #include <BRepOffset_MakeSimpleOffset.hxx>
+#include <BRepOffset_SimpleOffset.hxx>
 #include <BRepTools_Modifier.hxx>
 #include <ShapeFix_ShapeTolerance.hxx>
 #include <ShapeFix_FixSmallFace.hxx>
@@ -506,33 +507,6 @@ struct QymModifierHistory : QymHistory {
     const TopTools_ListOfShape& Generated(const TopoDS_Shape&) override { return none; }
     bool Removed(const TopoDS_Shape&) override { return false; }
     BRepTools_Modifier& mod;
-    TopTools_ListOfShape images;
-    TopTools_ListOfShape none;
-};
-
-/// A CHANGE THAT KEEPS THE TOPOLOGY ONE FOR ONE AND ANSWERS NO HISTORY: the simple offset of a sheet - a modifier of the
-/// geometry, every face and edge moved and none added or lost, whose `Modified` gives nothing (measured: null for every
-/// face of a block's top lifted 5, both through `BRepOffsetAPI_MakeOffsetShape` and `BRepOffset_MakeSimpleOffset`). The
-/// n-th element of a type in `after` is the image of the n-th in `before`; nothing is answered when the counts differ.
-/// A caller holds it only after checking the images: each face of an offset gone the distance.
-struct QymTwinHistory : QymHistory {
-    QymTwinHistory(const TopoDS_Shape& before, const TopoDS_Shape& after) {
-        for (TopAbs_ShapeEnum ty : {TopAbs_FACE, TopAbs_EDGE}) {
-            TopTools_IndexedMapOfShape a, b;
-            TopExp::MapShapes(before, ty, a);
-            TopExp::MapShapes(after, ty, b);
-            if (a.Extent() != b.Extent()) continue;
-            for (int i = 1; i <= a.Extent(); ++i) twin.Bind(a(i), b(i));
-        }
-    }
-    const TopTools_ListOfShape& Modified(const TopoDS_Shape& s) override {
-        images.Clear();
-        if (twin.IsBound(s) && !twin.Find(s).IsSame(s)) images.Append(twin.Find(s));
-        return images;
-    }
-    const TopTools_ListOfShape& Generated(const TopoDS_Shape&) override { return none; }
-    bool Removed(const TopoDS_Shape&) override { return false; }
-    TopTools_DataMapOfShapeShape twin;
     TopTools_ListOfShape images;
     TopTools_ListOfShape none;
 };
