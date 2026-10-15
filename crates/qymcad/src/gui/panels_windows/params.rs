@@ -16,7 +16,21 @@ pub(crate) fn params_rows_ui(wc: &mut qymcad_ui_state::WinCtx, ui: &mut egui::Ui
     // THE FIELD WIDTHS ARE ELASTIC. They used to be a hard 90 and 120 points: the window stretched and the
     // fields did not, so a long variable name COULD NOT BE TYPED - the text crawled under the edge and one had
     // to type blind. The width comes from the ui being drawn into and is handed to EVERY field.
-    let (w_name, w_expr) = super::param_field_widths(ui.available_width());
+    //
+    // A ROW WITHOUT A VALUE SAYS SO IN ITS VALUE CELL, and those words are wider than a number: the fields give up
+    // their width to them, measured in the font and the colour the cell is drawn in. Without it the table ran 1.2
+    // points past a window 360 wide and the reason under it was cut at the edge.
+    let none = Notice::error(crate::i18n::tr("par-no-value"));
+    let without_value = wc.project.parameters.iter().any(|p| !p.expr.trim().is_empty() && wc.project.eval_expr(&p.expr).is_err());
+    let none_w = if without_value {
+        egui::WidgetText::from(qymcad_ui_state::notice_text(&wc.scheme.pal, &none, qymcad_ui_state::NoticeSize::Small))
+            .into_galley(ui, Some(egui::TextWrapMode::Extend), f32::INFINITY, egui::TextStyle::Small)
+            .size()
+            .x
+    } else {
+        0.0
+    };
+    let (w_name, w_expr) = super::param_field_widths(ui.available_width() - none_w);
     let mut name_w = 0.0_f32;
     // THE LIST SCROLLS. Asked for: with some 150 variables and drivers, is there vertical scrolling? There
     // was not: the table simply grew, and at a hundred and fifty parameters the window ran off the edge of the
@@ -104,13 +118,15 @@ pub(crate) fn params_rows_ui(wc: &mut qymcad_ui_state::WinCtx, ui: &mut egui::Ui
                     Err(e) => {
                         // THE REASON IN WORDS RATHER THAN AN ICON (see the history in expr_errors.rs).
                         //
-                        // IN THE CELL ONLY A MARK: the value column is the narrowest of the four, and the reason
-                        // does not fit it. Written into the cell as a plain label it ran off the edge of the
-                        // window and was cut mid-word ("...a number or a na"); wrapped, it broke every second
-                        // word onto its own line. The words themselves go below the table, across its whole
-                        // width, where they can be read at a glance - see `params_window`.
+                        // IN THE CELL ONLY "NO VALUE", the reason in its hint: the value column is the narrowest of
+                        // the four, and the reason does not fit it. Written into the cell as a plain label it ran off
+                        // the edge of the window and was cut mid-word ("...a number or a na"); wrapped, it broke every
+                        // second word onto its own line. The reason goes below the table, across its whole width,
+                        // where it can be read at a glance - see `params_window`. A sign alone in the cell said
+                        // nothing a check or a person could read: two parameters living off each other showed it
+                        // and no word.
                         out.errors.push((nm.clone(), crate::gui::error_words::expr_error_text(&e)));
-                        qymcad_ui_state::tone_mark(ui, &wc.scheme.pal, qymcad_ui_state::Tone::Error).on_hover_text(crate::gui::error_words::expr_error_text(&e));
+                        qymcad_ui_state::say(ui, &wc.scheme.pal, &none, qymcad_ui_state::NoticeSize::Small).on_hover_text(crate::gui::error_words::expr_error_text(&e));
                     }
                 }
                 if ui.button(ph::TRASH).on_hover_text(crate::i18n::tr("par-delete")).clicked() {

@@ -90,6 +90,10 @@ fn the_table_says_a_formula_without_a_value_in_the_red_of_the_theme() {
         let painted = hand.painted_words();
         let words = said(&painted, qymcad_ui_state::Tone::Error, &format!("w: {why}")).unwrap_or_else(|| panic!("{theme}: the table does not say why w has no value"));
         assert_eq!(words.colour, hand.app.scheme.pal.error(), "{theme}: the reason is not in the theme's red");
+        // AND THE ROW ITSELF SAYS IT IN WORDS, in the cell of the value: a sign alone there is read by nobody
+        let none = crate::i18n::tr("par-no-value");
+        let cell = said(&painted, qymcad_ui_state::Tone::Error, &none).unwrap_or_else(|| panic!("{theme}: the cell of the value of w does not say {none:?}"));
+        assert_eq!(cell.colour, hand.app.scheme.pal.error(), "{theme}: the cell says it is without a value, not in the theme's red");
         reds.push(words.colour);
     }
     assert_ne!(reds[0], reds[1], "the red of the table is the same in a dark and a light theme");
