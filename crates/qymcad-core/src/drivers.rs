@@ -75,11 +75,14 @@ pub enum IdentError {
     /// A foreign character inside the name: a space, a dot, an operator. Such a name falls apart inside an
     /// expression.
     BadChar(char),
+    /// The name of a constant of formulas (`pi`, `tau`, `e`). A formula reads the constant there, so a parameter
+    /// of that name would sit in the table and nothing could reach it.
+    Constant,
 }
 
-/// Whether a name is fit for a formula: a letter or `_` first, then letters, digits and `_`. Non-Latin letters
-/// are allowed, since names are written in the language of the author and the expression parser handles
-/// them.
+/// Whether a name is fit for a formula: a letter or `_` first, then letters, digits and `_`, and not the name of a
+/// constant. Non-Latin letters are allowed, since names are written in the language of the author and the
+/// expression parser handles them.
 pub fn check_ident(name: &str) -> Result<(), IdentError> {
     let nm = name.trim();
     let mut cs = nm.chars();
@@ -87,10 +90,13 @@ pub fn check_ident(name: &str) -> Result<(), IdentError> {
     if !(first.is_alphabetic() || first == '_') {
         return Err(IdentError::BadStart(first));
     }
-    match cs.find(|c| !(c.is_alphanumeric() || *c == '_')) {
-        Some(c) => Err(IdentError::BadChar(c)),
-        None => Ok(()),
+    if let Some(c) = cs.find(|c| !(c.is_alphanumeric() || *c == '_')) {
+        return Err(IdentError::BadChar(c));
     }
+    if crate::expr::is_constant(nm) {
+        return Err(IdentError::Constant);
+    }
+    Ok(())
 }
 
 /// Why a rename did not go through.

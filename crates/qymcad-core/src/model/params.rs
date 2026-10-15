@@ -33,10 +33,11 @@ impl Project {
     /// showing up as two identical rows in the parameter list. Both halves of the fix apply — the name
     /// cannot be taken twice, and the path to the owning sketch is shown next to it.
     ///
-    /// Global parameters are checked too: they share the same scope.
+    /// Global parameters are checked too: they share the same scope. A name unfit for a formula (`2w`, or `e`,
+    /// which a formula reads as the constant) is refused here as well, as a rename refuses it.
     pub fn name_dim(&mut self, name: String, target: DimTarget) -> bool {
         let nm = name.trim().to_string();
-        if !nm.is_empty() && self.driver_name_taken_by(&nm, &target) {
+        if !nm.is_empty() && (crate::drivers::check_ident(&nm).is_err() || self.driver_name_taken_by(&nm, &target)) {
             return false;
         }
         self.named_dims.retain(|n| n.target != target);
