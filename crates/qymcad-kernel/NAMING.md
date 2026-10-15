@@ -104,7 +104,9 @@ The document, not the bridge, resolves a reference, in this order (`qymcad_core:
 
 1. **The name**, as it is.
 2. **A recorded merge**: the name it yielded to; a piece returns to its whole, and the edge of the wholes follows the
-   name it yielded to in turn (`a_reference_to_a_piece_follows_the_name_its_whole_yielded`).
+   name it yielded to in turn (`a_reference_to_a_piece_follows_the_name_its_whole_yielded`) - but only while the face
+   is whole again: with another piece of it alive, the whole is the piece beside it, and the reference goes on to the
+   next steps (`NameTable::absorbed_target_among`, `a_piece_beside_the_whole_is_not_the_whole`).
 3. **The canonical pair** of an edge: its faces reduced to their wholes, when one edge has that pair.
 4. **The structure of the name** (`NameTable::same_recipe`): the one live face of the same node, role and source, or
    the one edge between two such faces; two candidates give none.

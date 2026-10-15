@@ -46,7 +46,8 @@ impl StepBack {
 /// THE NAMES AN OPERATION GIVES THE FACES IT MAKES, as values: the rule of the operation says what a face is (the
 /// surface of a fillet after its edge, the patch of a corner after its vertex), the C++ side gets a number awaiting
 /// the name (`names::ROLE`), and the table of the document gives the descriptor when the result lands - on the thread
-/// of the document, in the order of its tree.
+/// of the document, in the order of its tree. An operation hands roles and never names: `crates/qymcad-kernel/NAMING.md`,
+/// "The contract".
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Roles {
     pub given: Vec<RoleName>,

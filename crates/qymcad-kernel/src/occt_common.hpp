@@ -588,6 +588,8 @@ struct QymResultSpec {
 };
 
 /// THE RESULT OF AN OPERATION WITH ITS NAMES, built from `res` by `history` as `spec` says. Null when `res` is null.
+/// The one door every result lands through; the steps and the rules of each: `crates/qymcad-kernel/NAMING.md`, "How the
+/// bridge names a result".
 QymShape* qym_result(QymHistory& history, const TopoDS_Shape& res, const QymResultSpec& spec);
 
 int next_local(const TopTools_DataMapOfShapeInteger& m);
