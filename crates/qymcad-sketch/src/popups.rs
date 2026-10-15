@@ -104,7 +104,7 @@ pub fn corner_input_popup(cc: &mut qymcad_ui_state::CornerCtx, ctx: &egui::Conte
                 // typed and is still typing would be judged by something else than what they wrote.
                 said = judge(&*cc.project, &buf);
                 if let Some(why) = &said {
-                    ui.label(egui::RichText::new(ph::WARNING).color(ui.visuals().warn_fg_color)).on_hover_text(why);
+                    qymcad_ui_state::tone_mark(ui, &cc.scheme.pal, qymcad_ui_state::Tone::Refusal).on_hover_text(why);
                 }
                 // ONE VALUE IN TWO PLACES: the radius on the bar and the one at the corners. Typed at the corners it
                 // is the bar's too; while the corner field is not the one being typed in, it shows the bar's. Two
@@ -134,7 +134,7 @@ pub fn corner_input_popup(cc: &mut qymcad_ui_state::CornerCtx, ctx: &egui::Conte
                     ui.label(qymcad_i18n::tr(qymcad_ui_state::chamfer_d2_label(cc.tool_prefs.chamfer_mode)));
                     let r2 = qymcad_ui_state::focus_edit(ui, &mut cc.corner.buf2, 64.0, "", false);
                     if let Some(why) = judge2(&*cc.project, &cc.corner.buf2) {
-                        ui.label(egui::RichText::new(ph::WARNING).color(ui.visuals().warn_fg_color)).on_hover_text(why);
+                        qymcad_ui_state::tone_mark(ui, &cc.scheme.pal, qymcad_ui_state::Tone::Refusal).on_hover_text(why);
                     }
                     if r2.has_focus() {
                         if let Some(v) = parse_num(cc.project, &cc.corner.buf2).filter(|v| *v > 1e-6) {
@@ -164,7 +164,7 @@ pub fn corner_input_popup(cc: &mut qymcad_ui_state::CornerCtx, ctx: &egui::Conte
             // sheet for a warning glyph: the words were a tooltip, and the tooltip only existed while the pointer
             // rested on the glyph beside it.
             if let Some(why) = &said {
-                ui.label(egui::RichText::new(format!("{} {why}", ph::WARNING)).color(ui.visuals().warn_fg_color));
+                qymcad_ui_state::say(ui, &cc.scheme.pal, &qymcad_ui_state::Notice::refusal(why.clone()), qymcad_ui_state::NoticeSize::Line);
             }
         });
     });
@@ -652,7 +652,7 @@ pub fn sketch_rotate_popup(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Cont
                     apply = true;
                 }
                 if let Err(msg) = &checked {
-                    ui.colored_label(sk.scheme.pal.error_mild(), ph::X).on_hover_text(msg);
+                    qymcad_ui_state::tone_mark(ui, &sk.scheme.pal, qymcad_ui_state::Tone::Refusal).on_hover_text(msg);
                 }
                 if ui.button(ph::CHECK).on_hover_text(qymcad_i18n::tr("sk-apply-enter")).clicked() {
                     apply = true;
@@ -958,7 +958,7 @@ pub fn dim_editor(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Context, rect
                     Some(Err(e)) => {
                         // THROUGH THE COMMON DOOR: the `Display` of the error is in one language only, and
                         // an interface in another showed a raw "unexpected token: /".
-                        ui.label(egui::RichText::new(qymcad_i18n::error_words::expr_error_text(e)).color(sk.scheme.pal.error_mild()).small());
+                        qymcad_ui_state::say(ui, &sk.scheme.pal, &qymcad_ui_state::Notice::refusal(qymcad_i18n::error_words::expr_error_text(e)), qymcad_ui_state::NoticeSize::Small);
                     }
                     None => {}
                 }
@@ -993,7 +993,7 @@ pub fn dim_editor(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Context, rect
                         Some(w) => qymcad_i18n::tr2("par-name-taken", "name", "", "where", w),
                         None => qymcad_i18n::tr("sk-driver-name-bad"),
                     };
-                    ui.label(egui::RichText::new(&msg).color(sk.scheme.pal.warning()).small()).on_hover_text(qymcad_i18n::tr("sk-driver-name-taken-hint"));
+                    qymcad_ui_state::say(ui, &sk.scheme.pal, &qymcad_ui_state::Notice::warning(msg), qymcad_ui_state::NoticeSize::Small).on_hover_text(qymcad_i18n::tr("sk-driver-name-taken-hint"));
                 }
             }
         });

@@ -42,7 +42,7 @@ pub fn sketch_props(pr: &mut qymcad_ui_state::PropsCtx, ui: &mut egui::Ui, si: u
             // "the culprit" - any of them can be removed. It used to say that the dimensions contradicted
             // the geometry, although geometric constraints can conflict too, and the geometry has nothing
             // to do with it: it stands where the compromise between incompatible constraints put it.
-            ui.label(egui::RichText::new(qymcad_i18n::tr1("sk-conflicts-n", "n", &conflicts.to_string())).color(pr.scheme.pal.error()).small());
+            qymcad_ui_state::say(ui, &pr.scheme.pal, &qymcad_ui_state::Notice::error(qymcad_i18n::tr1("sk-conflicts-n", "n", &conflicts.to_string())), qymcad_ui_state::NoticeSize::Small);
             ui.label(egui::RichText::new(qymcad_i18n::tr1("sk-conflict-advice", "icon", ph::RULER)).weak().small());
         } else if redun > 0 {
             ui.label(egui::RichText::new(qymcad_i18n::tr1("sk-redundant-n", "n", &redun.to_string())).color(pr.scheme.pal.note()).small());
@@ -128,9 +128,9 @@ pub fn sketch_props(pr: &mut qymcad_ui_state::PropsCtx, ui: &mut egui::Ui, si: u
                 let row = ui
                     .horizontal(|ui| {
                         if in_conflict {
-                            ui.colored_label(pr.scheme.pal.error(), ph::WARNING_OCTAGON).on_hover_text(qymcad_i18n::tr("sk-conflict-hint"));
+                            qymcad_ui_state::tone_mark(ui, &pr.scheme.pal, qymcad_ui_state::Tone::Error).on_hover_text(qymcad_i18n::tr("sk-conflict-hint"));
                         } else if flag {
-                            ui.colored_label(pr.scheme.pal.error_mild(), ph::WARNING).on_hover_text(qymcad_i18n::tr("sk-overdefined-hint"));
+                            qymcad_ui_state::tone_mark(ui, &pr.scheme.pal, qymcad_ui_state::Tone::Warning).on_hover_text(qymcad_i18n::tr("sk-overdefined-hint"));
                         }
                         match c {
                             Constraint::Distance { d, .. } => {

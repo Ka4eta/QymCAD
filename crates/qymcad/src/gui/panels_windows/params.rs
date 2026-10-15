@@ -110,7 +110,7 @@ pub(crate) fn params_rows_ui(wc: &mut qymcad_ui_state::WinCtx, ui: &mut egui::Ui
                         // word onto its own line. The words themselves go below the table, across its whole
                         // width, where they can be read at a glance - see `params_window`.
                         out.errors.push((nm.clone(), crate::gui::error_words::expr_error_text(&e)));
-                        ui.label(egui::RichText::new("!").color(wc.scheme.pal.error_mild()).small()).on_hover_text(crate::gui::error_words::expr_error_text(&e));
+                        qymcad_ui_state::tone_mark(ui, &wc.scheme.pal, qymcad_ui_state::Tone::Error).on_hover_text(crate::gui::error_words::expr_error_text(&e));
                     }
                 }
                 if ui.button(ph::TRASH).on_hover_text(crate::i18n::tr("par-delete")).clicked() {
@@ -142,7 +142,7 @@ pub(crate) fn params_rows_ui(wc: &mut qymcad_ui_state::WinCtx, ui: &mut egui::Ui
                     // "which sketch is this dimension from" gets answered by arriving there, rather than by hunting
                     // through the tree by hand.
                     let mut t = egui::RichText::new(&path).small();
-                    t = if dup { t.color(ui.visuals().warn_fg_color) } else { t.weak() };
+                    t = if dup { t.color(qymcad_ui_state::tone_colour(&wc.scheme.pal, qymcad_ui_state::Tone::Warning)) } else { t.weak() };
                     let r = ui.add(egui::Label::new(t).sense(egui::Sense::click())).on_hover_cursor(egui::CursorIcon::PointingHand).on_hover_text(crate::i18n::tr(if dup {
                         "par-driver-ambiguous"
                     } else {
@@ -189,7 +189,7 @@ pub(crate) fn params_rows_ui(wc: &mut qymcad_ui_state::WinCtx, ui: &mut egui::Ui
     });
     wc.tree.drv_path_rects = paths;
     if let Some(msg) = &refusal {
-        ui.label(egui::RichText::new(msg).color(wc.scheme.pal.warning()).small());
+        qymcad_ui_state::say(ui, &wc.scheme.pal, &qymcad_ui_state::Notice::warning(msg.clone()), qymcad_ui_state::NoticeSize::Small);
     }
     for a in acts {
         match a {
@@ -292,7 +292,7 @@ pub(crate) fn params_window(wc: &mut qymcad_ui_state::WinCtx, ctx: &egui::Contex
         // THE REASONS, BELOW THE TABLE AND ACROSS ITS WHOLE WIDTH. A cause that has to be hunted for by
         // hovering is a cause nobody reads, and the narrowest column of the table is no place for a sentence.
         for (name, msg) in &rows.errors {
-            ui.add(egui::Label::new(egui::RichText::new(format!("{name}: {msg}")).color(wc.scheme.pal.error_mild()).small()).wrap());
+            ui.add(egui::Label::new(qymcad_ui_state::notice_text(&wc.scheme.pal, &qymcad_ui_state::Notice::error(format!("{name}: {msg}")), qymcad_ui_state::NoticeSize::Small)).wrap());
         }
         ui.separator();
         if ui.button(format!("{} {}", ph::PLUS, crate::i18n::tr("win-add-param"))).clicked() {

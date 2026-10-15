@@ -382,7 +382,7 @@ crates/qymcad-part/src/bars/feat_bar.rs 0 5 0
 crates/qymcad-part/src/bars/toolbar.rs 0 1 0
 crates/qymcad-part/src/params.rs 2 3 1
 crates/qymcad-part/src/picks.rs 2 2 2
-crates/qymcad-part/src/popups.rs 2 4 1
+crates/qymcad-part/src/popups.rs 2 2 1
 crates/qymcad-part/src/reopen.rs 0 1 0
 crates/qymcad-part/src/start.rs 1 0 3
 crates/qymcad-part/src/topology.rs 0 1 3

@@ -48,7 +48,8 @@ pub fn joint_edit_bar(jc: &mut qymcad_ui_state::JointCtx, ui: &mut egui::Ui) {
             // solver report and the list of joints: two places with the same words and different
             // truths is a thing already been through.
             if let Some((_, why)) = jc.project.joint_faults().iter().find(|(id, _)| *id == jid) {
-                ui.label(egui::RichText::new(format!("{} {}", ph::WARNING, qymcad_i18n::tr(why))).color(jc.scheme.pal.error_mild())).on_hover_text(qymcad_i18n::tr(&format!("{why}-hint")));
+                qymcad_ui_state::say(ui, &jc.scheme.pal, &qymcad_ui_state::Notice::error(qymcad_i18n::tr(why)), qymcad_ui_state::NoticeSize::Line)
+                    .on_hover_text(qymcad_i18n::tr(&format!("{why}-hint")));
             }
             ui.separator();
             // changing the KIND of a joint right in the edit bar (the anchors are kept).

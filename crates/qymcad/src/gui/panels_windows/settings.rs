@@ -330,7 +330,7 @@ pub(crate) fn settings_section_body(wc: &mut qymcad_ui_state::WinCtx, ui: &mut e
                         }
                     });
                 } else {
-                    ui.label(egui::RichText::new(format!("{} {}", ph::WARNING, crate::i18n::tr("settings-gpu-unavailable"))).weak().small());
+                    qymcad_ui_state::say(ui, &wc.scheme.pal, &qymcad_ui_state::Notice::warning(crate::i18n::tr("settings-gpu-unavailable")), qymcad_ui_state::NoticeSize::Small);
                 }
             }
             // The projection: one formula in `Screen::at`, so it works on BOTH paths (GPU and CPU raster) and the

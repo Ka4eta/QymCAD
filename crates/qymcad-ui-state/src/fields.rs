@@ -115,7 +115,7 @@ pub fn dim_expr_field_in(rc: &mut RebuildCtx, ui: &mut egui::Ui, id: Id, key: &s
                 Some(w) => qymcad_i18n::tr2("par-name-taken", "name", &nm, "where", &w),
                 None => qymcad_i18n::tr("sk-driver-name-bad"),
             };
-            ui.label(egui::RichText::new(&msg).color(rc.scheme.pal.warning()).small()).on_hover_text(qymcad_i18n::tr("sk-driver-name-taken-hint"));
+            crate::say(ui, &rc.scheme.pal, &crate::Notice::warning(msg), crate::NoticeSize::Small).on_hover_text(qymcad_i18n::tr("sk-driver-name-taken-hint"));
         }
         let shown = o.text;
         if !shown.trim().is_empty() {
@@ -124,7 +124,7 @@ pub fn dim_expr_field_in(rc: &mut RebuildCtx, ui: &mut egui::Ui, id: Id, key: &s
                     ui.label(egui::RichText::new(format!("= {v:.3}")).weak().small());
                 }
                 Err(_) => {
-                    ui.colored_label(rc.scheme.pal.error_mild(), egui_phosphor::regular::X);
+                    crate::tone_mark(ui, &rc.scheme.pal, crate::Tone::Refusal);
                 }
             }
         }
@@ -145,7 +145,7 @@ pub fn expr_value_label(dc: &DrawCtx, ui: &mut egui::Ui, text: &str) {
             // THE REASON IN WORDS AND NOT AN ICON: what exactly did not add up is what needs
             // knowing.
             let msg = qymcad_i18n::error_words::expr_error_text(&e);
-            ui.label(egui::RichText::new(&msg).color(dc.scheme.pal.error_mild()).small()).on_hover_text(&msg);
+            crate::say(ui, &dc.scheme.pal, &crate::Notice::refusal(msg.clone()), crate::NoticeSize::Small).on_hover_text(&msg);
         }
     }
 }
@@ -318,7 +318,7 @@ pub fn field(ui: &mut egui::Ui, project: &Project, id: egui::Id, model: &str, w:
                                     // it is highlighted too: a bare name in a formula will take who
                                     // knows which.
                                     let mut t = egui::RichText::new(&d.path).small();
-                                    t = if d.ambiguous { t.color(ui.visuals().warn_fg_color) } else { t.weak() };
+                                    t = if d.ambiguous { t.color(crate::tone_colour_in(ui, crate::Tone::Warning)) } else { t.weak() };
                                     ui.label(t);
                                 }
                                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -586,7 +586,7 @@ pub fn num_or_expr(p: &mut ExprBarCtx, ui: &mut egui::Ui, key: &'static str, cur
         Ok(v) => v,
         Err(msg) => {
             // the reason on the mark beside the field, as the fields at the geometry give it
-            ui.colored_label(p.scheme.pal.error_mild(), egui_phosphor::regular::X).on_hover_text(&msg);
+            crate::tone_mark(ui, &p.scheme.pal, crate::Tone::Refusal).on_hover_text(&msg);
             cur
         }
     }

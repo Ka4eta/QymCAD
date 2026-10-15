@@ -522,21 +522,22 @@ pub(crate) fn tree_feature_row(tc: &mut qymcad_ui_state::TreeCtx, ui: &mut egui:
             return;
         }
         let base = if node_suppressed { format!("{lbl}  {}", ph::PROHIBIT) } else { lbl };
-        let base = if node_err.is_some() || node_warn.is_some() { format!("{} {base}", ph::WARNING) } else { base };
+        // the tone of the node, said with the icon and the colour of its tone as every other place says it
+        let tone = if node_err.is_some() { Some(qymcad_ui_state::Tone::Error) } else { node_warn.as_ref().map(|_| qymcad_ui_state::Tone::Warning) };
+        let icon = tone.and_then(qymcad_ui_state::tone_icon);
+        let base = if let Some(icon) = icon { format!("{icon} {base}") } else { base };
         // the node's reference was REBOUND by its fingerprint - that is visible rather than silent.
         let rebound = tc.regen.rebinds.iter().find(|r| r.node == nid).map(|r| r.what.clone());
         let base = if rebound.is_some() { format!("{} {base}", ph::LINK_BREAK) } else { base };
         let mut txt = egui::RichText::new(base);
         if suppressed {
             txt = txt.weak().italics(); // rolled back or suppressed - it is visible that it does not build
-        } else if node_err.is_some() {
-            txt = txt.color(tc.scheme.pal.error()); // it did not apply, so it goes red
-        } else if node_warn.is_some() {
-            txt = txt.color(tc.scheme.pal.warning()); // it applied, but not all of it
+        } else if let Some(t) = tone {
+            txt = txt.color(qymcad_ui_state::tone_colour(&tc.scheme.pal, t)); // red: it did not apply; yellow: not all of it
         }
         let hover = match (&node_err, &rebound) {
-            (Some(e), _) => format!("{} {}", ph::WARNING, crate::i18n::tr1("tree-feature-failed", "error", e)),
-            (None, _) if node_warn.is_some() => format!("{} {}", ph::WARNING, node_warn.clone().unwrap_or_default()),
+            (Some(e), _) => format!("{} {}", icon.unwrap_or_default(), crate::i18n::tr1("tree-feature-failed", "error", e)),
+            (None, _) if node_warn.is_some() => format!("{} {}", icon.unwrap_or_default(), node_warn.clone().unwrap_or_default()),
             (None, Some(w)) => format!("{} {}", ph::LINK_BREAK, crate::i18n::tr1("tree-feature-rebound", "what", w)),
             _ => crate::i18n::tr("tree-feature-hint"),
         };

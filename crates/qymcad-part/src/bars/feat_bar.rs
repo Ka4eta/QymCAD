@@ -102,7 +102,7 @@ pub fn feat_command_bar(pc: &mut qymcad_ui_state::PartCtx, ui: &mut egui::Ui) {
                     }
                     // A HEAVY MESH SAYS SO before Enter: how many triangles, and that the field "Simplify" makes it lighter
                     if let Some(n) = pc.recognise.src.and_then(|src| pc.project.mesh_index(src)).map(|mi| pc.project.bodies[mi].mesh.tris.len()).filter(|&n| n >= HEAVY_MESH) {
-                        says.tell(format!("{} {}", ph::WARNING, qymcad_i18n::tr1("recognise-heavy", "n", &n.to_string())));
+                        says.warn(qymcad_i18n::tr1("recognise-heavy", "n", &n.to_string()));
                     }
                     // WHAT WAS FOUND, before Enter: the regions by kind, and those that fit no surface
                     recognise_preview(pc, ctx);

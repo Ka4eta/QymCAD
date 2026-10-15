@@ -88,6 +88,17 @@ pub fn tone_colour(pal: &qymcad_scheme::Palette, tone: Tone) -> egui::Color32 {
     }
 }
 
+/// THE COLOUR OF A TONE WHERE ONLY THE `Ui` IS AT HAND - a list deep inside a field, a row of a list that is not
+/// handed the palette. The theme writes its warning and error colours into egui's (`qymcad_scheme`, where the visuals
+/// are made), so these are the theme's own; a refusal has no slot of egui's and takes the error colour there.
+pub fn tone_colour_in(ui: &egui::Ui, tone: Tone) -> egui::Color32 {
+    match tone {
+        Tone::Info => ui.visuals().text_color(),
+        Tone::Warning => ui.visuals().warn_fg_color,
+        Tone::Refusal | Tone::Error => ui.visuals().error_fg_color,
+    }
+}
+
 /// THE ICON OF A TONE, or none for information.
 pub fn tone_icon(tone: Tone) -> Option<&'static str> {
     match tone {
@@ -123,6 +134,12 @@ pub fn say(ui: &mut egui::Ui, pal: &qymcad_scheme::Palette, notice: &Notice, siz
 /// into the hint the caller adds to the response.
 pub fn tone_mark(ui: &mut egui::Ui, pal: &qymcad_scheme::Palette, tone: Tone) -> egui::Response {
     ui.label(egui::RichText::new(tone_icon(tone).unwrap_or(ph::INFO)).color(tone_colour(pal, tone)))
+}
+
+/// THE MARK OF A TONE where only the `Ui` is at hand (see `tone_colour_in`).
+pub fn tone_mark_in(ui: &mut egui::Ui, tone: Tone) -> egui::Response {
+    let colour = tone_colour_in(ui, tone);
+    ui.label(egui::RichText::new(tone_icon(tone).unwrap_or(ph::INFO)).color(colour))
 }
 
 #[cfg(test)]

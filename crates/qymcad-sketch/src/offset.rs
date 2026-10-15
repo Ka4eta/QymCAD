@@ -109,7 +109,7 @@ pub fn offset_box(oc: OffsetCtx, view: &qymcad_ui_state::View2d, si: usize, ctx:
                     oc.tool_prefs.offset = parse_num(&*oc.project, &buf).unwrap_or(oc.tool_prefs.offset);
                 }
                 if let Some(w) = &said {
-                    ui.label(egui::RichText::new(ph::WARNING).color(ui.visuals().warn_fg_color)).on_hover_text(w);
+                    qymcad_ui_state::tone_mark_in(ui, qymcad_ui_state::Tone::Refusal).on_hover_text(w);
                 }
                 apply |= enter && (r.has_focus() || r.lost_focus());
                 apply |= ui.button(ph::CHECK).clicked();

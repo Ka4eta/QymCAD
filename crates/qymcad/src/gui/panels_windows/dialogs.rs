@@ -18,7 +18,7 @@ pub(crate) fn crash_notice(crash_report: &mut Vec<std::path::PathBuf>, ctx: &egu
     let Some(path) = crash_report.first().cloned() else { return };
     let mut open = true;
     let mut dismiss = false;
-    egui::Window::new(format!("{} {}", ph::WARNING, crate::i18n::tr("crash-title"))).id(egui::Id::new("win_crash"))
+    egui::Window::new(format!("{} {}", qymcad_ui_state::tone_icon(qymcad_ui_state::Tone::Warning).unwrap_or_default(), crate::i18n::tr("crash-title"))).id(egui::Id::new("win_crash"))
         // OVER EVERY WINDOW, the start screen too: it stood on the same layer and took the click meant for "Close"
         .order(egui::Order::Foreground)
         .open(&mut open)
@@ -88,7 +88,7 @@ pub(crate) fn updates_dialog(win: &mut super::Windows, scheme: &super::SchemeUi,
                 Outcome::Unreachable => {
                     // Said plainly rather than dressed up as good news: somebody on a version six months
                     // old must not be told they are current because a request did not go through.
-                    ui.colored_label(scheme.pal.warning(), format!("{} {}", ph::WARNING, crate::i18n::tr("update-unreachable")));
+                    qymcad_ui_state::say(ui, &scheme.pal, &qymcad_ui_state::Notice::warning(crate::i18n::tr("update-unreachable")), qymcad_ui_state::NoticeSize::Line);
                 }
                 Outcome::Found(latest) => {
                     ui.horizontal(|ui| {
@@ -102,7 +102,7 @@ pub(crate) fn updates_dialog(win: &mut super::Windows, scheme: &super::SchemeUi,
                     // that is worth interrupting somebody for.
                     if qymcad_update::is_unfit(&crate::gui::update_ui::ours(), latest.broken_below.as_deref()) {
                         ui.add_space(6.0);
-                        ui.colored_label(scheme.pal.warning(), format!("{} {}", ph::WARNING, crate::i18n::tr("update-unfit")));
+                        qymcad_ui_state::say(ui, &scheme.pal, &qymcad_ui_state::Notice::warning(crate::i18n::tr("update-unfit")), qymcad_ui_state::NoticeSize::Line);
                     }
                     if let Some(notice) = &latest.notice {
                         ui.add_space(6.0);
@@ -165,7 +165,7 @@ pub(crate) fn about_dialog(win: &mut super::Windows, scheme: &super::SchemeUi, c
             ui.add_space(8.0);
             ui.label(crate::i18n::tr("about-what"));
             ui.add_space(10.0);
-            ui.colored_label(scheme.pal.warning(), format!("{} {}", ph::WARNING, crate::i18n::tr("about-develop-warning")));
+            qymcad_ui_state::say(ui, &scheme.pal, &qymcad_ui_state::Notice::warning(crate::i18n::tr("about-develop-warning")), qymcad_ui_state::NoticeSize::Line);
             ui.add_space(6.0);
             // THE CAM TAB IS IN THE SETTINGS AND DOES NOT WORK. Whoever finds the checkbox is owed the
             // reason here rather than after an hour of trying: it is groundwork, not a finished tool.
@@ -371,7 +371,7 @@ pub(crate) fn nav_dialog(wc: &mut qymcad_ui_state::WinCtx, ctx: &egui::Context) 
         ui.allocate_rect(all, egui::Sense::click_and_drag());
         ui.painter().rect_filled(all, 0.0, backdrop);
     });
-    egui::Window::new(format!("{}  {}", ph::WARNING, crate::i18n::tr("win-unsaved")))
+    egui::Window::new(format!("{}  {}", qymcad_ui_state::tone_icon(qymcad_ui_state::Tone::Warning).unwrap_or_default(), crate::i18n::tr("win-unsaved")))
         .id(egui::Id::new("win_unsaved"))
         .order(egui::Order::Tooltip)
         .collapsible(false)

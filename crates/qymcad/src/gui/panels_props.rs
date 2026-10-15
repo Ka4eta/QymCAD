@@ -183,7 +183,7 @@ pub(crate) fn joints_panel(pr: &mut qymcad_ui_state::PropsCtx, ui: &mut egui::Ui
     ui.label(egui::RichText::new(crate::i18n::tr("jp-title")).strong());
     // a warning about a CONFLICT among the assembly mates (the solver did not converge, so the parts were left where they were).
     if pr.project.mates_conflict {
-        ui.label(egui::RichText::new(format!("{} {}", ph::WARNING, crate::i18n::tr("jp-conflict"))).color(pr.scheme.pal.error()).small());
+        qymcad_ui_state::say(ui, &pr.scheme.pal, &qymcad_ui_state::Notice::error(crate::i18n::tr("jp-conflict")), qymcad_ui_state::NoticeSize::Small);
     }
     let ctx = qymcad_ui_state::current_ctx_id(pr.active_path, pr.project);
     let children = pr.project.component_children(ctx);
@@ -330,10 +330,11 @@ pub(crate) fn joints_panel(pr: &mut qymcad_ui_state::PropsCtx, ui: &mut egui::Ui
             // move, and there is no explanation.
             match e.state {
                 MateState::Faulty(why) => {
-                    ui.label(egui::RichText::new(format!("{} {}", ph::WARNING, crate::i18n::tr(why))).color(pr.scheme.pal.error_mild()).small()).on_hover_text(crate::i18n::tr(&format!("{why}-hint")));
+                    qymcad_ui_state::say(ui, &pr.scheme.pal, &qymcad_ui_state::Notice::error(crate::i18n::tr(why)), qymcad_ui_state::NoticeSize::Small)
+                        .on_hover_text(crate::i18n::tr(&format!("{why}-hint")));
                 }
                 MateState::Violated => {
-                    ui.label(egui::RichText::new(format!("{} {}", ph::WARNING, crate::i18n::tr("jp-dof-conflict"))).color(pr.scheme.pal.error()).small());
+                    qymcad_ui_state::say(ui, &pr.scheme.pal, &qymcad_ui_state::Notice::error(crate::i18n::tr("jp-dof-conflict")), qymcad_ui_state::NoticeSize::Small);
                 }
                 MateState::Ok => {}
             }
@@ -477,7 +478,7 @@ pub(crate) fn joints_panel(pr: &mut qymcad_ui_state::PropsCtx, ui: &mut egui::Ui
         // RIGHT BESIDE a red conflict warning. The program said "trouble" and "all in order" at the same time -
         // the worst answer of all.
         if pr.project.mates_violated.contains(&j.id) {
-            ui.label(egui::RichText::new(format!("{} {}", ph::WARNING, crate::i18n::tr("jp-dof-conflict"))).color(pr.scheme.pal.error()).small());
+            qymcad_ui_state::say(ui, &pr.scheme.pal, &qymcad_ui_state::Notice::error(crate::i18n::tr("jp-dof-conflict")), qymcad_ui_state::NoticeSize::Small);
         } else {
             let d = pr.project.component_dof(ob);
             let (lbl, col) = if d == 0 { (&crate::i18n::tr("jp-defined"), pr.scheme.pal.ok()) } else { (&crate::i18n::tr("jp-underdefined"), pr.scheme.pal.underdefined()) };
@@ -686,7 +687,7 @@ pub(crate) fn feature_props(pr: &mut qymcad_ui_state::PropsCtx, ui: &mut egui::U
     if let Some(err) = pr.project.regen_errors.get(&fid) {
         ui.separator();
         let text = crate::gui::error_words::error_text(err);
-        ui.label(egui::RichText::new(format!("{} {text}", ph::WARNING)).color(pr.scheme.pal.error_mild()).small());
+        qymcad_ui_state::say(ui, &pr.scheme.pal, &qymcad_ui_state::Notice::error(text), qymcad_ui_state::NoticeSize::Small);
     }
     if pr.project.rollback.is_some_and(|r| r <= ti) {
         ui.label(egui::RichText::new(crate::i18n::tr("fp-below-rollback")).weak().small());

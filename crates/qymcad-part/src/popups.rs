@@ -149,28 +149,42 @@ pub fn cmd_anchor_screen(pc: &mut qymcad_ui_state::PartCtx, rect: Rect) -> Optio
 /// tells on one line, what will not build on the next. Off that row they are also written at the ordinary
 /// size - the small size was the price of squeezing prose in beside the buttons, and there is no such
 /// price to pay on a line of one's own.
+/// ONE SENTENCE OF A BAR: its words, and the longer explanation the hover shows, if any.
+pub(crate) struct Said {
+    pub(crate) text: String,
+    pub(crate) hover: Option<String>,
+}
+
 #[derive(Default)]
 pub(crate) struct BarSays {
     /// what the tool is doing, or waiting for
-    pub(crate) told: Vec<(String, Option<String>)>,
+    pub(crate) told: Vec<Said>,
+    /// what builds, but not the way a person would expect it to
+    pub(crate) warned: Vec<Said>,
     /// what will not build the way it is set
-    pub(crate) wrong: Vec<(String, Option<String>)>,
+    pub(crate) wrong: Vec<Said>,
 }
 
 impl BarSays {
     /// What the tool is doing, or what it is waiting for.
     pub(crate) fn tell(&mut self, text: impl Into<String>) {
-        self.told.push((text.into(), None));
+        self.told.push(Said { text: text.into(), hover: None });
     }
 
     /// The same, with the longer explanation the hover shows.
     pub(crate) fn tell_hover(&mut self, text: impl Into<String>, hover: impl Into<String>) {
-        self.told.push((text.into(), Some(hover.into())));
+        self.told.push(Said { text: text.into(), hover: Some(hover.into()) });
+    }
+
+    /// What builds, with something to know first: the icon of a warning in front, in its colour.
+    pub(crate) fn warn(&mut self, text: impl Into<String>) {
+        let icon = qymcad_ui_state::tone_icon(qymcad_ui_state::Tone::Warning).unwrap_or_default();
+        self.warned.push(Said { text: format!("{icon} {}", text.into()), hover: None });
     }
 
     /// What will not build as it is set, and what to change.
     pub(crate) fn wrong(&mut self, text: impl Into<String>) {
-        self.wrong.push((text.into(), None));
+        self.wrong.push(Said { text: text.into(), hover: None });
     }
 
     /// Lay the sentences under the controls, one line for each kind.
@@ -178,17 +192,18 @@ impl BarSays {
     /// A line that has nothing to say takes no room at all: an empty row reserved for a hint that rarely
     /// comes would push the viewport down by its height on every command.
     pub(crate) fn show(self, ui: &mut egui::Ui, pal: &qymcad_scheme::Palette) {
-        for (line, colour) in [(self.told, pal.hint()), (self.wrong, pal.error_mild())] {
+        let tone = |t| qymcad_ui_state::tone_colour(pal, t);
+        for (line, colour) in [(self.told, pal.hint()), (self.warned, tone(qymcad_ui_state::Tone::Warning)), (self.wrong, tone(qymcad_ui_state::Tone::Refusal))] {
             if line.is_empty() {
                 continue;
             }
             ui.horizontal_wrapped(|ui| {
-                for (i, (text, hover)) in line.into_iter().enumerate() {
+                for (i, said) in line.into_iter().enumerate() {
                     if i > 0 {
                         ui.separator();
                     }
-                    let r = ui.label(egui::RichText::new(text).color(colour));
-                    if let Some(h) = hover {
+                    let r = ui.label(egui::RichText::new(said.text).color(colour));
+                    if let Some(h) = said.hover {
                         r.on_hover_text(h);
                     }
                 }
@@ -249,7 +264,7 @@ pub fn feat_cmd_popup(pc: &mut qymcad_ui_state::PartCtx, ctx: &egui::Context, re
                     match field_value(p, &vars).and_then(|v| refused.clone().filter(|(k, _)| *k == p.key).map_or(Ok(v), |(_, m)| Err(m))) {
                         Ok(v) => p.val = v,
                         Err(msg) => {
-                            ui.colored_label(pc.scheme.pal.error_mild(), ph::X).on_hover_text(msg);
+                            qymcad_ui_state::tone_mark(ui, &pc.scheme.pal, qymcad_ui_state::Tone::Refusal).on_hover_text(msg);
                         }
                     }
                 });
@@ -301,7 +316,7 @@ pub fn feat_cmd_popup(pc: &mut qymcad_ui_state::PartCtx, ctx: &egui::Context, re
                             if bad.is_none() {
                                 bad = Some((qymcad_i18n::tr(p.label_key()), msg.clone()));
                             }
-                            ui.colored_label(pc.scheme.pal.error_mild(), ph::X).on_hover_text(&msg);
+                            qymcad_ui_state::tone_mark(ui, &pc.scheme.pal, qymcad_ui_state::Tone::Refusal).on_hover_text(&msg);
                         }
                     }
                     if te.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
@@ -347,7 +362,7 @@ pub fn feat_cmd_popup(pc: &mut qymcad_ui_state::PartCtx, ctx: &egui::Context, re
             // everything else had been done. A typo concerns what is being typed right now, and there is
             // nothing to wait for.
             if let Some((field, msg)) = &bad {
-                ui.label(egui::RichText::new(format!("{} {field}: {msg}", ph::X)).color(pc.scheme.pal.error_mild()).small());
+                qymcad_ui_state::say(ui, &pc.scheme.pal, &qymcad_ui_state::Notice::refusal(format!("{field}: {msg}")), qymcad_ui_state::NoticeSize::Small);
             } else if checking {
                 ui.label(egui::RichText::new(qymcad_i18n::tr("cmd-trial-checking")).weak().small());
             } else if !ready {
@@ -396,7 +411,7 @@ pub fn body_num_popup(pc: &mut qymcad_ui_state::PartCtx, ctx: &egui::Context, re
                 Err(e) if !pc.body_giz.num_buf.is_empty() => {
                     // THE REASON, not "it did not evaluate". A general phrase is the same for a typo, for
                     // an unknown name and for a division by zero - that is, it says nothing.
-                    ui.label(egui::RichText::new(format!("{} {}", ph::WARNING, qymcad_i18n::error_words::expr_error_text(e))).small().color(pc.scheme.pal.error_mild()));
+                    qymcad_ui_state::say(ui, &pc.scheme.pal, &qymcad_ui_state::Notice::refusal(qymcad_i18n::error_words::expr_error_text(e)), qymcad_ui_state::NoticeSize::Small);
                 }
                 _ => {}
             }
@@ -453,7 +468,7 @@ pub(crate) fn comp_array_fields(pc: &mut qymcad_ui_state::PartCtx, ui: &mut egui
                 enter |= o.resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
             }
             Err(msg) => {
-                ui.colored_label(pc.scheme.pal.error_mild(), ph::X).on_hover_text(msg);
+                qymcad_ui_state::tone_mark(ui, &pc.scheme.pal, qymcad_ui_state::Tone::Refusal).on_hover_text(msg);
             }
         }
     }

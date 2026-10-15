@@ -14,10 +14,14 @@ The source of truth is the code and a run of it, not a description of it.
   impersonally ("Select a contour"). No shouting in capitals. The table is in `i18n/README.md`.
 * Arrows only as ASCII `->`. A raw Unicode symbol is drawn as a box.
 * Icons in egui only from `ph::*`. Unicode is fine in Markdown.
+* A message carries its tone (`qymcad_ui_state::Notice`: information, warning, refusal, error) and is drawn by
+  `qymcad_ui_state::voice` (`say`, `tone_mark`, `tone_colour`); no place picks the colour or the icon of a warning
+  or an error itself.
 * Help says what to press, what happens, and what to do if it did not work. No internal words ("persistent",
   "kernel"), no defending decisions, no development history.
 
-Guards: `comment_ratchet.rs`, `i18n/tests.rs`, `i18n/ratchet.rs`, `gui/font_coverage.rs`, `gui/help_voice.rs`.
+Guards: `comment_ratchet.rs`, `i18n/tests.rs`, `i18n/ratchet.rs`, `gui/font_coverage.rs`, `gui/help_voice.rs`,
+`one_voice_guard.rs`.
 
 ## Tests
 

@@ -152,7 +152,12 @@ pub(crate) fn build_tree(tc: &mut qymcad_ui_state::TreeCtx, ui: &mut egui::Ui) {
             tc.interference.rev = u64::MAX; // force a recompute when it is toggled
         }
         if tc.set.show_interference && !tc.interference.pairs.is_empty() {
-            ui.colored_label(tc.scheme.pal.error(), format!("{} {}", ph::WARNING, crate::i18n::tr1("tree-interference-n", "n", &tc.interference.pairs.len().to_string())));
+            qymcad_ui_state::say(
+                ui,
+                &tc.scheme.pal,
+                &qymcad_ui_state::Notice::error(crate::i18n::tr1("tree-interference-n", "n", &tc.interference.pairs.len().to_string())),
+                qymcad_ui_state::NoticeSize::Line,
+            );
         }
     }
     ui.separator();

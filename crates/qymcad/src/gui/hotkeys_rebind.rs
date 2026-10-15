@@ -758,9 +758,9 @@ mod tests {
         let why = text_with(&shapes, &refused).expect("the refusal of Ctrl+Z is not drawn");
         assert!(text_rect(&shapes, &waiting).is_none(), "the waiting line still stands beside the refusal");
         assert!((why.pos - line.min).length() < 0.5, "the refusal starts at {:?}, the waiting line stood at {:?}", why.pos, line.min);
-        // THE STOP SIGN OPENS THE LINE: a refusal is not the clash, which asks a question under a warning triangle
-        let stop = egui_phosphor::regular::WARNING_OCTAGON;
-        assert!(why.galley.text().starts_with(stop), "the refusal is drawn without its stop sign: {:?}", why.galley.text());
+        // THE SIGN OF A REFUSAL OPENS THE LINE: a refusal is not the clash, which asks a question under a warning's sign
+        let stop = qymcad_ui_state::tone_icon(qymcad_ui_state::Tone::Refusal).expect("a refusal has its sign");
+        assert!(why.galley.text().starts_with(stop), "the refusal is drawn without the sign of a refusal: {:?}", why.galley.text());
         // THE SIGN SAYS STOP, the words are read in the colour of the row's own: red words beside a red sign shout
         let plain = text_color(&shapes, &what).expect("the extrude row is drawn");
         let color_of = |part: &str| why.galley.job.sections.iter().find(|s| why.galley.text().get(s.byte_range.start.0..s.byte_range.end.0) == Some(part)).map(|s| s.format.color);

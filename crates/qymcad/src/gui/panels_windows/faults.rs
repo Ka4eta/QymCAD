@@ -53,3 +53,5 @@ pub(crate) fn faults_window(wc: &mut qymcad_ui_state::WinCtx, ctx: &egui::Contex
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod voice_tests;

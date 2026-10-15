@@ -284,7 +284,7 @@ pub(crate) fn window(ctx: &mut HelpCtx, ui_ctx: &egui::Context) {
                         // THERE IS NO ARTICLE — IT IS SAID IN WORDS. An empty window is read as a
                         // breakage of the program rather than as "this article is not written yet".
                         None => {
-                            ui.label(egui::RichText::new(crate::i18n::tr1("help-missing", "what", &article)).color(ctx.pal.error_mild()));
+                            qymcad_ui_state::say(ui, ctx.pal, &qymcad_ui_state::Notice::refusal(crate::i18n::tr1("help-missing", "what", &article)), qymcad_ui_state::NoticeSize::Line);
                         }
                     });
                 });
@@ -386,7 +386,7 @@ pub(crate) fn markdown(pal: &crate::palette::Palette, ui: &mut egui::Ui, md: &st
                     // the program; a guard would not let that through, but an article may also arrive
                     // from outside.
                     None => {
-                        ui.label(egui::RichText::new(format!("[{}]", path)).weak().small().color(pal.error_mild()));
+                        ui.label(egui::RichText::new(format!("[{}]", path)).weak().small().color(qymcad_ui_state::tone_colour(pal, qymcad_ui_state::Tone::Refusal)));
                     }
                 }
                 if !alt.is_empty() {

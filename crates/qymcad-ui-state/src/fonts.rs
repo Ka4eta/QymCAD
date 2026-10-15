@@ -265,9 +265,9 @@ pub fn font_row(ui: &mut egui::Ui, cache: &mut FontCache, f: &FontFace, row: f32
             ui.painter().text(
                 rect.left_center() + egui::vec2(8.0, 0.0),
                 egui::Align2::LEFT_CENTER,
-                format!("{} {} - {}", egui_phosphor::regular::WARNING, label, qymcad_i18n::tr("font-no-letters")),
+                format!("{} {} - {}", crate::tone_icon(crate::Tone::Warning).unwrap_or_default(), label, qymcad_i18n::tr("font-no-letters")),
                 egui::TextStyle::Body.resolve(ui.style()),
-                ui.visuals().weak_text_color(),
+                crate::tone_colour_in(ui, crate::Tone::Warning),
             );
         }
     }

@@ -584,7 +584,7 @@ pub fn sketch_dof_line(cache: &qymcad_ui_state::Caches, project: &Project, schem
     let diag = qymcad_ui_state::sketch_diag(cache, project, si);
     let (dof, redun) = diag.dof;
     let (lbl, col) = if !diag.conflicts.is_empty() {
-        (qymcad_i18n::tr("dof-conflict"), scheme.pal.error())
+        (qymcad_i18n::tr("dof-conflict"), qymcad_ui_state::tone_colour(&scheme.pal, qymcad_ui_state::Tone::Error))
     } else if dof > 0 {
         (qymcad_i18n::tr("dof-underdefined"), scheme.pal.underdefined())
     } else if redun > 0 {
