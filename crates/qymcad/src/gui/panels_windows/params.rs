@@ -204,8 +204,9 @@ pub(crate) fn params_rows_ui(wc: &mut qymcad_ui_state::WinCtx, ui: &mut egui::Ui
         });
     });
     wc.tree.drv_path_rects = paths;
+    // A REFUSAL, NOT A WARNING: Enter does not apply the name, which is what the tone of a refusal says.
     if let Some(msg) = &refusal {
-        qymcad_ui_state::say(ui, &wc.scheme.pal, &qymcad_ui_state::Notice::warning(msg.clone()), qymcad_ui_state::NoticeSize::Small);
+        qymcad_ui_state::say(ui, &wc.scheme.pal, &qymcad_ui_state::Notice::refusal(msg.clone()), qymcad_ui_state::NoticeSize::Small);
     }
     for a in acts {
         match a {

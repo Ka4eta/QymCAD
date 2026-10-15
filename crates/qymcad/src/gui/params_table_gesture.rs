@@ -19,13 +19,15 @@ mod tests {
         /// The rectangles of the name fields by row number — FROM THE FRAME rather than by eye.
         name_rects: Vec<egui::Rect>,
         drawn: Vec<String>,
+        /// The words of the last frame with their colours: a refusal is told from a warning by the colour on screen.
+        painted: Vec<crate::gui::hand::PaintedWords>,
     }
 
     impl Table {
         fn new() -> Self {
             let ctx = egui::Context::default();
             super::super::install_fonts(&ctx);
-            Self { ctx, screen: egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(900.0, 700.0)), events: Vec::new(), name_rects: Vec::new(), drawn: Vec::new() }
+            Self { ctx, screen: egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(900.0, 700.0)), events: Vec::new(), name_rects: Vec::new(), drawn: Vec::new(), painted: Vec::new() }
         }
 
         fn frame(&mut self, app: &mut App) -> &mut Self {
@@ -51,6 +53,7 @@ mod tests {
                     self.name_rects.push(r);
                 }
             }
+            self.painted = crate::gui::hand::painted_in(&out.shapes);
             self.drawn.clear();
             for cs in &out.shapes {
                 super::super::screen_keys::tests::collect_text(&cs.shape, &mut self.drawn);
@@ -265,6 +268,23 @@ mod tests {
         assert_eq!(app.project.parameters[0].name, "w", "the name \"e\" was applied - a formula reads the constant there");
         let said = crate::i18n::tr1("par-name-constant", "name", "e");
         assert!(t.shows(&said), "the program did not say the name is a constant: \"{said}\" was expected, and the frame holds {:?}", t.drawn);
+    }
+
+    /// A REFUSED NAME IS SAID IN THE TONE OF A REFUSAL: Enter does not apply it. The line under the table was drawn in
+    /// the colour of a warning, the tone of something that went through with a doubt.
+    #[test]
+    fn a_refused_name_is_said_in_the_colour_of_a_refusal() {
+        let mut app = app_with_params();
+        let mut t = Table::new();
+        t.enter_name(&mut app, 0);
+        t.type_text("e").frame(&mut app);
+        t.key(egui::Key::Enter).frame(&mut app);
+        t.frame(&mut app);
+
+        let said = crate::i18n::tr1("par-name-constant", "name", "e");
+        let line = t.painted.iter().find(|w| w.text.contains(&said));
+        let want = qymcad_ui_state::tone_colour(&app.scheme.pal, qymcad_ui_state::Tone::Refusal);
+        assert!(line.is_some_and(|w| w.colour == want), "the refusal is not said in the colour of a refusal {want:?}: {:?}", line.map(|w| w.colour));
     }
 
     /// THE SEARCH LEAVES ONLY WHAT MATCHES.
