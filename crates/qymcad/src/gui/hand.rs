@@ -247,6 +247,20 @@ impl<'a> Hand<'a> {
         self.win.widgets.iter().find(|w| w.kind == super::window::Kind::Window && w.label == title).map(|w| w.rect)
     }
 
+    /// CLOSE THE WINDOW TITLED `title` INSIDE THE PROGRAM with the cross on its title bar, as a person does when done with
+    /// it. Answers whether such a window with a cross was on screen.
+    pub fn close_titled(&mut self, title: &str) -> bool {
+        let Some(window) = self.window_titled(title) else { return false };
+        // the cross is the framework's own button, and it tells a screen reader what it does in these words
+        let cross = self
+            .win
+            .widgets
+            .iter()
+            .find(|w| w.kind == super::window::Kind::Button && w.label == "Close window" && window.contains(w.rect.center()) && w.rect.center().y < window.min.y + 40.0)
+            .map(|w| w.rect.center());
+        cross.inspect(|at| self.press_screen(*at)).is_some()
+    }
+
     /// DOUBLE-CLICK A POINT OF THE SCREEN: the hand rests over it, then presses and releases twice, each in a frame
     /// of its own - four sixtieths of a second, well inside the time egui allows a double click.
     pub fn double_click_screen(&mut self, at: egui::Pos2) -> &mut Self {
@@ -329,6 +343,19 @@ impl<'a> Hand<'a> {
             collect(&cs.shape, &mut out);
         }
         out
+    }
+
+    /// THE STATUS LINE AS THE NEXT FRAME PAINTS IT: the runs of words along the bottom of the window.
+    pub fn status_painted(&mut self) -> Vec<PaintedWords> {
+        let bottom = Self::SCREEN.y;
+        self.painted_words().into_iter().filter(|w| w.rect.min.y > bottom - 40.0).collect()
+    }
+
+    /// THE BADGE OF `tone` IN THE STATUS LINE as the next frame paints it: its run of words - the icon of the tone and a
+    /// number - or `None` when the line shows no such badge.
+    pub fn status_badge(&mut self, tone: qymcad_ui_state::Tone) -> Option<PaintedWords> {
+        let icon = qymcad_ui_state::tone_icon(tone)?;
+        self.status_painted().into_iter().find(|w| w.text.strip_prefix(icon).is_some_and(|n| n.trim().parse::<usize>().is_ok()))
     }
 
     /// FRAMES UNTIL THE REBUILD A GESTURE STARTED HAS ENDED, a minute at most: a person waits for the card to go

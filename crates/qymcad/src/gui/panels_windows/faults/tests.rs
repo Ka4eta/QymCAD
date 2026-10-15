@@ -4,14 +4,6 @@ use crate::gui::{App, Sel};
 use egui_phosphor::regular as ph;
 use qymcad_core::model::Id;
 
-/// The height of the window the hand draws into: the status line lies along its bottom.
-const SCREEN_BOTTOM: f32 = 900.0;
-
-/// WHAT THE STATUS LINE PAINTS: the runs of words along the bottom of the window.
-fn status_words(hand: &mut Hand) -> Vec<PaintedWords> {
-    hand.painted_words().into_iter().filter(|w| w.rect.min.y > SCREEN_BOTTOM - 40.0).collect()
-}
-
 /// The badge of a tone in the status line: its icon and a number.
 fn badge(words: &[PaintedWords], icon: &str) -> Option<usize> {
     words.iter().find_map(|w| w.text.strip_prefix(icon).and_then(|n| n.trim().parse().ok()))
@@ -63,7 +55,7 @@ fn a_cut_gone_red_is_said_in_red_counted_and_led_to() {
     let cuts = housing_with_two_cuts(&mut app);
     let pal = app.scheme.pal.clone();
     let mut hand = Hand::new(&mut app);
-    let before = status_words(&mut hand);
+    let before = hand.status_painted();
     assert_eq!(badge(&before, ph::X_CIRCLE), None, "a healthy document shows an error badge: {:?}", before.iter().map(|w| &w.text).collect::<Vec<_>>());
 
     // the height typed in the window of parameters, as a person types it
@@ -73,7 +65,7 @@ fn a_cut_gone_red_is_said_in_red_counted_and_led_to() {
     let red: Vec<Id> = cuts.iter().copied().filter(|c| hand.app.project.regen_errors.contains_key(c)).collect();
     assert_eq!(red.len(), 2, "setup: both cuts above a housing 5 tall go red: {:?}", hand.app.project.regen_errors);
 
-    let after = status_words(&mut hand);
+    let after = hand.status_painted();
     let line = message(&after).expect("the status line says something");
     assert_eq!(line.colour, pal.error(), "the line after a rebuild that left red nodes is not red: {:?}", line.text);
     assert!(line.text.starts_with(ph::X_CIRCLE), "the line carries no error icon: {:?}", line.text);
@@ -103,7 +95,7 @@ fn a_cut_gone_red_is_said_in_red_counted_and_led_to() {
     // the height put back: the badges go, and the line is not left red
     assert!(hand.type_after_word("H", "25"), "the formula of H is not on screen");
     hand.key(egui::Key::Enter).settle();
-    let healed = status_words(&mut hand);
+    let healed = hand.status_painted();
     assert!(hand.app.project.regen_errors.is_empty(), "setup: both cuts build again: {:?}", hand.app.project.regen_errors);
     assert_eq!(badge(&healed, ph::X_CIRCLE), None, "the error badge stayed after the faults were fixed");
     assert!(message(&healed).is_none_or(|w| w.colour != pal.error()), "the line stayed red after the faults were fixed");
@@ -136,7 +128,7 @@ fn a_rounding_that_left_out_an_edge_is_said_in_yellow_and_led_to() {
         hand.app.project.regen_errors
     );
 
-    let words = status_words(&mut hand);
+    let words = hand.status_painted();
     let line = message(&words).expect("the status line says something");
     assert_eq!(line.colour, pal.warning(), "the line after a rebuild that left a warning is not yellow: {:?}", line.text);
     assert!(line.text.starts_with(ph::WARNING), "the line carries no warning icon: {:?}", line.text);
@@ -185,7 +177,7 @@ fn every_kind_of_fault_has_its_row_and_its_road() {
     hand.settle();
     assert!(!hand.app.project.sketch_conflicts(si).is_empty(), "setup: the sketch conflicts");
 
-    let words = status_words(&mut hand);
+    let words = hand.status_painted();
     assert_eq!(badge(&words, ph::X_CIRCLE), Some(3), "the counter does not say the three faults: {:?}", words.iter().map(|w| &w.text).collect::<Vec<_>>());
     let counter = words.iter().find(|w| w.text.starts_with(ph::X_CIRCLE) && w.text.chars().count() < 8).map(|w| w.rect.center()).expect("the error badge");
     hand.click_screen(counter);
@@ -215,4 +207,51 @@ fn every_kind_of_fault_has_its_row_and_its_road() {
     let table = format!("{} {}", ph::FUNCTION, crate::i18n::tr("win-params"));
     assert!(hand.window_titled(&table).is_some() || hand.window_titled(&crate::i18n::tr("win-params")).is_some(), "a click on the row of the parameter did not open the table of parameters");
     assert_eq!(hand.app.par_search, "w", "the table is not narrowed to the parameter");
+}
+
+/// AN ASSEMBLY REBUILT WITH A MATE THAT CANNOT HOLD ends the rebuild with a red line naming the mate - "Edit -> Rebuild
+/// everything", the menu a person reaches for when something looks off.
+#[test]
+fn a_rebuild_that_leaves_a_mate_not_holding_says_so_in_red() {
+    let mut app = App::default();
+    crate::gui::joint_flow::tests::add_part_at(&mut app, 0.0);
+    crate::gui::joint_flow::tests::add_part_at(&mut app, 60.0);
+    app.exit_context();
+    let one = app.project.mesh_id(0).and_then(|b| app.project.body_owner(b)).expect("part A");
+    let two = app.project.mesh_id(1).and_then(|b| app.project.body_owner(b)).expect("part B");
+    app.project.set_grounded(one, true);
+    let ca = app.project.add_connector(one, qymcad_core::feature::AnchorRef::Origin);
+    let cb = app.project.add_connector(two, qymcad_core::feature::AnchorRef::Origin);
+    app.project.add_joint(ca, cb, qymcad_core::feature::JointKind::Rigid);
+    app.project.connectors.retain(|c| c.id != cb);
+    let pal = app.scheme.pal.clone();
+    let mut hand = Hand::new(&mut app);
+    hand.settle();
+    assert!(hand.press_word(&crate::i18n::tr("menu-edit"), egui::pos2(0.0, 0.0)), "the menu Edit is not on screen");
+    assert!(hand.press_word(&crate::i18n::tr("menu-rebuild"), egui::pos2(0.0, 0.0)), "Rebuild everything is not in the menu");
+    hand.settle();
+    let words = hand.status_painted();
+    let line = message(&words).expect("the status line says something");
+    // the words before the place of the mate, in the language of the interface
+    let head = crate::i18n::tr2("io-placement-left-errors", "n", "1", "where", "@").split('@').next().unwrap_or_default().to_string();
+    assert!(line.text.contains(&head), "the line after the rebuild does not name the mate that does not hold ({head:?}): {:?}", line.text);
+    assert_eq!(line.colour, pal.error(), "the line naming a mate that does not hold is not red: {:?}", line.text);
+}
+
+/// A FORMULA TYPED IN THE TABLE THAT GIVES NO VALUE is said in red on the status line, with the parameter's name.
+#[test]
+fn a_formula_without_a_value_is_said_in_red_on_the_line() {
+    let mut app = App::default();
+    app.project.parameters.push(qymcad_core::model::Param { name: "w".into(), expr: "10".into(), value: 10.0 });
+    app.project.eval_parameters();
+    let pal = app.scheme.pal.clone();
+    let mut hand = Hand::new(&mut app);
+    assert!(hand.press_word(&crate::i18n::tr("wb-params"), egui::pos2(0.0, 0.0)), "the button of the parameters is not on screen");
+    assert!(hand.type_after_word("w", "10 +"), "the formula of w is not on screen");
+    hand.key(egui::Key::Enter).settle();
+    let words = hand.status_painted();
+    let line = message(&words).expect("the status line says something");
+    assert!(line.text.starts_with(ph::X_CIRCLE) && line.text.contains('w'), "the line does not say that w has no value: {:?}", line.text);
+    assert_eq!(line.colour, pal.error(), "the line about a formula without a value is not red: {:?}", line.text);
+    assert_eq!(hand.status_badge(qymcad_ui_state::Tone::Error).map(|b| b.text), Some(format!("{} 1", ph::X_CIRCLE)), "the formula without a value is not counted");
 }

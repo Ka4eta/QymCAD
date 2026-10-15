@@ -153,7 +153,8 @@ pub fn lead_to_faults(faults: &[Fault], project: &Project, win: &mut Windows, pa
 }
 
 /// WHAT THE LAST REBUILD LEFT, as the line it ends with: the first node that did not build, in the order of the
-/// timeline, and how many did not; failing that, the first that built only in part. `None` when all of it built.
+/// timeline, and how many did not; failing that, the first mate the placement after it could not hold; failing that,
+/// the first node that built only in part. `None` when all of it built and holds.
 ///
 /// Reported behaviour: a parameter made a cut fail, the cut and every node after it went red in the tree, and the
 /// status line said so in the plain colour of "Ready".
@@ -167,7 +168,18 @@ pub fn rebuild_left(project: &Project) -> Option<Notice> {
             Some(format!("{head} {}", qymcad_i18n::error_words::error_text(e)))
         })
     };
-    say("io-rebuild-left-errors", &project.regen_errors).map(Notice::error).or_else(|| say("io-rebuild-left-warnings", &project.regen_warnings).map(Notice::warning))
+    let mates = || {
+        let faulty = mate_faults(project);
+        faulty.first().map(|f| Notice::error(format!("{} {}", qymcad_i18n::tr2("io-placement-left-errors", "n", &faulty.len().to_string(), "where", &f.path), f.words)))
+    };
+    say("io-rebuild-left-errors", &project.regen_errors).map(Notice::error).or_else(mates).or_else(|| say("io-rebuild-left-warnings", &project.regen_warnings).map(Notice::warning))
+}
+
+/// WHAT AN EDIT OF THE PARAMETERS LEFT: the first parameter whose formula gives no value, and how many give none.
+/// `None` when every formula gives a value.
+pub fn parameters_left(project: &Project) -> Option<Notice> {
+    let broken: Vec<Fault> = parameter_faults(project).into_iter().filter(|f| f.tone == Tone::Error).collect();
+    broken.first().map(|f| Notice::error(format!("{} {}", qymcad_i18n::tr2("par-left-errors", "n", &broken.len().to_string(), "where", &f.path), f.words)))
 }
 
 /// The assembly a mate, a mate constraint or a relation lives in.
@@ -214,7 +226,30 @@ fn gather(project: &Project) -> Vec<Fault> {
         };
         out.push(Fault { tone, words: qymcad_i18n::error_words::error_text(e), path: path_in_words(&project.feature_breadcrumbs(n.id)), place: FaultPlace::Node(n.id), owner: n.parent });
     }
-    // THE MATES, as the list of each assembly marks them; a global mate is listed at the root as well, and once here.
+    out.extend(mate_faults(project));
+    // THE SKETCHES whose constraints cannot hold at once. Redundancy that agrees with itself is not an error and is not
+    // counted (see `flagged_redundant`); a conflict is measured by the geometry and remembered by each sketch.
+    for (si, s) in project.sketches.iter().enumerate() {
+        let n = project.sketch_conflicts(si).len();
+        if n > 0 {
+            let owner = project.sketch_owner(s.id);
+            out.push(Fault {
+                tone: Tone::Error,
+                words: qymcad_i18n::tr1("fault-sketch-conflict", "n", &n.to_string()),
+                path: path_in_words(&project.sketch_breadcrumbs(s.id)),
+                place: FaultPlace::Sketch(s.id),
+                owner,
+            });
+        }
+    }
+    out.extend(parameter_faults(project));
+    out
+}
+
+/// THE MATES THAT DO NOT HOLD, as the list of each assembly marks them; a global mate is listed at the root as well, and
+/// once here.
+fn mate_faults(project: &Project) -> Vec<Fault> {
+    let mut out = Vec::new();
     let mut seen = std::collections::HashSet::new();
     for c in project.components.iter().filter(|c| !project.component_is_part(c.id)) {
         for e in project.mate_timeline(c.id) {
@@ -231,22 +266,12 @@ fn gather(project: &Project) -> Vec<Fault> {
             out.push(Fault { tone: Tone::Error, words, path: path_to(project, owner, &name), place: FaultPlace::Mate(e.id), owner });
         }
     }
-    // THE SKETCHES whose constraints cannot hold at once. Redundancy that agrees with itself is not an error and is not
-    // counted (see `flagged_redundant`); a conflict is measured by the geometry and remembered by each sketch.
-    for (si, s) in project.sketches.iter().enumerate() {
-        let n = project.sketch_conflicts(si).len();
-        if n > 0 {
-            let owner = project.sketch_owner(s.id);
-            out.push(Fault {
-                tone: Tone::Error,
-                words: qymcad_i18n::tr1("fault-sketch-conflict", "n", &n.to_string()),
-                path: path_in_words(&project.sketch_breadcrumbs(s.id)),
-                place: FaultPlace::Sketch(s.id),
-                owner,
-            });
-        }
-    }
-    // THE PARAMETERS whose formula gives no value, and the drivers whose dimension is gone.
+    out
+}
+
+/// THE PARAMETERS whose formula gives no value, and the drivers whose dimension is gone.
+fn parameter_faults(project: &Project) -> Vec<Fault> {
+    let mut out = Vec::new();
     for p in project.parameters.iter().filter(|p| !p.expr.trim().is_empty()) {
         if let Err(e) = project.eval_expr(&p.expr) {
             out.push(Fault { tone: Tone::Error, words: qymcad_i18n::error_words::expr_error_text(&e), path: p.name.clone(), place: FaultPlace::Parameter(p.name.clone()), owner: None });

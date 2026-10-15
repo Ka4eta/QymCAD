@@ -13,6 +13,7 @@ mod tests {
     use super::super::{hand::Hand, App};
     mod check_all;
     mod save_and_reopen;
+    mod the_faults;
     mod the_view;
     use check_all::check_all;
     use save_and_reopen::save_and_reopen;
@@ -623,13 +624,11 @@ mod tests {
         if let Some(ti) = app.project.timeline.iter().position(|n| matches!(n.kind, qymcad_core::feature::FeatureKind::Extrude { .. })) {
             let nid = app.project.timeline[ti].id;
             app.tree_action(1, ti, nid, None, None);
-            if let Some(p) = app.tools.cmd.params.iter_mut().find(|p| p.key == "height") {
-                p.val = 35.0;
-                p.txt = "35".into();
-            }
+            Hand::new(&mut app).set("height", 35.0);
             app.apply_feat_cmd();
             check_all(&mut app, "the height of the housing was changed to 35", &mut problems);
         }
+        the_faults::a_broken_node_is_counted_and_led_to(&mut app, &mut problems);
         // the projection of the side followed the height, and the line drawn from its corner with it
         if let Some((sid, corner, at)) = projected {
             match app.project.sketch_index(sid) {

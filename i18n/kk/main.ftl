@@ -2766,3 +2766,5 @@ faults-none = Құжатта қателер мен ескертулер жоқ.
 fault-sketch-conflict = Эскиз байланыстары бір-біріне қайшы: { $n } бір мезгілде орындала алмайды
 io-rebuild-left-errors = Құрылмаған операциялар: { $n }. Біріншісі, { $where }:
 io-rebuild-left-warnings = Толық құрылмаған операциялар: { $n }. Біріншісі, { $where }:
+io-placement-left-errors = Орындалмаған қосылыстар: { $n }. Біріншісі, { $where }:
+par-left-errors = Мәні жоқ параметрлер: { $n }. Біріншісі, { $where }:

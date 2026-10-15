@@ -2754,3 +2754,5 @@ faults-none = У документі немає помилок і поперед�
 fault-sketch-conflict = Зв'язки ескізу суперечать одне одному: { $n } не можуть виконуватися одночасно
 io-rebuild-left-errors = Не побудовано операцій: { $n }. Перша, { $where }:
 io-rebuild-left-warnings = Побудовано не повністю операцій: { $n }. Перша, { $where }:
+io-placement-left-errors = Не виконується зв'язків: { $n }. Перший, { $where }:
+par-left-errors = Параметрів без значення: { $n }. Перший, { $where }:

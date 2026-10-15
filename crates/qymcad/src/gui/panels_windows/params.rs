@@ -333,6 +333,11 @@ pub(crate) fn fresh_row(wc: &qymcad_ui_state::WinCtx, i: usize) -> bool {
 /// parameter window draws itself, and a test must pull the same handle rather than a similar one of its own.
 pub(crate) fn apply_param_edit(wc: &mut qymcad_ui_state::WinCtx) {
     wc.project.eval_parameters();
+    // A FORMULA THAT GIVES NO VALUE IS SAID IN RED ON THE STATUS LINE, as a node that did not build is: the table says
+    // why beside the row, and the line is where a person looks once the field is left
+    if let Some(left) = qymcad_ui_state::parameters_left(wc.project) {
+        *wc.status = left;
+    }
     // THE SKETCHES WITH FORMULAS ARE SOLVED for the new values, so the sizes on screen follow at once; what is REBUILT is
     // decided by the scheduler, which marks only what mentions a name whose value changed (`mark_changed_params_dirty`,
     // against the values the last rebuild saw). Every sketch with a formula used to be marked here, whatever changed:
