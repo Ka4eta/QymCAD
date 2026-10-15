@@ -10,12 +10,16 @@ line moves or hides.
 Open **Windows -> Settings -> Layout**. The section shows a diagram of the window: the menu above, the view in the
 middle, and at each edge the panels standing there.
 
+![The tree carried onto the upper half of the properties: let go, the two stand one under the other at the right.](img/layout-carry/)
+
 * **Drag a panel onto another** to put it beside that one in the same strip: dropped on the upper half of the tree, the
   properties stand above it; on the lower half, under it. At a side the panels of a strip stand one under another, at
   the top and the bottom one beside another.
 * **Drag a panel onto the line along an edge** to give it a strip of its own there.
 * The window changes at once. Between two panels of one strip there is a line: drag it to give one more room and the
   other less. The edge of a strip is dragged the same way.
+
+![The window after it: the tree over the properties at the right, the bar of tools alone at the left.](img/layout-window.png)
 
 ## Hiding a panel
 
@@ -38,12 +42,16 @@ In **Settings -> Layout**:
 * **Names of the groups on the bar** — the name of each group of buttons is written on the bar: at a side before the
   group, at the top or the bottom above it. The name of a button is always in its hint.
 
+![The bar of tools at the left in two columns; carried to the top, in two rows in the middle; seen through, with the names of the groups, the model under it.](img/layout-bar/)
+
 What does not fit on the bar goes into **More** at its end; press it and pick the command from the list.
 
 ## The buttons of a workbench
 
 In **Settings -> Sketch**, **Part** or **Assembly**, press the heading **Buttons of the bar**: every button of that
 workbench opens under it, in its order.
+
+![The buttons of the sketch: the list folded under its heading, opened, and the spline put into "More".](img/bar-buttons/)
 
 * **Drag a row** up or down to move the button on the bar.
 * **In "More"** takes the button off the bar into the list of **More**; **On the bar** puts it back. A command in "More"

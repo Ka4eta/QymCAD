@@ -1702,10 +1702,12 @@ mod tests {
             save("help-window.png", &img);
         }
 
+        layout::pictures();
         eprintln!("the pictures were written to {}", img_dir().display());
     }
 
     mod guards;
+    mod layout;
     mod sketch_shots;
     use sketch_shots::*;
 }

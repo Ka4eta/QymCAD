@@ -11,6 +11,13 @@
 #[cfg(test)]
 mod sketch_text;
 
+/// A CARRY ON THE SCREEN: where the button goes down and where the hand holds it, the button still down.
+#[cfg(test)]
+pub(super) struct Carry {
+    pub from: egui::Pos2,
+    pub to: egui::Pos2,
+}
+
 /// A DRAG ON THE SKETCH: from where to where, in the sketch's own coordinates, by which button and with which keys held.
 #[cfg(test)]
 pub(super) struct Drag2d {
@@ -1274,15 +1281,49 @@ impl<'a> Hand<'a> {
     /// steps of 3 px and releases, in whole frames. What is taken is what lies under `from` - the title of a
     /// window, a handle, or the canvas.
     pub fn drag_screen(&mut self, from: egui::Pos2, to: egui::Pos2) -> &mut Self {
+        self.carry(Carry { from, to }).let_go(to)
+    }
+
+    /// CARRY WITH THE MOUSE from `from` to `to` and hold there, the button still down: the frames show what is
+    /// carried under the pointer. `drag_screen` is this and the release.
+    pub fn carry(&mut self, carry: Carry) -> &mut Self {
+        let Carry { from, to } = carry;
         self.win.clock += 1.0;
         self.frame(vec![egui::Event::PointerMoved(from)]);
-        let press = |pos, pressed| egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() };
-        self.frame(vec![press(from, true)]);
+        self.frame(vec![Self::primary_down(from)]);
         let steps = ((to - from).length() / 3.0).ceil().max(1.0) as usize;
         for k in 1..=steps {
             self.frame(vec![egui::Event::PointerMoved(from + (to - from) * (k as f32 / steps as f32))]);
         }
-        self.frame(vec![press(to, false)])
+        self
+    }
+
+    /// Let the primary button go at `at`, after `carry`.
+    pub fn let_go(&mut self, at: egui::Pos2) -> &mut Self {
+        self.frame(vec![egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed: false, modifiers: Default::default() }])
+    }
+
+    /// The primary button going down at `pos`.
+    fn primary_down(pos: egui::Pos2) -> egui::Event {
+        egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: true, modifiers: Default::default() }
+    }
+
+    /// A PICTURE OF THE WINDOW as the last frame drew it, a pixel to a point - the size the letters of the frame were
+    /// drawn for - cut to `area`: the pictures of the help that show a gesture are taken from the frames it made.
+    pub fn picture(&self, area: egui::Rect) -> egui::ColorImage {
+        let area = area.intersect(egui::Rect::from_min_size(egui::Pos2::ZERO, self.win.screen));
+        let size = [self.win.screen.x as usize, self.win.screen.y as usize];
+        let prims = self.win.ctx.tessellate(self.win.shapes.clone(), 1.0);
+        let whole = super::help_raster::paint(&prims, &self.win.textures, size, egui::Color32::BLACK, 1.0);
+        let [x0, y0] = [area.min.x as usize, area.min.y as usize];
+        let [w, h] = [area.width() as usize, area.height() as usize];
+        let pixels = (y0..y0 + h).flat_map(|y| (x0..x0 + w).map(move |x| y * size[0] + x)).map(|i| whole.pixels[i]).collect();
+        egui::ColorImage::new([w, h], pixels)
+    }
+
+    /// Where the window `id` stands, as the last frame laid it out.
+    pub fn window_at(&self, id: &str) -> Option<egui::Rect> {
+        self.win.ctx.memory(|m| m.area_rect(egui::Id::new(id)))
     }
 
     /// A DRAG OF THE VIEW as a person makes it: the hand comes over `from`, presses `button` with `modifiers` held, leads
