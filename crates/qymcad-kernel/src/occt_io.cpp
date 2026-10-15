@@ -1387,7 +1387,10 @@ static bool move_seams_off(QymShape* q, const uint32_t* idx, size_t n) {
     ShapeUpgrade_ShapeDivideClosed div(q->shape);
     div.SetNbSplitPoints(1);
     if (!div.Perform()) return false;
-    QymRepairHistory divided(div.GetContext(), QymRepairAsk::Value);
+    // asked of what the cutting rebuilt, not only of what it replaced: an edge of a cut face is rebuilt with the face
+    // around it and recorded under its parts. Asked by `Value`, the upright edge under the seam of a cylinder had no
+    // image and its rounding was refused (the record of the cut then needed the place of each element to carry names)
+    QymRepairHistory divided(div.GetContext(), QymRepairAsk::Apply);
     QymShape cut{div.Result(), {}, {}, {}, {}};
     // EVERY PIECE of such a face laid on the same round surface turned half a turn: glued back, the pieces make the one
     // face again, its seam now opposite, and nothing goes straight on from the end of the edge any more. All of them, not
@@ -1421,16 +1424,14 @@ static bool move_seams_off(QymShape* q, const uint32_t* idx, size_t n) {
     if (!mod.IsDone()) return false;
     TopoDS_Shape remade = mod.ModifiedShape(cut.shape);
     for (TopTools_DataMapIteratorOfDataMapOfShapeInteger it(turn->face_to); it.More(); it.Next()) exact_isos(TopoDS::Face(mod.ModifiedShape(it.Key())));
-    // THE NAMES FROM THE BODY AS IT WAS, by the one carrying of the bridge: the turning moves nothing, so an element lying
-    // exactly where one lay is its image; the rest - the pieces of a cut face - go by what the cutting and the turning made
-    // of them, a face cut in pieces keeping its name on the first
+    // THE NAMES FROM THE BODY AS IT WAS, by the one carrying of the bridge, through what the cutting and the turning made
+    // of each element - its history, not its place; a face cut in pieces keeps its name on the first
     {
         QymModifierHistory turned(mod);
         QymChainHistory made(divided, turned);
-        QymSamePlaceHistory history(remade, made);
         int nf = next_local(q->fids), ne = next_local(q->eids);
-        carry_ids(history, q->shape, TopAbs_FACE, q->fids, cut.fids, nf);
-        carry_ids(history, q->shape, TopAbs_EDGE, q->eids, cut.eids, ne);
+        carry_ids(made, q->shape, TopAbs_FACE, q->fids, cut.fids, nf);
+        carry_ids(made, q->shape, TopAbs_EDGE, q->eids, cut.eids, ne);
         keep_standing(remade, TopAbs_FACE, cut.fids);
         keep_standing(remade, TopAbs_EDGE, cut.eids);
     }

@@ -537,58 +537,6 @@ struct QymTwinHistory : QymHistory {
     TopTools_ListOfShape none;
 };
 
-/// WHERE AN OPERATION MOVES NOTHING, THE PLACE IS ITS HISTORY: an element of `after` lying exactly where one of `before`
-/// lay - the same centre and the same length or area, to 1e-6 - is its image; for the rest `rest` answers. For a change
-/// that keeps every element where it was and only re-describes some: the seam of a round face turned half a turn, whose
-/// cutting and gluing rebuild the seam edge and its neighbours without saying what became of them.
-struct QymSamePlaceHistory : QymHistory {
-    QymSamePlaceHistory(const TopoDS_Shape& after, QymHistory& r) : rest(r) {
-        for (TopAbs_ShapeEnum ty : {TopAbs_FACE, TopAbs_EDGE}) {
-            TopTools_IndexedMapOfShape all;
-            TopExp::MapShapes(after, ty, all);
-            for (int i = 1; i <= all.Extent(); ++i) placed.push_back({ty, Key(all(i)), all(i)});
-        }
-    }
-    struct Spot {
-        TopAbs_ShapeEnum ty;
-        std::array<double, 4> key;
-        TopoDS_Shape shape;
-    };
-    static std::array<double, 4> Key(const TopoDS_Shape& s) {
-        GProp_GProps g;
-        if (s.ShapeType() == TopAbs_EDGE) BRepGProp::LinearProperties(s, g); else BRepGProp::SurfaceProperties(s, g);
-        const gp_Pnt c = g.CentreOfMass();
-        return {c.X(), c.Y(), c.Z(), g.Mass()};
-    }
-    /// The element of `after` lying where `s` lies; null when none does.
-    TopoDS_Shape There(const TopoDS_Shape& s) {
-        if (s.ShapeType() != TopAbs_FACE && s.ShapeType() != TopAbs_EDGE) return {};
-        const auto k = Key(s);
-        for (const Spot& p : placed) {
-            if (p.ty != s.ShapeType()) continue;
-            bool same = true;
-            for (int j = 0; j < 4 && same; ++j) same = std::abs(p.key[j] - k[j]) < 1e-6;
-            if (same) return p.shape;
-        }
-        return {};
-    }
-    const TopTools_ListOfShape& Modified(const TopoDS_Shape& s) override {
-        images.Clear();
-        const TopoDS_Shape now = There(s);
-        if (now.IsNull()) {
-            for (TopTools_ListIteratorOfListOfShape it(rest.Modified(s)); it.More(); it.Next()) images.Append(it.Value());
-        } else if (!now.IsSame(s)) {
-            images.Append(now);
-        }
-        return images;
-    }
-    const TopTools_ListOfShape& Generated(const TopoDS_Shape& s) override { return rest.Generated(s); }
-    bool Removed(const TopoDS_Shape& s) override { return There(s).IsNull() && rest.Removed(s); }
-    QymHistory& rest;
-    std::vector<Spot> placed;
-    TopTools_ListOfShape images;
-};
-
 /// The record of a sewing (`BRepBuilderAPI_Sewing`): a face or an edge it replaced has that one image, one it left as
 /// it was has none; one it found degenerate is removed. A sewing generates nothing.
 struct QymSewingHistory : QymHistory {
