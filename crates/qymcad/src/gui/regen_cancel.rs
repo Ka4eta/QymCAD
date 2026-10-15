@@ -172,7 +172,7 @@ mod tests {
         crate::gui::cancel_regen(&app.regen, &mut app.status);
         app.drain_busy_for_test();
         assert!(
-            app.regen.paused.is_some() || app.status.contains(&crate::i18n::tr1("io-rebuild-cancelled-undone", "what", "")[..8]),
+            app.regen.paused.is_some() || app.status.words.contains(&crate::i18n::tr1("io-rebuild-cancelled-undone", "what", "")[..8]),
             "the request to stop did not arrive: the rebuild does not count as stopped; status: {}",
             app.status.clone()
         );

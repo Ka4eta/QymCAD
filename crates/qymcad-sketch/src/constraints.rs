@@ -1,5 +1,6 @@
 //! THE CONSTRAINTS of a sketch: laid, refused, offered on the bar.
 
+use qymcad_ui_state::Notice;
 use super::*;
 
 /// THE ENTITIES A CONSTRAINT TOUCHES, derived from its points.
@@ -39,7 +40,7 @@ pub fn try_constraint_inner(
     regen: &mut qymcad_ui_state::Rebuilding,
     sel: qymcad_ui_state::Sel,
     sel_sk: &mut qymcad_ui_state::SketchSelection,
-    status: &mut String,
+    status: &mut qymcad_ui_state::Notice,
     code: u8,
 ) -> bool {
     use qymcad_core::model::Constraint;
@@ -125,7 +126,7 @@ pub fn try_constraint_inner(
     let new = project.independent_of(si, new);
     if new.is_empty() {
         sel_sk.clear();
-        *status = qymcad_i18n::tr("sk-constraint-already");
+        *status = Notice::info(qymcad_i18n::tr("sk-constraint-already"));
         return true;
     }
     // the points of what was selected: the relations among them that the new ones make redundant are lifted below
@@ -187,16 +188,20 @@ pub fn try_constraint_inner(
             p.y = y;
         }
         project.solve_sketch(si);
-        *status = if shrunk { qymcad_i18n::tr("sk-constraint-shrinks") } else { qymcad_i18n::tr1("sk-constraint-conflict", "r", &qymcad_i18n::num(resid, 2)) };
+        *status = if shrunk {
+            Notice::refusal(qymcad_i18n::tr("sk-constraint-shrinks"))
+        } else {
+            Notice::refusal(qymcad_i18n::tr1("sk-constraint-conflict", "r", &qymcad_i18n::num(resid, 2)))
+        };
         return true;
     }
     let lifted = project.drop_implied_relations(si, had, &among);
     *status = if resid >= 1e-3 {
-        qymcad_i18n::tr1("sk-constraint-added-resid", "r", &qymcad_i18n::num(resid, 2))
+        Notice::info(qymcad_i18n::tr1("sk-constraint-added-resid", "r", &qymcad_i18n::num(resid, 2)))
     } else if lifted > 0 {
-        qymcad_i18n::tr1("sk-constraint-added-implied", "n", &lifted.to_string())
+        Notice::info(qymcad_i18n::tr1("sk-constraint-added-implied", "n", &lifted.to_string()))
     } else {
-        qymcad_i18n::tr("sk-constraint-added")
+        Notice::info(qymcad_i18n::tr("sk-constraint-added"))
     };
     true
 }
@@ -235,9 +240,9 @@ pub fn constraint_button(sk: &mut qymcad_ui_state::SketchCtx, code: u8) {
         // WHAT WAS PICKED DOES NOT TAKE IT, and that is said: two points are not parallel, two lines have no centre.
         // Asking for the geometry again as if nothing had been picked left the person guessing what was wrong.
         *sk.status = if picked {
-            qymcad_i18n::tr1("sk-constraint-not-for-pick", "takes", &qymcad_i18n::tr(constraint_hint_key(code)))
+            Notice::refusal(qymcad_i18n::tr1("sk-constraint-not-for-pick", "takes", &qymcad_i18n::tr(constraint_hint_key(code))))
         } else {
-            qymcad_i18n::tr("sk-pick-for-constraint")
+            Notice::info(qymcad_i18n::tr("sk-pick-for-constraint"))
         };
     }
 }

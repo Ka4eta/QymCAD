@@ -1,5 +1,6 @@
 //! HOW THE WINDOW LOOKS: fonts, the language, the scale, the visuals of the scheme, the logo, the clock.
 
+use qymcad_ui_state::Notice;
 use super::*;
 
 // `Hover` deliberately has NO shared reset: three places clear THEIR OWN kind of hover ("no constraint
@@ -153,11 +154,11 @@ pub(crate) fn ensure_logo(logo_tex: &mut Option<egui::TextureHandle>, ctx: &egui
 }
 
 /// Re-read the schemes from disk (at start-up and after a custom one is edited).
-pub(crate) fn reload_schemes(scheme: &mut SchemeUi, status: &mut String) {
+pub(crate) fn reload_schemes(scheme: &mut SchemeUi, status: &mut qymcad_ui_state::Notice) {
     let (all, errs) = crate::palette::all();
     scheme.all = all;
     if !errs.is_empty() {
-        *status = crate::i18n::tr1("scheme-load-failed", "error", &errs.join("; "));
+        *status = Notice::error(crate::i18n::tr1("scheme-load-failed", "error", &errs.join("; ")));
     }
 }
 
@@ -168,7 +169,7 @@ pub(crate) fn reload_schemes(scheme: &mut SchemeUi, status: &mut String) {
 /// list of calls at start-up, the second path (importing a profile) would have had to repeat that
 /// same list — and would have drifted from it at the very first new setting, silently at that: the
 /// record is right while the screen shows the old thing.
-pub(crate) fn adopt_settings(regen: &mut Rebuilding, scheme: &mut SchemeUi, set: &mut Settings, status: &mut String, s: Settings, ctx: &egui::Context) {
+pub(crate) fn adopt_settings(regen: &mut Rebuilding, scheme: &mut SchemeUi, set: &mut Settings, status: &mut qymcad_ui_state::Notice, s: Settings, ctx: &egui::Context) {
     *set = s;
     // CUSTOM SCHEMES COME FROM DISK BEFORE THE THEME IS APPLIED: otherwise the chosen custom scheme
     // will not be found in the list and will silently fall back to the dark one.

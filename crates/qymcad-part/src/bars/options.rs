@@ -1,5 +1,6 @@
 //! The options bar of the tool in hand.
 
+use qymcad_ui_state::Notice;
 use super::*;
 
 pub fn tool_options_bar(bc: &mut qymcad_ui_state::BarCtx, ui: &mut egui::Ui) {
@@ -29,7 +30,7 @@ pub fn tool_options_bar(bc: &mut qymcad_ui_state::BarCtx, ui: &mut egui::Ui) {
         if cancel {
             bc.picking.clear();
             bc.corner.clear();
-            *bc.status = qymcad_i18n::tr("in-fillet-all-cancelled");
+            *bc.status = Notice::info(qymcad_i18n::tr("in-fillet-all-cancelled"));
         }
         return;
     }
@@ -59,7 +60,7 @@ pub fn tool_options_bar(bc: &mut qymcad_ui_state::BarCtx, ui: &mut egui::Ui) {
         qymcad_ui_state::enter_not_ready(&ui.ctx().clone(), bc.status, &qymcad_i18n::tr(ask));
         if cancel {
             bc.clip.drop_geom();
-            *bc.status = qymcad_i18n::tr(if name == "win-insert" { "in-insert-cancelled" } else { "in-copy-cancelled" });
+            *bc.status = Notice::info(qymcad_i18n::tr(if name == "win-insert" { "in-insert-cancelled" } else { "in-copy-cancelled" }));
         }
         return;
     }

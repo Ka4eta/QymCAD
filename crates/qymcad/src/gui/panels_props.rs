@@ -4,6 +4,7 @@
 //! the cancel and the formulas are. This side answers "what is this", "what does it stand on", "who depends
 //! on it" and "is it all right".
 
+use qymcad_ui_state::Notice;
 use super::*;
 
 /// The name of a component, for a row of the panel. It used to be a closure taking `&Self` - the whole
@@ -106,7 +107,7 @@ pub(crate) fn contour_props(ed: qymcad_ui_state::Editing, array: &mut ArrayTool,
                             let res = qymcad_core::offset::boolean_contours(&ed.project.contours[i], &ed.project.contours[oi], op);
                             let cnt = res.len();
                             ed.project.add_contours(res);
-                            *ed.status = crate::i18n::tr1("cp-bool-result", "n", &cnt.to_string());
+                            *ed.status = Notice::info(crate::i18n::tr1("cp-bool-result", "n", &cnt.to_string()));
                             qymcad_ui_state::invalidate(ed.regen);
                         }
                     }
@@ -638,7 +639,7 @@ pub(crate) fn plane_props(pr: &mut qymcad_ui_state::PropsCtx, ui: &mut egui::Ui,
     if start_pick_face {
         pr.picking.set_plane_face(Some(pid)); // reassign this plane's face
         *pr.mode_3d = true;
-        *pr.status = crate::i18n::tr("pp-pick-face-hint");
+        *pr.status = Notice::info(crate::i18n::tr("pp-pick-face-hint"));
     }
     ui.separator();
     // a sketch straight on this plane (drawn in its own frame)
@@ -897,7 +898,7 @@ pub(crate) fn component_props(pr: &mut qymcad_ui_state::PropsCtx, ui: &mut egui:
             qymcad_ui_state::begin_edit(pr.edits, pr.project, crate::i18n::tr("cmdname-break-ref")); // THE BOUNDARY OF AN OPERATION
             let frozen = pr.project.break_external_ref(rid);
             qymcad_ui_state::mark_dirty_for_rebuild(&mut pr.rebuild()); // the document is marked; the scheduler does the computing
-            *pr.status = crate::i18n::tr1("comp-ref-broken", "n", &frozen.to_string());
+            *pr.status = Notice::warning(crate::i18n::tr1("comp-ref-broken", "n", &frozen.to_string()));
             qymcad_ui_state::commit_edit(&mut pr.rebuild());
         }
     }

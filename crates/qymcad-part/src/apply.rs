@@ -1,5 +1,6 @@
 //! A COMMAND APPLIED: the feature it makes or edits.
 
+use qymcad_ui_state::Notice;
 use super::*;
 
 pub fn apply_feat_cmd_inner(pc: &mut qymcad_ui_state::PartCtx) {
@@ -21,14 +22,14 @@ pub fn apply_feat_cmd_inner(pc: &mut qymcad_ui_state::PartCtx) {
     if matches!(pc.armed.cmd_kind(), 1 | 3) && pc.cmd.edit.is_none() && !*pc.mode_3d && !pc.gsel.profiles.is_empty() {
         qymcad_ui_state::borrow_view(*pc.cam, *pc.mode_3d, *pc.view, pc.view_restore); // the view is borrowed for the command and returned on exit
         *pc.mode_3d = true;
-        *pc.status = qymcad_i18n::tr("msg-profile-picked");
+        *pc.status = Notice::info(qymcad_i18n::tr("msg-profile-picked"));
         return;
     }
     // a hard backstop: DO NOT apply while any dimension carries an invalid expression (a stale value
     // would go through otherwise). The gate is duplicated on the buttons, but Enter can arrive past
     // them.
     if !cmd_exprs_valid(pc.cmd, pc.project) {
-        *pc.status = qymcad_i18n::tr1("cmd-expr-error", "icon", ph::X);
+        *pc.status = Notice::refusal(qymcad_i18n::tr1("cmd-expr-error", "icon", ph::X));
         return;
     }
     let before: std::collections::HashSet<Id> = pc.project.timeline.iter().map(|n| n.id).collect();
@@ -72,7 +73,7 @@ pub fn apply_feat_cmd_inner(pc: &mut qymcad_ui_state::PartCtx) {
     if fresh.iter().any(|&node| !pc.project.gone_inputs(node).is_empty()) {
         *pc.cmd_failed = true;
         qymcad_ui_state::clear_feat_picks(qymcad_ui_state::feat_picks_in!(pc));
-        *pc.status = qymcad_i18n::tr1("cmd-picks-gone", "ask", &cmd_hint(&*pc.armed, &*pc.gsel, &*pc.trim));
+        *pc.status = Notice::refusal(qymcad_i18n::tr1("cmd-picks-gone", "ask", &cmd_hint(&*pc.armed, &*pc.gsel, &*pc.trim)));
         return;
     }
     // WHAT WAS MADE IS NAMED: the node the command left, not a bare "Done" (reported on the block after Enter)
@@ -86,7 +87,7 @@ pub fn apply_feat_cmd_inner(pc: &mut qymcad_ui_state::PartCtx) {
     // it. Refitting threw away everything that had been set up by hand, and finishing a command looked
     // as if the viewport had flown off.
     qymcad_ui_state::return_view(pc);
-    *pc.status = made.map_or_else(|| qymcad_i18n::tr("f-done"), |what| qymcad_i18n::tr1("f-done-what", "what", &what));
+    *pc.status = Notice::info(made.map_or_else(|| qymcad_i18n::tr("f-done"), |what| qymcad_i18n::tr1("f-done-what", "what", &what)));
     // AFTER the status: if the regen fails, `qymcad_ui_state::regenerate_all` writes its own rebuild message - do NOT
     // overwrite it with "done" (otherwise the feature silently fails to build while the screen says
     // "done", which reads as nothing happening at all).
@@ -99,11 +100,11 @@ pub fn apply_feat_cmd(pc: &mut qymcad_ui_state::PartCtx) {
     // unless the command names what is missing itself (the axis, the faces, the patch's edges, the trimmed sheet)
     // A FIELD THAT CANNOT BE TAKEN refuses Enter as it closes the Apply button: Enter comes from the keyboard, past it
     if let Some((label, msg)) = pc.cmd.params.iter().find_map(|p| field_value(p, &pc.project.param_map()).err().map(|m| (qymcad_i18n::tr(p.label_key()), m))) {
-        *pc.status = format!("{label}: {msg}");
+        *pc.status = Notice::refusal(format!("{label}: {msg}"));
         return;
     }
     if !cmd_ready(pc) && !matches!(pc.armed.cmd_kind(), 22 | 25 | 26 | 28 | 30 | 32 | 34) {
-        *pc.status = qymcad_i18n::tr1("cmd-not-ready", "ask", &cmd_hint(&*pc.armed, &*pc.gsel, &*pc.trim));
+        *pc.status = Notice::refusal(qymcad_i18n::tr1("cmd-not-ready", "ask", &cmd_hint(&*pc.armed, &*pc.gsel, &*pc.trim)));
         return;
     }
     // THE BOUNDARY OF THE OPERATION: everything the command does to the document is one undo step with
@@ -151,7 +152,7 @@ pub fn apply_body_move(pc: &mut qymcad_ui_state::PartCtx, mi: usize, accum: [f64
 /// A copy dropped where the original stands would change nothing, so it is not made by itself.
 pub fn paste_feature(pc: &mut qymcad_ui_state::PartCtx, nid: Id) {
     if !pc.project.timeline.iter().any(|n| n.id == nid) {
-        *pc.status = qymcad_i18n::tr("tree-clipboard-empty");
+        *pc.status = Notice::refusal(qymcad_i18n::tr("tree-clipboard-empty"));
         return;
     }
     start_feat_cmd_edit(pc, nid);
@@ -175,7 +176,7 @@ pub fn paste_feature(pc: &mut qymcad_ui_state::PartCtx, nid: Id) {
             pc.gsel.faces.insert(key.id);
         }
     }
-    *pc.status = qymcad_i18n::tr("g-paste-feature");
+    *pc.status = Notice::info(qymcad_i18n::tr("g-paste-feature"));
 }
 
 mod update;

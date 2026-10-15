@@ -1,5 +1,6 @@
 //! The bar of a feature command: its fields, modes and buttons, tool by tool.
 
+use qymcad_ui_state::Notice;
 use super::*;
 
 pub fn feat_command_bar(pc: &mut qymcad_ui_state::PartCtx, ui: &mut egui::Ui) {
@@ -199,7 +200,7 @@ pub fn feat_command_bar(pc: &mut qymcad_ui_state::PartCtx, ui: &mut egui::Ui) {
                                     pc.rev.pick_axis = false;
                                     *pc.mode_3d = false; // the flat half-sketcher: the lines are visible and clickable
                                     pc.view.initialized = false;
-                                    *pc.status = qymcad_i18n::tr("cmd-revolve-pick-line");
+                                    *pc.status = Notice::info(qymcad_i18n::tr("cmd-revolve-pick-line"));
                                 }
                             }
                             if pc.rev.axis_line != 0 {
@@ -236,7 +237,7 @@ pub fn feat_command_bar(pc: &mut qymcad_ui_state::PartCtx, ui: &mut egui::Ui) {
                             *pc.mode_3d = true;
                             pc.view.initialized = false;
                             refresh_axis_edges(pc); // the straight edges of every visible body are axis candidates
-                            *pc.status = qymcad_i18n::tr("cmd-pick-axis-hint");
+                            *pc.status = Notice::info(qymcad_i18n::tr("cmd-pick-axis-hint"));
                         }
                     }
                 }
@@ -761,7 +762,7 @@ pub fn feat_command_bar(pc: &mut qymcad_ui_state::PartCtx, ui: &mut egui::Ui) {
                         pc.arr.axis_pick = !pc.arr.axis_pick;
                         if pc.arr.axis_pick {
                             refresh_axis_edges(pc); // the straight edges of EVERY visible body, as axis candidates
-                            *pc.status = qymcad_i18n::tr("cmd-array-axis-hint");
+                            *pc.status = Notice::info(qymcad_i18n::tr("cmd-array-axis-hint"));
                         }
                     }
                     if pc.arr.axis != 0 && ui.small_button("Z").on_hover_text(qymcad_i18n::tr("cmd-reset-axis-z")).clicked() {

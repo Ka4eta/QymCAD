@@ -215,7 +215,7 @@ pub(super) fn check_all(app: &mut App, step: &str, problems: &mut Vec<String>) {
         }
     }
     // 4. THE STATUS: the program shows no key where a message belongs
-    let st = app.status.trim();
+    let st = app.status.words.trim();
     if !st.is_empty() && !st.contains(' ') && st.contains('-') && st.chars().all(|c| c.is_ascii_lowercase() || c == '-' || c.is_ascii_digit()) {
         problems.push(format!("[{step}] the status line holds A KEY \"{st}\""));
     }

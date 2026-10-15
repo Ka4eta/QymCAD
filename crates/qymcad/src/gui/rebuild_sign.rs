@@ -11,7 +11,7 @@ use qymcad_ui_state::{RebuildLook, RebuildRunning, Rebuilding, SchemeUi};
 /// (`qymcad_ui_state::rebuild_sign`). Reported behaviour: the veil and the spinner went up on the first frame of every
 /// rebuild, and one landing in 20-50 ms was on screen for a frame or two - the window blinked on every edit. A sign held
 /// after its rebuild has landed is paint only: the panels answer again, and its Cancel has nothing left to stop.
-pub(crate) fn draw_rebuild_sign(regen: &Rebuilding, scheme: &SchemeUi, view_rect: egui::Rect, ctx: &egui::Context, status: &mut String) {
+pub(crate) fn draw_rebuild_sign(regen: &Rebuilding, scheme: &SchemeUi, view_rect: egui::Rect, ctx: &egui::Context, status: &mut qymcad_ui_state::Notice) {
     let running = RebuildRunning::of(regen.busy.as_ref());
     if matches!(running.as_ref().map(|r| &r.look), Some(RebuildLook::Loud { .. })) {
         crate::gui::render::modal_input_barrier_except(ctx, view_rect);

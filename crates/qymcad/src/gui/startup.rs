@@ -1,5 +1,6 @@
 //! THE START OF THE PROGRAM: its names and times, the commands of the system, the adapter of the graphics chosen, the window launched.
 
+use qymcad_ui_state::Notice;
 use super::*;
 
 /// THE APPLICATION'S NAME for eframe. It is also the key of the directory eframe puts the settings file into, so
@@ -217,11 +218,11 @@ pub fn launch() -> eframe::Result<()> {
             // nothing is broken - but turning a model feels like wading, and a person owed no explanation
             // reports it as a fault in the program rather than as a graphics driver they have not installed.
             if let Some(name) = crate::diagnostics::drawing_on_the_processor() {
-                app.status = crate::i18n::tr1("gpu-on-the-processor", "name", &name);
+                app.status = Notice::warning(crate::i18n::tr1("gpu-on-the-processor", "name", &name));
             }
             // A STEP DOWN IS SAID, with why: otherwise the person sees a rougher picture and no reason for it
             if let Some(key) = crate::safe_graphics::said(step) {
-                app.status = crate::i18n::tr(key);
+                app.status = Notice::warning(crate::i18n::tr(key));
             }
             Ok(Box::new(app))
         }),

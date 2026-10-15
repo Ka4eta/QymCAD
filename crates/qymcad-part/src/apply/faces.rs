@@ -1,24 +1,25 @@
 //! Applying the commands of faces and surfaces, and the split.
 
+use qymcad_ui_state::Notice;
 use super::*;
 
 /// Apply the trim: the sheet with the "keep" point plus the tool.
-pub fn apply_trim_cmd(project: &mut Project, status: &mut String, trim: &qymcad_ui_state::TrimTool) -> Option<Id> {
+pub fn apply_trim_cmd(project: &mut Project, status: &mut qymcad_ui_state::Notice, trim: &qymcad_ui_state::TrimTool) -> Option<Id> {
     let Some((src, keep)) = trim.keep else {
-        *status = qymcad_i18n::tr("msg-trim-pick-sheet");
+        *status = Notice::info(qymcad_i18n::tr("msg-trim-pick-sheet"));
         return None;
     };
     let Some(tool) = trim.tool else {
-        *status = qymcad_i18n::tr("msg-trim-pick-tool");
+        *status = Notice::info(qymcad_i18n::tr("msg-trim-pick-tool"));
         return None;
     };
     Some(project.add_trim(src, tool, keep))
 }
 
 /// Apply the stitch: two or more sheets.
-pub fn apply_stitch_cmd(cmd: &qymcad_ui_state::FeatCommand, project: &mut Project, status: &mut String, stitch_parts: &[Id]) -> Option<Id> {
+pub fn apply_stitch_cmd(cmd: &qymcad_ui_state::FeatCommand, project: &mut Project, status: &mut qymcad_ui_state::Notice, stitch_parts: &[Id]) -> Option<Id> {
     if stitch_parts.len() < 2 {
-        *status = qymcad_i18n::tr("msg-stitch-needs-two");
+        *status = Notice::refusal(qymcad_i18n::tr("msg-stitch-needs-two"));
         return None;
     }
     let body = project.add_stitch(stitch_parts.to_vec(), qymcad_ui_state::cmd_val(cmd, "tol"));
@@ -37,7 +38,7 @@ pub fn apply_offset_surface_cmd(pc: &mut qymcad_ui_state::PartCtx) -> Option<Id>
         .faces_body
         .or_else(|| qymcad_ui_state::op_target_body(&qymcad_ui_state::DrawCtx { cam: pc.cam, set: pc.set, scheme: pc.scheme, project: pc.project, active_path: pc.active_path }, *pc.sel))?;
     if pc.gsel.faces.is_empty() {
-        *pc.status = qymcad_i18n::tr("msg-offset-surface");
+        *pc.status = Notice::info(qymcad_i18n::tr("msg-offset-surface"));
         return None;
     }
     let picks: Vec<u32> = pc.gsel.faces.iter().copied().collect();
@@ -53,7 +54,7 @@ pub fn apply_face_copy_cmd(pc: &mut qymcad_ui_state::PartCtx) -> Option<Id> {
         .faces_body
         .or_else(|| qymcad_ui_state::op_target_body(&qymcad_ui_state::DrawCtx { cam: pc.cam, set: pc.set, scheme: pc.scheme, project: pc.project, active_path: pc.active_path }, *pc.sel))?;
     if pc.gsel.faces.is_empty() {
-        *pc.status = qymcad_i18n::tr("msg-faces-not-found");
+        *pc.status = Notice::refusal(qymcad_i18n::tr("msg-faces-not-found"));
         return None;
     }
     let picks: Vec<u32> = pc.gsel.faces.iter().copied().collect();
@@ -94,7 +95,7 @@ pub fn apply_patch_cmd(pc: &mut qymcad_ui_state::PartCtx) -> Option<Id> {
         .body
         .or_else(|| qymcad_ui_state::op_target_body(&qymcad_ui_state::DrawCtx { cam: pc.cam, set: pc.set, scheme: pc.scheme, project: pc.project, active_path: pc.active_path }, *pc.sel))?;
     if !patch_boundary(pc.project, src, pc.gsel) {
-        *pc.status = qymcad_i18n::tr("msg-patch-needs-edges");
+        *pc.status = Notice::refusal(qymcad_i18n::tr("msg-patch-needs-edges"));
         return None;
     }
     let picks: Vec<u32> = pc.gsel.edges.iter().copied().collect();
@@ -108,11 +109,11 @@ pub fn apply_patch_cmd(pc: &mut qymcad_ui_state::PartCtx) -> Option<Id> {
 pub fn apply_split_cmd(pc: &mut qymcad_ui_state::PartCtx) -> Option<Id> {
     let src = qymcad_ui_state::op_target_body(&qymcad_ui_state::DrawCtx { cam: pc.cam, set: pc.set, scheme: pc.scheme, project: pc.project, active_path: pc.active_path }, *pc.sel)?;
     if pc.split.plane.is_none() {
-        *pc.status = qymcad_i18n::tr("msg-click-cut-plane");
+        *pc.status = Notice::info(qymcad_i18n::tr("msg-click-cut-plane"));
         return None;
     }
     let Some(pieces) = split_piece_count(pc, src).filter(|&n| n >= 2) else {
-        *pc.status = qymcad_i18n::tr("msg-plane-cuts-nothing");
+        *pc.status = Notice::refusal(qymcad_i18n::tr("msg-plane-cuts-nothing"));
         return None;
     };
     let sp = pc.split.plane?;
@@ -124,7 +125,7 @@ pub fn apply_split_cmd(pc: &mut qymcad_ui_state::PartCtx) -> Option<Id> {
         pc.project.set_op_face(first, b, k);
     }
     store_cmd_exprs(pc.cmd, pc.project, first); // the offset stays parametric
-    *pc.status = qymcad_i18n::tr1("cmd-split-done", "n", &pieces.to_string());
+    *pc.status = Notice::info(qymcad_i18n::tr1("cmd-split-done", "n", &pieces.to_string()));
     Some(first)
 }
 
@@ -159,7 +160,7 @@ pub fn split_piece_count(pc: &mut qymcad_ui_state::PartCtx, src: Id) -> Option<u
 pub fn apply_split_face_cmd(pc: &mut qymcad_ui_state::PartCtx) -> Option<Id> {
     let src = qymcad_ui_state::op_target_body(&qymcad_ui_state::DrawCtx { cam: pc.cam, set: pc.set, scheme: pc.scheme, project: pc.project, active_path: pc.active_path }, *pc.sel)?;
     if pc.split.plane.is_none() {
-        *pc.status = qymcad_i18n::tr("msg-click-plane");
+        *pc.status = Notice::info(qymcad_i18n::tr("msg-click-plane"));
         return None;
     }
     // WHAT WILL COME OUT IS CHECKED BEFORE THE FEATURE IS CREATED: a plane that misses the body divides
@@ -167,7 +168,7 @@ pub fn apply_split_face_cmd(pc: &mut qymcad_ui_state::PartCtx) -> Option<Id> {
     let (o, n) = split_plane_local(pc, src)?;
     qymcad_ui_state::ensure_brep(&mut pc.rebuild());
     if !pc.live.shapes.get(&src).is_some_and(|sh| qymcad_kernel::ask::splits_faces(sh, qymcad_core::feature::PlaneAt { origin: o, normal: n })) {
-        *pc.status = qymcad_i18n::tr("msg-plane-splits-nothing");
+        *pc.status = Notice::refusal(qymcad_i18n::tr("msg-plane-splits-nothing"));
         return None;
     }
     let sp = pc.split.plane?;
@@ -178,7 +179,7 @@ pub fn apply_split_face_cmd(pc: &mut qymcad_ui_state::PartCtx) -> Option<Id> {
         pc.project.set_op_face(body, b, k);
     }
     store_cmd_exprs(pc.cmd, pc.project, body);
-    *pc.status = qymcad_i18n::tr("msg-faces-split");
+    *pc.status = Notice::info(qymcad_i18n::tr("msg-faces-split"));
     Some(body)
 }
 
@@ -191,7 +192,7 @@ pub fn apply_surface_replace_cmd(pc: &mut qymcad_ui_state::PartCtx) -> Option<Id
         .or_else(|| qymcad_ui_state::op_target_body(&qymcad_ui_state::DrawCtx { cam: pc.cam, set: pc.set, scheme: pc.scheme, project: pc.project, active_path: pc.active_path }, *pc.sel))?;
     let surface = (*pc.repl_surface)?;
     if pc.gsel.faces.is_empty() {
-        *pc.status = qymcad_i18n::tr("msg-faces-not-found");
+        *pc.status = Notice::refusal(qymcad_i18n::tr("msg-faces-not-found"));
         return None;
     }
     let picks: Vec<u32> = pc.gsel.faces.iter().copied().collect();
@@ -199,7 +200,7 @@ pub fn apply_surface_replace_cmd(pc: &mut qymcad_ui_state::PartCtx) -> Option<Id
     // over the top taken for the top and a side left the side open - the node came in red, "4 edges left unpaired".
     if let (Some(b), Some(sheet)) = (pc.live.shapes.get(&src), pc.live.shapes.get(&surface)) {
         if let Err(free) = qymcad_kernel::ask::sheet_closes(b, &picks, sheet) {
-            *pc.status = qymcad_i18n::error_words::error_text(&qymcad_core::errors::CoreError::SurfaceDoesNotClose { free });
+            *pc.status = Notice::refusal(qymcad_i18n::error_words::error_text(&qymcad_core::errors::CoreError::SurfaceDoesNotClose { free }));
             return None;
         }
     }
@@ -210,7 +211,7 @@ pub fn apply_surface_replace_cmd(pc: &mut qymcad_ui_state::PartCtx) -> Option<Id
 pub fn apply_remove_face_cmd(pc: &mut qymcad_ui_state::PartCtx) -> Option<Id> {
     let src = qymcad_ui_state::op_target_body(&qymcad_ui_state::DrawCtx { cam: pc.cam, set: pc.set, scheme: pc.scheme, project: pc.project, active_path: pc.active_path }, *pc.sel)?;
     if pc.gsel.faces.is_empty() {
-        *pc.status = qymcad_i18n::tr("msg-click-faces-remove");
+        *pc.status = Notice::info(qymcad_i18n::tr("msg-click-faces-remove"));
         return None;
     }
     let keys: Vec<qymcad_core::feature::FaceKey> = pc
@@ -226,7 +227,7 @@ pub fn apply_remove_face_cmd(pc: &mut qymcad_ui_state::PartCtx) -> Option<Id> {
         })
         .unwrap_or_default();
     if keys.is_empty() {
-        *pc.status = qymcad_i18n::tr("msg-faces-not-found");
+        *pc.status = Notice::refusal(qymcad_i18n::tr("msg-faces-not-found"));
         return None;
     }
     Some(pc.project.add_remove_face(src, keys))

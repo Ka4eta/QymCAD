@@ -180,7 +180,7 @@ fn cut_in_empty_part_gives_message() {
     app.feat.op = 2; // the Cut button
     app.start_feat_cmd(1);
     app.apply_feat_cmd();
-    assert!(app.status.contains(&crate::i18n::tr("cmd-cut-needs-body")), "a clear status rather than silence: \"{}\"", app.status);
+    assert!(app.status.words.contains(&crate::i18n::tr("cmd-cut-needs-body")), "a clear status rather than silence: \"{}\"", app.status);
     assert!(total_volume(&app) < 1e-6, "no body appeared");
 }
 

@@ -1,5 +1,6 @@
 //! Tool buttons through to the body: sweep, primitives, shell, mirror, array, section; cases that cannot be built.
 
+use qymcad_ui_state::Notice;
 use super::*;
 
 /// Reported behaviour: deleting a boss in a large project froze it for minutes. DELETING a node rebuilds only
@@ -400,7 +401,7 @@ fn impossible_cases_are_honest() {
         app.feat.op = 0;
         app.start_feat_cmd(1);
         assert_eq!(app.tools.armed.cmd_kind(), 0, "the command does NOT start without a closed contour");
-        assert_eq!(app.status, crate::i18n::tr("msg-no-closed-contour"), "a clear status");
+        assert_eq!(app.status, Notice::refusal(crate::i18n::tr("msg-no-closed-contour")), "a clear status");
     }
     // 2) a cut ENTIRELY CLEAR of the body: the node is created, but the rebuild must give an honest error or
     //    cut nothing at all (the volume does not change) - never a rubbish body

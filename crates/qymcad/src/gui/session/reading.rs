@@ -190,7 +190,7 @@ impl Session {
     pub fn status(&mut self) -> String {
         self.settle();
         // the icons of the interface are letters of a private range of the icon font, not words
-        self.app.status.chars().filter(|c| !('\u{e000}'..='\u{f8ff}').contains(c)).collect::<String>().trim().to_string()
+        self.app.status.words.chars().filter(|c| !('\u{e000}'..='\u{f8ff}').contains(c)).collect::<String>().trim().to_string()
     }
 
     /// THE WINDOWS OPEN INSIDE THE PROGRAM, by their titles.

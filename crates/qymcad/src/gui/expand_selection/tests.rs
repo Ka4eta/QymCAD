@@ -1,5 +1,6 @@
 //! "Expand the selection" is checked by an item CHANGING THE RECORD IN THE TIMELINE, not by it being
 //! drawn.
+use qymcad_ui_state::Notice;
 use super::super::App;
 use super::*;
 use qymcad_core::feature::FeatureKind;
@@ -419,7 +420,7 @@ fn the_seam_asks_for_the_second_face() {
     app.apply_expansion(key, q);
     assert_eq!(app.tools.gsel.between_first, Some(top), "the first side of the junction must be remembered");
     assert!(app.tools.gsel.described.is_none(), "a reference cannot be built from ONE face — a junction has two sides");
-    assert_eq!(app.status, crate::i18n::tr("expand-between-pick-second"), "a person must be told what is expected of them");
+    assert_eq!(app.status, Notice::info(crate::i18n::tr("expand-between-pick-second")), "a person must be told what is expected of them");
 
     // the second pick — now the reference does get assembled
     let side = app.project.regen_faces[&body].iter().find(|f| f.normal[2].abs() < 0.1).expect("a side face").id;

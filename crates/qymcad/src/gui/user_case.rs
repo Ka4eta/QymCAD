@@ -453,7 +453,7 @@ mod tests {
         // NO height at all - not "the plane was chosen badly" but the shape being what it is. A person backs
         // off at that point and does it another way; demanding a node from a tool the core refused in words
         // means demanding the impossible.
-        let named_refusal = app.status == crate::i18n::tr("msg-plane-cuts-nothing");
+        let named_refusal = app.status == qymcad_ui_state::Notice::refusal(crate::i18n::tr("msg-plane-cuts-nothing"));
         if !made && named_refusal {
             return false; // the refusal was named - the step did not happen, but the document is not broken
         }
@@ -1408,7 +1408,7 @@ mod tests {
                     problems.push(format!("sketch: before the \"{name}\" constraint {pair:?} were clicked and {:?} is selected", hand.app.tools.sel_sk.items));
                 }
                 hand.constraint(code);
-                if app.project.sketches[si].constraints.len() == before && app.status.trim().is_empty() {
+                if app.project.sketches[si].constraints.len() == before && app.status.words.trim().is_empty() {
                     problems.push(format!("sketch: the \"{name}\" constraint did not take and SAID NOTHING about why"));
                 }
                 check_all(&mut app, &format!("sketch: the {name} constraint"), &mut problems);
@@ -1440,7 +1440,7 @@ mod tests {
                 let before = count(&app);
                 crate::gui::fillet_all_corners(&app.project, &mut app.tools.corner, &mut app.tools.picking, app.chosen.sel, &app.tools.sel_sk, &mut app.status, &app.tool_prefs);
                 app.project.regen_sketch(si);
-                if count(&app) == before && app.status.trim().is_empty() {
+                if count(&app) == before && app.status.words.trim().is_empty() {
                     problems.push("sketch: \"round every corner\" silently did nothing".into());
                 }
                 check_all(&mut app, "sketch: rounding every corner", &mut problems);
@@ -1477,7 +1477,7 @@ mod tests {
                     let lines: Vec<u64> = app.project.sketches[si].entities.iter().rev().filter(|e| matches!(e.kind, qymcad_core::model::EntityKind::Line { .. })).take(3).map(|e| e.id).collect();
                     let (lines0, arcs0) = before(&app);
                     let named: Vec<(u8, u64)> = lines.iter().map(|&id| (1u8, id)).collect();
-                    app.status.clear(); // so that what is said afterwards is said about THIS action
+                    app.status.words.clear(); // so that what is said afterwards is said about THIS action
                     let mut hand = Hand::new(&mut app);
                     if lines.len() < 3 || !hand.sk_corner_set(key, &named, 3.0) {
                         problems.push(format!("sketch: {tool} found no place to click on the lines of the contour"));
@@ -1508,7 +1508,7 @@ mod tests {
                     qymcad_ui_state::set_click_op(&mut qymcad_ui_state::tools_of!(app), &mut app.viewing.mode_3d, op);
                     let mut hand = Hand::new(&mut app);
                     hand.click2d(x, y);
-                    if count(&app) == before && app.status.trim().is_empty() {
+                    if count(&app) == before && app.status.words.trim().is_empty() {
                         problems.push(format!("sketch: \"{name}\" silently did nothing"));
                     }
                     check_all(&mut app, &format!("sketch: {name}"), &mut problems);
@@ -1582,18 +1582,18 @@ mod tests {
                     let Some(source) = ends_of(&app, eid) else { continue };
                     let before = shape_of(&app);
                     let (ids_before, worst_before): (Vec<u64>, f64) = (app.project.sketches[si].entities.iter().map(|e| e.id).collect(), worst(&app));
-                    app.status.clear(); // so that what is said afterwards is said about THIS action
+                    app.status.words.clear(); // so that what is said afterwards is said about THIS action
                     let mut hand = Hand::new(&mut app);
                     if mode == 3 {
                         hand.sk_rotate(on, on, 30.0);
                     } else {
                         hand.sk_move(mode, on, on, (on.0 + shift.0, on.1 + shift.1));
                     }
-                    if shape_of(&app) == before && app.status.trim().is_empty() {
+                    if shape_of(&app) == before && app.status.words.trim().is_empty() {
                         problems.push(format!("sketch: \"{name}\" silently did nothing"));
                     }
                     // WHERE IT LANDED, or the word that it was held.
-                    let held = app.status.contains(&crate::i18n::tr("sk-move-held")) || app.status.contains(&crate::i18n::tr("sk-turn-held"));
+                    let held = app.status.words.contains(&crate::i18n::tr("sk-move-held")) || app.status.words.contains(&crate::i18n::tr("sk-turn-held"));
                     let (m0, sk) = (mid(source), &app.project.sketches[si]);
                     match mode {
                         1 => match ends_of(&app, eid) {
@@ -1900,7 +1900,7 @@ mod tests {
                     let after = dims_now(&app);
                     // A DIMENSION MUST EITHER TAKE OR SAY WHY NOT. A silent "nothing happened" is the worst
                     // outcome: the dimension is believed to be set while it is not there.
-                    if after == before && app.status.trim().is_empty() {
+                    if after == before && app.status.words.trim().is_empty() {
                         problems.push(format!("sketch: the {name} dimension was not created and SAID NOTHING about why"));
                     }
                     if after > before && app.project.sketch_dof(si) >= dof_before {

@@ -1,5 +1,6 @@
 //! THE TEXT OF A SKETCH AND OF A NOTE: edited and baked into glyphs.
 
+use crate::Notice;
 use super::*;
 
 pub fn note_editor(annot: &mut AnnotEdit, inline: &mut InlineEdit, project: &mut Project, sel: Sel, view: View2d, ctx: &egui::Context, rect: Rect) {
@@ -178,7 +179,11 @@ pub fn text_obj_editor(ed: Editing, font_cache: &mut FontCache, tc: &mut TextCtx
                 invalidate(ed.regen);
             }
             None => {
-                *ed.status = if font.family.is_empty() { qymcad_i18n::tr("sk-text-font-unknown") } else { qymcad_i18n::tr1("sk-text-font-gone", "name", &font.family) };
+                *ed.status = if font.family.is_empty() {
+                    Notice::warning(qymcad_i18n::tr("sk-text-font-unknown"))
+                } else {
+                    Notice::warning(qymcad_i18n::tr1("sk-text-font-gone", "name", &font.family))
+                };
             }
         }
         close = true;

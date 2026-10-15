@@ -1,5 +1,6 @@
 //! FILES IN AND OUT: an export planned, meshes and exact files read, the project saved and its recent list.
 
+use qymcad_ui_state::Notice;
 use super::*;
 
 /// The parse of the export's target bodies by [`qymcad_core::model::ExportKind`] - ONE parse for both formats.
@@ -180,16 +181,16 @@ pub(crate) fn forget_recent(set: &mut Settings, path: &str) {
 }
 
 /// What a drawing read from IGES adds to the status: that a library's cells are what is shown, and what was not
-/// drawn at all.
+/// drawn at all. Each is a warning; the line that carries them takes that tone.
 pub(crate) fn drawing_note(d: &qymcad_io::IgesDrawing) -> String {
     let mut out = Vec::new();
     if d.definitions_only {
-        out.push(format!("(!) {}", crate::i18n::tr("io-iges-definitions-only")));
+        out.push(crate::i18n::tr("io-iges-definitions-only"));
     }
     if !d.skipped.is_empty() {
         let n: usize = d.skipped.iter().map(|(_, n)| n).sum();
         let kinds = d.skipped.iter().map(|(t, n)| format!("{t} x{n}")).collect::<Vec<_>>().join(", ");
-        out.push(format!("(!) {}", crate::i18n::tr2("io-iges-skipped", "n", &n.to_string(), "kinds", &kinds)));
+        out.push(crate::i18n::tr2("io-iges-skipped", "n", &n.to_string(), "kinds", &kinds));
     }
     out.join(" ")
 }
@@ -394,9 +395,9 @@ pub(crate) fn set_project_path(project_path: &mut Option<String>, set: &mut Sett
 ///
 /// A dead row must not be left there silently: the list exists so that one lands on the file at the
 /// first attempt, and a row where nothing happens on a click reads as a broken program.
-pub(crate) fn open_recent(regen: &mut Rebuilding, set: &mut Settings, status: &mut String, path: String) {
+pub(crate) fn open_recent(regen: &mut Rebuilding, set: &mut Settings, status: &mut qymcad_ui_state::Notice, path: String) {
     if !std::path::Path::new(&path).exists() {
-        *status = crate::i18n::tr1("recent-missing", "path", &path);
+        *status = Notice::refusal(crate::i18n::tr1("recent-missing", "path", &path));
         forget_recent(set, &path);
         return;
     }
@@ -404,9 +405,9 @@ pub(crate) fn open_recent(regen: &mut Rebuilding, set: &mut Settings, status: &m
 }
 
 /// Save the CURRENT document as a template.
-pub(crate) fn save_as_template(project: &Project, status: &mut String, title: &str) {
+pub(crate) fn save_as_template(project: &Project, status: &mut qymcad_ui_state::Notice, title: &str) {
     match crate::templates::save(project, title) {
-        Ok(path) => *status = crate::i18n::tr1("tpl-saved", "path", &path),
-        Err(e) => *status = format!("{} {}", ph::WARNING, crate::i18n::tr1("tpl-save-failed", "error", &e)),
+        Ok(path) => *status = Notice::info(crate::i18n::tr1("tpl-saved", "path", &path)),
+        Err(e) => *status = Notice::error(crate::i18n::tr1("tpl-save-failed", "error", &e)),
     }
 }

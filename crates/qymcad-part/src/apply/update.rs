@@ -1,5 +1,6 @@
 //! A feature already in the timeline changed by its command: the datum and every other kind.
 
+use qymcad_ui_state::Notice;
 use super::*;
 
 /// Update an existing DATUM with the parameters of the command (reopened by a double click): it edits
@@ -510,7 +511,7 @@ pub fn update_feat(pc: &mut qymcad_ui_state::PartCtx, fid: Id) -> Option<Id> {
     }
     if let Some((got, had)) = bad_pieces {
         // the feature was left untouched - the edit was not applied AT ALL rather than half applied
-        *pc.status = qymcad_i18n::tr2("cmd-split-count-changed", "got", &got.to_string(), "had", &had.to_string());
+        *pc.status = Notice::warning(qymcad_i18n::tr2("cmd-split-count-changed", "got", &got.to_string(), "had", &had.to_string()));
         return None;
     }
     store_cmd_exprs(pc.cmd, pc.project, fid); // store or clear the dimension expressions (the logical step, step2 and angle included)

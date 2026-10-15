@@ -1,5 +1,6 @@
 //! PROJECT AND EXTEND: an edge of a body taken into the sketch, a line extended to what it meets.
 
+use qymcad_ui_state::Notice;
 use super::*;
 
 /// Project into the sketch whatever was clicked: an edge of the underlay, or - in "face contour" mode -
@@ -13,18 +14,18 @@ pub fn project_clicked_edge(sk: &mut qymcad_ui_state::SketchCtx, si: usize, rect
     let src = match (face_mode, sk.project.sketches.get(si).map(|s| s.plane)) {
         (true, Some(SketchPlane::Face(b, key))) if key.id != 0 => Some((sk.project.live_body(b), ProjSource::Face(key.id))),
         (true, _) => {
-            *sk.status = qymcad_i18n::tr("sk-face-outline-only");
+            *sk.status = Notice::refusal(qymcad_i18n::tr("sk-face-outline-only"));
             return;
         }
         _ => nearest_ref_edge(sk, si, rect, pos).map(|(b, e)| (b, ProjSource::Edge(e))),
     };
     let Some((body, src)) = src else {
-        *sk.status = qymcad_i18n::tr("sk-miss-click-edge");
+        *sk.status = Notice::refusal(qymcad_i18n::tr("sk-miss-click-edge"));
         return;
     };
     qymcad_ui_state::begin_edit(sk.edits, sk.project, qymcad_i18n::tr("sk-project")); // THE BOUNDARY OF AN OPERATION, as with other sketch edits
     let id = qymcad_ui_state::with_kernel(&mut sk.rebuild(), |project, k| project.add_sketch_projection(si, body, src, k));
-    *sk.status = if id == 0 { qymcad_i18n::tr("sk-not-projectable") } else { qymcad_i18n::tr("sk-projected-hint") };
+    *sk.status = if id == 0 { Notice::refusal(qymcad_i18n::tr("sk-not-projectable")) } else { Notice::info(qymcad_i18n::tr("sk-projected-hint")) };
     sk.project.solve_sketch(si);
     qymcad_ui_state::commit_edit(&mut sk.rebuild());
     qymcad_ui_state::invalidate(sk.regen);
@@ -75,7 +76,7 @@ pub(crate) fn extend_ask(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, pos: P
 pub(crate) fn extend_click(sk: &mut qymcad_ui_state::SketchCtx, at: ExtendAt) {
     let Some(held) = sk.tool.extend else {
         sk.tool.extend = at.line;
-        *sk.status = qymcad_i18n::tr("opt-extend-to-hint");
+        *sk.status = Notice::info(qymcad_i18n::tr("opt-extend-to-hint"));
         return;
     };
     extend_apply(sk, at, held);
@@ -89,10 +90,10 @@ pub(crate) fn extend_apply(sk: &mut qymcad_ui_state::SketchCtx, at: ExtendAt, he
         sk.tool.extend = None;
         sk.sel_sk.clear(); // the selection and whatever was waiting for it
         qymcad_ui_state::invalidate(&mut *sk.regen);
-        *sk.status = qymcad_i18n::tr("sk-done");
+        *sk.status = Notice::info(qymcad_i18n::tr("sk-done"));
     } else if ext.kept == qymcad_core::model::EndKept::Joined {
-        *sk.status = qymcad_i18n::tr("sk-extend-end-joined");
+        *sk.status = Notice::refusal(qymcad_i18n::tr("sk-extend-end-joined"));
     } else {
-        *sk.status = qymcad_i18n::tr("sk-op-failed-no-intersection");
+        *sk.status = Notice::refusal(qymcad_i18n::tr("sk-op-failed-no-intersection"));
     }
 }

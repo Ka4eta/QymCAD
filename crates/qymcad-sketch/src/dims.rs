@@ -1,5 +1,6 @@
 //! THE DIMENSIONS of a sketch: placed, edited, driven or driving.
 
+use qymcad_ui_state::Notice;
 use super::*;
 
 /// SET THE VALUE OF DIMENSION `ci`, REFUSING ONE THAT CANNOT EXIST. On a refusal, the catalogue key of the reason.
@@ -67,14 +68,14 @@ pub fn set_dim_value(project: &mut Project, si: usize, ci: usize, v: f64) -> Res
 ///
 /// It lives here rather than in the body of the panel: it is an operation on the document, and a test
 /// drives it.
-pub fn make_dim_driven(project: &mut Project, regen: &mut qymcad_ui_state::Rebuilding, status: &mut String, si: usize, ci: usize) -> bool {
+pub fn make_dim_driven(project: &mut Project, regen: &mut qymcad_ui_state::Rebuilding, status: &mut qymcad_ui_state::Notice, si: usize, ci: usize) -> bool {
     if project.auto_driven(si, ci) {
         project.solve_sketch(si);
         qymcad_ui_state::invalidate(regen);
-        *status = qymcad_i18n::tr("sk-dim-now-driven");
+        *status = Notice::info(qymcad_i18n::tr("sk-dim-now-driven"));
         true
     } else {
-        *status = qymcad_i18n::tr("sk-cannot-be-driven");
+        *status = Notice::refusal(qymcad_i18n::tr("sk-cannot-be-driven"));
         false
     }
 }
@@ -257,7 +258,7 @@ pub fn dim_click(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, pos: Pos2) -> 
 pub fn dim_click_inner(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, pos: Pos2) -> bool {
     use qymcad_core::model::Constraint;
     let qymcad_ui_state::Sel::Sketch(si) = *sk.sel else {
-        *sk.status = qymcad_i18n::tr("sk-pick-sketch-first");
+        *sk.status = Notice::info(qymcad_i18n::tr("sk-pick-sketch-first"));
         return true;
     };
     // A GREY EDGE OF THE BODY CLICKED IS TAKEN INTO THE SKETCH FIRST, as construction, and the dimension is laid on it:
@@ -314,7 +315,7 @@ pub fn dim_click_inner(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, pos: Pos
         sk.dim.fresh = Some((ci, sk.edits.undo.len()));
         *sk.inline = qymcad_ui_state::InlineEdit::Dim(ci); // place it and go straight into typing the value
         sk.dim.focus = true;
-        *sk.status = qymcad_i18n::tr("sk-dim-placed");
+        *sk.status = Notice::info(qymcad_i18n::tr("sk-dim-placed"));
         return true;
     }
     // a radius or a diameter: a circle entity (a diameter or radius dimension) or a circle primitive
@@ -337,12 +338,12 @@ pub fn dim_click_inner(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, pos: Pos
                     }
                     *sk.inline = qymcad_ui_state::InlineEdit::Dim(ci);
                     sk.dim.focus = true;
-                    *sk.status = qymcad_i18n::tr("sk-enter-diameter");
+                    *sk.status = Notice::info(qymcad_i18n::tr("sk-enter-diameter"));
                 }
             } else {
                 *sk.inline = qymcad_ui_state::InlineEdit::Circle(eid); // an arc or a fillet
                 sk.dim.focus = true;
-                *sk.status = qymcad_i18n::tr("sk-enter-arc-radius");
+                *sk.status = Notice::info(qymcad_i18n::tr("sk-enter-arc-radius"));
             }
             return true;
         }
@@ -350,10 +351,10 @@ pub fn dim_click_inner(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, pos: Pos
         if let Some(cid) = qymcad_ui_state::polygon_under(&*sk.project, &*sk.view, rect, pos, si) {
             sk.place.set(qymcad_ui_state::PlacingShape::Poly(cid));
             sk.place.focus = true;
-            *sk.status = qymcad_i18n::tr("sk-enter-polygon-radius");
+            *sk.status = Notice::info(qymcad_i18n::tr("sk-enter-polygon-radius"));
             return true;
         }
-        *sk.status = qymcad_i18n::tr("sk-click-nearer-circle");
+        *sk.status = Notice::refusal(qymcad_i18n::tr("sk-click-nearer-circle"));
         return true;
     }
     // A LINEAR dimension takes TWO references (a point, a line or an axis). The first line gives a length
@@ -364,7 +365,7 @@ pub fn dim_click_inner(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, pos: Pos
         // the sketch before this pick: resolving it may make an axis of the sketch on demand, and Esc takes that back too
         let before = sk.dim.first.is_none().then(|| Box::new(sk.project.sketches[si].clone()));
         let Some(r) = resolve_dim_ref(sk, rect, pos, si) else {
-            *sk.status = if sk.dim.first.is_some() { qymcad_i18n::tr("sk-need-second") } else { qymcad_i18n::tr("sk-dim-pick-hint") };
+            *sk.status = if sk.dim.first.is_some() { Notice::info(qymcad_i18n::tr("sk-need-second")) } else { Notice::info(qymcad_i18n::tr("sk-dim-pick-hint")) };
             return true;
         };
         match sk.dim.first.take() {
@@ -374,7 +375,7 @@ pub fn dim_click_inner(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, pos: Pos
                 // the second element.
                 qymcad_ui_state::DimRef::Line(a, b) if sk.project.sketches[si].axis_pts.contains(&a) || sk.project.sketches[si].axis_pts.contains(&b) => {
                     sk.dim.first = Some(r);
-                    *sk.status = qymcad_i18n::tr("sk-axis-picked");
+                    *sk.status = Notice::info(qymcad_i18n::tr("sk-axis-picked"));
                 }
                 qymcad_ui_state::DimRef::Line(a, b) => {
                     // the provisional LENGTH of the line, following the cursor; a second click may switch it
@@ -387,12 +388,12 @@ pub fn dim_click_inner(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, pos: Pos
                         let (_, conflict) = qymcad_ui_state::finish_dim(&mut *sk.project, &mut *sk.regen, si, ci);
                         sk.place.dim = Some(ci);
                         sk.dim.first = Some(r);
-                        *sk.status = if conflict { format!("{} {}", ph::WARNING, qymcad_i18n::tr("sk-length-conflict")) } else { qymcad_i18n::tr("sk-length-hint") };
+                        *sk.status = if conflict { Notice::refusal(qymcad_i18n::tr("sk-length-conflict")) } else { Notice::info(qymcad_i18n::tr("sk-length-hint")) };
                     }
                 }
                 qymcad_ui_state::DimRef::Point(_) => {
                     sk.dim.first = Some(r);
-                    *sk.status = qymcad_i18n::tr("sk-point-picked");
+                    *sk.status = Notice::info(qymcad_i18n::tr("sk-point-picked"));
                 }
             },
             Some(r1) => make_between_dim(sk, si, r1, r),
@@ -415,7 +416,7 @@ pub fn dim_click_inner(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, pos: Pos
             _ => {
                 sk.dim.first = Some(lr);
                 sk.dim.pick.clear();
-                *sk.status = qymcad_i18n::tr("sk-line1-picked");
+                *sk.status = Notice::info(qymcad_i18n::tr("sk-line1-picked"));
             }
         }
         return true;
@@ -424,7 +425,7 @@ pub fn dim_click_inner(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, pos: Pos
     let id = if let Some(r) = resolve_sketch_ref(sk, rect, pos, si) {
         qymcad_ui_state::materialize_ref(&mut *sk.project, si, r)
     } else {
-        *sk.status = qymcad_i18n::tr("sk-angle-hint");
+        *sk.status = Notice::info(qymcad_i18n::tr("sk-angle-hint"));
         return true;
     };
     if !sk.dim.pick.contains(&id) {
@@ -442,11 +443,11 @@ pub fn dim_click_inner(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, pos: Pos
             let (redundant, conflict) = qymcad_ui_state::finish_dim(&mut *sk.project, &mut *sk.regen, si, ci);
             sk.place.dim = Some(ci); // the next click places it and opens its value
             *sk.status = if conflict {
-                format!("{} {}", ph::WARNING, qymcad_i18n::tr("sk-angle-conflict"))
+                Notice::refusal(qymcad_i18n::tr("sk-angle-conflict"))
             } else if redundant {
-                qymcad_i18n::tr("sk-driven-angle")
+                Notice::info(qymcad_i18n::tr("sk-driven-angle"))
             } else {
-                qymcad_i18n::tr1("sk-angle-added", "a", &qymcad_i18n::num(deg, 1))
+                Notice::info(qymcad_i18n::tr1("sk-angle-added", "a", &qymcad_i18n::num(deg, 1)))
             };
         }
     }
@@ -566,11 +567,11 @@ pub fn make_between_dim(sk: &mut qymcad_ui_state::SketchCtx, si: usize, r1: qymc
         let (redundant, conflict) = qymcad_ui_state::finish_dim(&mut *sk.project, &mut *sk.regen, si, ci);
         sk.place.dim = Some(ci);
         *sk.status = if conflict {
-            format!("{} {}", ph::WARNING, qymcad_i18n::tr("sk-dim-conflict"))
+            Notice::refusal(qymcad_i18n::tr("sk-dim-conflict"))
         } else if redundant {
-            qymcad_i18n::tr("sk-driven-dim-hint")
+            Notice::info(qymcad_i18n::tr("sk-driven-dim-hint"))
         } else {
-            qymcad_i18n::tr("sk-drag-dim-hint")
+            Notice::info(qymcad_i18n::tr("sk-drag-dim-hint"))
         };
     }
 }

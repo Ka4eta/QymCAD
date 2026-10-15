@@ -1,5 +1,6 @@
 //! THE KEYS AND THE MENU of a sketch.
 
+use qymcad_ui_state::Notice;
 use super::*;
 
 /// THE KEYS OF THE SKETCH TOOLS IN HAND, each frame: Enter makes the extension Extend previews, as a click does; and
@@ -57,7 +58,7 @@ pub fn sketch_context_menu(sk: &mut qymcad_ui_state::SketchCtx, ui: &mut egui::U
                     };
                     if ui.button(label).clicked() {
                         sk.sel_sk.items = vec![(1, id)];
-                        *sk.status = qymcad_i18n::tr1("sk-overlapping-picked", "name", &name);
+                        *sk.status = Notice::info(qymcad_i18n::tr1("sk-overlapping-picked", "name", &name));
                         ui.close();
                     }
                 }
@@ -71,7 +72,7 @@ pub fn sketch_context_menu(sk: &mut qymcad_ui_state::SketchCtx, ui: &mut egui::U
         sk.project.release_projections_of(si, &projected);
         qymcad_ui_state::invalidate(&mut *sk.regen);
         qymcad_ui_state::commit_edit_if_changed(&mut sk.rebuild());
-        *sk.status = qymcad_i18n::tr("sk-made-ordinary");
+        *sk.status = Notice::info(qymcad_i18n::tr("sk-made-ordinary"));
         ui.close();
     }
     // an arc length dimension, for the picked arc

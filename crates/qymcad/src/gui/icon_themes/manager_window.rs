@@ -3,6 +3,7 @@
 //! Main management interface for activating, reordering priority cascades,
 //! inspecting theme readmes, and handling duplicate theme conflicts.
 
+use qymcad_ui_state::Notice;
 use egui_phosphor::regular as ph;
 use qymcad_ui_state::icons::{clean_directory_icon, clean_directory_icons, load_default_pack, BundleFormat, CleanIconResult, PackSource, ALL_ICONS, DEFAULT_THEME_ID};
 use qymcad_ui_state::{Settings, WinCtx};
@@ -468,7 +469,7 @@ pub(crate) fn draw_icon_manager_window_in_dirs(ctx: &egui::Context, wc: &mut Win
                                 qymcad_ui_state::icons::bump_icon_revision(ctx);
                                 apply_icon_themes(wc.set, ctx, &wc.scheme.pal);
                                 ctx.request_repaint();
-                                *wc.status = crate::i18n::tr("icontheme-mgr-reloaded");
+                                *wc.status = Notice::info(crate::i18n::tr("icontheme-mgr-reloaded"));
                             }
                         });
                     } else if pack.format() != BundleFormat::Embedded {

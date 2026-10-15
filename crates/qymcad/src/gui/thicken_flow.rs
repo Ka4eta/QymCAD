@@ -145,7 +145,7 @@ mod tests {
         }
         app.apply_feat_cmd();
         assert_eq!(app.project.timeline.len(), before, "no feature must be created at a thickness of zero");
-        assert_eq!(app.status, crate::i18n::tr("msg-zero-thickness"), "the reason must be said out loud");
+        assert_eq!(app.status, qymcad_ui_state::Notice::refusal(crate::i18n::tr("msg-zero-thickness")), "the reason must be said out loud");
     }
 
     /// The tool shows what is selected and where the material will go.

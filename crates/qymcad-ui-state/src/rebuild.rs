@@ -1,5 +1,6 @@
 //! THE REBUILD: the live B-rep, the kernel lent, the rebuild when the document is dirty.
 
+use crate::Notice;
 use super::*;
 
 /// THE LIVE BODIES A REBUILD LEAVES: those the document holds a mesh for. A body whose node stopped building keeps
@@ -81,16 +82,16 @@ pub fn regenerate_now(rc: &mut RebuildCtx) {
     rc.regen.rebinds = report.rebinds.clone();
     if let Some((_, e)) = report.errors.first() {
         // the error text is in the person's language: the core returned a CODE, the words are found here
-        *rc.status = format!("{} {}", qymcad_i18n::tr("status-rebuild"), qymcad_i18n::error_words::error_text(e));
+        *rc.status = Notice::error(format!("{} {}", qymcad_i18n::tr("status-rebuild"), qymcad_i18n::error_words::error_text(e)));
     } else if !report.rebinds.is_empty() {
         let first = &report.rebinds[0];
         *rc.status = if report.rebinds.len() == 1 {
-            format!("{} {}", egui_phosphor::regular::LINK_BREAK, qymcad_i18n::tr1("io-rebound-one", "what", &first.what))
+            Notice::warning(qymcad_i18n::tr1("io-rebound-one", "what", &first.what))
         } else {
-            format!("{} {}", egui_phosphor::regular::LINK_BREAK, qymcad_i18n::tr2("io-rebound-many", "n", &report.rebinds.len().to_string(), "first", &first.what))
+            Notice::warning(qymcad_i18n::tr2("io-rebound-many", "n", &report.rebinds.len().to_string(), "first", &first.what))
         };
     } else if snaps > 0 {
-        *rc.status = format!("{} {}", egui_phosphor::regular::LINK_BREAK, qymcad_i18n::tr1("io-rebound-by-place", "n", &snaps.to_string()));
+        *rc.status = Notice::warning(qymcad_i18n::tr1("io-rebound-by-place", "n", &snaps.to_string()));
     }
     invalidate(rc.regen);
 }
@@ -139,7 +140,7 @@ pub fn ensure_brep(rc: &mut RebuildCtx) {
         }
         return;
     }
-    *rc.status = qymcad_i18n::tr1("io-brep-prepare", "n", &missing.len().to_string());
+    *rc.status = Notice::info(qymcad_i18n::tr1("io-brep-prepare", "n", &missing.len().to_string()));
     for n in &mut rc.project.timeline {
         if missing.contains(&n.id) {
             n.dirty = true;
@@ -315,7 +316,7 @@ pub fn step_through_history(rc: &mut RebuildCtx, redo: bool) -> Option<Vec<Id>> 
     }
     let path = restore(rc, step.snap);
     rc.edits.committed_key = doc_key(rc.project);
-    *rc.status = qymcad_i18n::tr1(if redo { "g-redone" } else { "g-undone" }, "what", &step.name);
+    *rc.status = Notice::info(qymcad_i18n::tr1(if redo { "g-redone" } else { "g-undone" }, "what", &step.name));
     Some(path)
 }
 
@@ -334,11 +335,11 @@ pub fn rebuild_cancelled(rc: &mut RebuildCtx) -> Option<Vec<Id>> {
         rc.edits.committed_key = doc_key(rc.project);
         rc.regen.computed_depth = rc.edits.undo.len();
         rc.regen.paused = None;
-        *rc.status = format!("{} {}", egui_phosphor::regular::WARNING, qymcad_i18n::tr1("io-rebuild-cancelled-undone", "what", &step.name));
+        *rc.status = Notice::warning(qymcad_i18n::tr1("io-rebuild-cancelled-undone", "what", &step.name));
         return Some(path);
     }
     rc.regen.paused = Some(rc.project.rebuild_key());
-    *rc.status = format!("{} {}", egui_phosphor::regular::WARNING, qymcad_i18n::tr("io-rebuild-cancelled"));
+    *rc.status = Notice::warning(qymcad_i18n::tr("io-rebuild-cancelled"));
     None
 }
 

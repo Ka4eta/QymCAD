@@ -7,6 +7,7 @@
 //! change on screen with the answer; Enter keeps them as one step of undo, Esc rolls the edit back and nothing is
 //! imported.
 
+use qymcad_ui_state::Notice;
 use super::ph;
 use qymcad_core::geom::{Built, Mesh};
 use qymcad_core::model::Id;
@@ -73,7 +74,7 @@ pub(crate) fn land_mesh(wc: &mut WinCtx, path: String, format: MeshFormat, piece
     qymcad_ui_state::invalidate(wc.regen);
     wc.view.initialized = false;
     wc.cam.init = false;
-    *wc.status = said;
+    *wc.status = Notice::info(said);
     let meshes = (first..wc.project.bodies.len()).filter_map(|i| wc.project.mesh_id(i)).collect();
     let unitless = matches!(format, MeshFormat::Stl | MeshFormat::Obj | MeshFormat::Ply);
     let ask =
@@ -173,7 +174,7 @@ pub(crate) fn land_exact(
     qymcad_ui_state::invalidate(wc.regen);
     wc.view.initialized = false;
     wc.cam.init = false;
-    *wc.status = super::io_jobs::exact_imported(format, nbodies, tris);
+    *wc.status = Notice::info(super::io_jobs::exact_imported(format, nbodies, tris));
     // the size as it stands in the world: a body alone is in its part's coordinates
     let span = world_span(wc.project, &ids);
     let ask = ImportScale { file: super::file_name(&path), format: named.to_string(), unitless: false, factor: 1.0, applied: 1.0, span, meshes: Vec::new(), solids: read, places, again: None };
@@ -285,7 +286,7 @@ pub(crate) fn rescale(wc: &mut WinCtx, nid: Id) {
             // a solid's factor is taken from its live shape; one still being read back from its file after opening
             // has none yet
             let Some(s) = wc.live.shapes.get(&b).and_then(|s| qymcad_kernel::imports::scaled(s, back)) else {
-                *wc.status = crate::i18n::tr("import-scale-wait");
+                *wc.status = Notice::refusal(crate::i18n::tr("import-scale-wait"));
                 return;
             };
             solids.push((b, s));
@@ -380,7 +381,7 @@ pub(crate) fn import_scale_window(wc: &mut WinCtx, ctx: &egui::Context) {
         }
         qymcad_ui_state::invalidate(wc.regen);
         wc.cam.init = false;
-        *wc.status = crate::i18n::tr(if ask.again.is_some() { "import-scale-kept" } else { "import-scale-cancelled" });
+        *wc.status = Notice::info(crate::i18n::tr(if ask.again.is_some() { "import-scale-kept" } else { "import-scale-cancelled" }));
         return;
     }
     if (ask.factor - ask.applied).abs() > 1e-12 && ask.factor > 0.0 {

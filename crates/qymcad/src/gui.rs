@@ -102,7 +102,7 @@ pub(crate) struct App {
     /// and got in the way of saving them whole; it is not a setting.
     snap_hint: Option<(Point2, u8)>,
 
-    status: String,
+    status: qymcad_ui_state::Notice,
     /// The cursor's coordinates in the part's frame (for the status line), in the 2D view.
     cursor: Option<Point2>,
     /// what the command points at by a click - an enumeration (see Picking)
@@ -231,8 +231,8 @@ impl App {
                 WinAsk::ExportSettings => self.ask_save_file(rfd::AsyncFileDialog::new().set_file_name("qym-cad-settings.ron").add_filter("qym-cad settings", &["ron"]), |app, p| {
                     let path = p.to_string_lossy().into_owned();
                     app.scheme.note = match crate::gui::export_settings_to(&app.set, &path) {
-                        Ok(()) => crate::i18n::tr1("settings-profile-saved", "path", &path),
-                        Err(e) => format!("{} {}", ph::WARNING, crate::i18n::tr1("settings-profile-failed", "error", &e)),
+                        Ok(()) => Notice::info(crate::i18n::tr1("settings-profile-saved", "path", &path)),
+                        Err(e) => Notice::error(crate::i18n::tr1("settings-profile-failed", "error", &e)),
                     };
                 }),
                 WinAsk::ImportSettings => {
@@ -240,10 +240,10 @@ impl App {
                     self.ask_open_file(rfd::AsyncFileDialog::new().add_filter("qym-cad settings", &["ron"]), move |app, p| {
                         let path = p.to_string_lossy().into_owned();
                         app.scheme.note = match app.import_settings_from(&path, &ctx) {
-                            Ok(()) => crate::i18n::tr("settings-profile-loaded"),
+                            Ok(()) => Notice::info(crate::i18n::tr("settings-profile-loaded")),
                             // A BROKEN FILE DOES NOT TOUCH THE CURRENT SETTINGS: it is said that it did not
                             // work, and what was there stays.
-                            Err(e) => format!("{} {}", ph::WARNING, crate::i18n::tr1("settings-profile-failed", "error", &e)),
+                            Err(e) => Notice::error(crate::i18n::tr1("settings-profile-failed", "error", &e)),
                         };
                     });
                 }
@@ -689,7 +689,7 @@ impl Default for App {
             logo_tex: None,
             hotkeys: qymcad_ui_state::HotkeyCapture::default(),
             bar_exprs: std::collections::HashMap::new(),
-            status: crate::i18n::tr("g-start-hint"),
+            status: Notice::info(crate::i18n::tr("g-start-hint")),
             cursor: None,
             // THE "ANGLE" FIELD IS EMPTY AT START-UP. It used to hold 90 deg, and that silently became a
             // REQUIREMENT: `joint_pick_anchor_click` writes a non-zero angle into `drive[0]` of the joint
@@ -729,7 +729,7 @@ impl App {
     /// inside one). The original file is embedded (for re-importing and for comparison). Esc cancels.
     fn arm_sketch_import(&mut self, curves: Vec<qymcad_core::geom::ProfEdge>, path: &str) {
         if curves.is_empty() {
-            self.status = crate::i18n::tr("g-import-empty");
+            self.status = Notice::refusal(crate::i18n::tr("g-import-empty"));
             return;
         }
         let n = curves.len();
@@ -739,7 +739,7 @@ impl App {
         self.chosen.sel = Sel::None;
         self.tools.pending_import.curves = Some((curves, src, file_name(path)));
         self.disk.dxf_path = Some(path.to_string());
-        self.status = crate::i18n::tr1("g-import-place", "n", &n.to_string());
+        self.status = Notice::info(crate::i18n::tr1("g-import-place", "n", &n.to_string()));
     }
 
     /// Place the waiting import on the chosen plane: build an editable sketch in the active context and
@@ -752,7 +752,7 @@ impl App {
         invalidate(&mut self.regen);
         self.viewing.view.initialized = false;
         self.enter_sketch_edit(si);
-        self.status = crate::i18n::tr1("g-sketch-imported", "n", &ents.to_string());
+        self.status = Notice::info(crate::i18n::tr1("g-sketch-imported", "n", &ents.to_string()));
     }
 
     /// A new empty document (geometry and operations are reset; the global tool and machine libraries
@@ -774,9 +774,9 @@ impl App {
                 self.disk.project_path = None;
                 self.set.recent.retain(|p| p != path); // a template is not a "recent file"
                 self.disk.edits.saved_key = edit_key(&self.draw_ctx()); // a blank slate: no edits have been made yet
-                self.status = crate::i18n::tr1("tpl-new-from", "name", &std::path::Path::new(path).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default());
+                self.status = Notice::info(crate::i18n::tr1("tpl-new-from", "name", &std::path::Path::new(path).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default()));
             }
-            Err(e) => self.status = format!("{} {}", ph::WARNING, crate::i18n::tr1("tpl-open-failed", "error", &e.to_string())),
+            Err(e) => self.status = Notice::error(crate::i18n::tr1("tpl-open-failed", "error", &e.to_string())),
         }
     }
 
@@ -792,7 +792,7 @@ impl App {
         self.viewing.view.initialized = false;
         self.viewing.cam.init = false;
         self.disk.edits.fresh(); // a clean start: no steps of the document before, the baseline taken on the next frame
-        self.status = crate::i18n::tr("g-new-project");
+        self.status = Notice::info(crate::i18n::tr("g-new-project"));
     }
 
     /// A NEW ASSEMBLY DOCUMENT: the root without an empty part, with the root active.
@@ -809,7 +809,7 @@ impl App {
         }
         self.project.set_active_component(Some(root));
         self.disk.edits.saved_key = edit_key(&self.draw_ctx()); // a clean start — there are no edits
-        self.status = crate::i18n::tr("g-new-assembly");
+        self.status = Notice::info(crate::i18n::tr("g-new-assembly"));
     }
 
     /// Request navigation that could lose edits: with unsaved work it asks first, otherwise it goes ahead.
@@ -868,7 +868,7 @@ impl App {
             self.tools.pending_import.draw_pts = None;
             self.tools.armed = qymcad_ui_state::Armed::None;
             self.viewing.view.initialized = false; // fit the view to the sketch
-            self.status = sketch_entry_status(&self.project, s);
+            self.status = Notice::info(sketch_entry_status(&self.project, s));
         }
     }
 
@@ -880,18 +880,18 @@ impl App {
         qymcad_ui_state::take_drawing_tool(&mut qymcad_ui_state::tools_of!(self), t);
         self.viewing.mode_3d = false;
         self.status = match self.tools.armed.draw_kind() {
-            1 => crate::i18n::tr("g-line-hint"),
-            2 => crate::i18n::tr("g-rect-hint"),
-            3 => crate::i18n::tr("g-circle-hint"),
-            4 => crate::i18n::tr("g-arc-cse"),
-            5 => crate::i18n::tr("g-point-hint"),
-            6 => crate::i18n::tr("g-polygon-hint"),
-            7 => crate::i18n::tr("g-slot-hint"),
-            8 => crate::i18n::tr("g-ellipse-hint"),
-            9 => crate::i18n::tr("g-spline-hint"),
-            10 => crate::i18n::tr("g-circle-3pt"),
-            11 => crate::i18n::tr("g-text-hint"),
-            _ => crate::i18n::tr("g-select"),
+            1 => Notice::info(crate::i18n::tr("g-line-hint")),
+            2 => Notice::info(crate::i18n::tr("g-rect-hint")),
+            3 => Notice::info(crate::i18n::tr("g-circle-hint")),
+            4 => Notice::info(crate::i18n::tr("g-arc-cse")),
+            5 => Notice::info(crate::i18n::tr("g-point-hint")),
+            6 => Notice::info(crate::i18n::tr("g-polygon-hint")),
+            7 => Notice::info(crate::i18n::tr("g-slot-hint")),
+            8 => Notice::info(crate::i18n::tr("g-ellipse-hint")),
+            9 => Notice::info(crate::i18n::tr("g-spline-hint")),
+            10 => Notice::info(crate::i18n::tr("g-circle-3pt")),
+            11 => Notice::info(crate::i18n::tr("g-text-hint")),
+            _ => Notice::info(crate::i18n::tr("g-select")),
         };
     }
 
@@ -928,7 +928,7 @@ impl App {
         self.viewing.view.initialized = false;
         self.viewing.cam.init = false;
         self.sync_workbench();
-        self.status = crate::gui::look_at_point::context_is(&self.project, &self.active_path);
+        self.status = Notice::info(crate::gui::look_at_point::context_is(&self.project, &self.active_path));
     }
 
     /// Go one level up (drill out): restore the camera.
@@ -1011,16 +1011,16 @@ impl App {
             let src = self.project.sketches.get(si).and_then(|s| s.patterns.get(pi)).map(|p| p.source.clone()).unwrap_or_default();
             let kind = current_pattern_kind(&self.tools.armed, self.tools.pat, &self.project, self.sk_pat, si, &src);
             self.project.update_pattern(si, pi, kind);
-            self.status = crate::i18n::tr("g-array-updated");
+            self.status = Notice::info(crate::i18n::tr("g-array-updated"));
         } else {
             let eids: Vec<Id> = self.tools.sel_sk.items.iter().filter(|(k, _)| *k == 1).map(|(_, id)| *id).collect();
             if eids.is_empty() {
-                self.status = crate::i18n::tr("g-select-for-array");
+                self.status = Notice::info(crate::i18n::tr("g-select-for-array"));
                 return;
             }
             let kind = current_pattern_kind(&self.tools.armed, self.tools.pat, &self.project, self.sk_pat, si, &eids);
             self.project.add_pattern(si, &eids, kind);
-            self.status = crate::i18n::tr("g-array-created");
+            self.status = Notice::info(crate::i18n::tr("g-array-created"));
         }
         self.tools.armed = qymcad_ui_state::Armed::None;
         self.tools.pat.edit = None;
@@ -1037,7 +1037,7 @@ impl App {
                 // A REFUSAL COSTS NOTHING. Nothing is selected, so there is no copy to make - and the tool
                 // stays in hand: taking a half-drawn shape away over a mis-press would punish the person for
                 // pressing the wrong key.
-                self.status = crate::i18n::tr("g-pick-for-copy");
+                self.status = Notice::info(crate::i18n::tr("g-pick-for-copy"));
                 return;
             }
             // THE TOOL GOES DOWN BEFORE THE COPY IS ARMED.
@@ -1049,7 +1049,7 @@ impl App {
             // it.
             exit_draw_tools(&mut qymcad_ui_state::tools_of!(self));
             self.side.clip.arm_copy(eids, cut);
-            self.status = if cut { crate::i18n::tr("g-cut-base-point") } else { crate::i18n::tr("g-copy-base-point") };
+            self.status = if cut { Notice::info(crate::i18n::tr("g-cut-base-point")) } else { Notice::info(crate::i18n::tr("g-copy-base-point")) };
             return;
         }
         // outside a sketch, Ctrl+C acts on THE TREE (a part, a subassembly, a sketch node).
@@ -1083,7 +1083,7 @@ impl App {
             _ => self.project.active_ctx(),
         };
         if self.project.component_is_part(target) {
-            self.status = crate::i18n::tr("g-paste-needs-assembly");
+            self.status = Notice::refusal(crate::i18n::tr("g-paste-needs-assembly"));
             return;
         }
         // Only the ROOTS of the selection: if the set holds both a subassembly and one of its
@@ -1114,9 +1114,9 @@ impl App {
             qymcad_ui_state::mark_dirty_for_rebuild(&mut self.rebuild_ctx()); // the document is marked; the scheduler does the computing
         }
         self.status = if fail == 0 {
-            crate::i18n::tr2("g-paste-result", "what", &if cut { crate::i18n::tr("g-body-moved") } else { crate::i18n::tr("g-copied") }, "n", &ok.to_string())
+            Notice::info(crate::i18n::tr2("g-paste-result", "what", &if cut { crate::i18n::tr("g-body-moved") } else { crate::i18n::tr("g-copied") }, "n", &ok.to_string()))
         } else {
-            crate::i18n::tr2("g-paste-partial", "ok", &ok.to_string(), "fail", &fail.to_string())
+            Notice::warning(crate::i18n::tr2("g-paste-partial", "ok", &ok.to_string(), "fail", &fail.to_string()))
         };
     }
 
@@ -1535,7 +1535,7 @@ impl App {
         let loaded = match loaded {
             Ok(l) => l,
             Err(e) => {
-                self.status = crate::i18n::tr1("lib-load-error", "error", &e.to_string());
+                self.status = Notice::error(crate::i18n::tr1("lib-load-error", "error", &e.to_string()));
                 return;
             }
         };
@@ -1544,10 +1544,10 @@ impl App {
             Some(_) => {
                 qymcad_ui_state::mark_dirty_for_rebuild(&mut self.rebuild_ctx()); // the document is marked; the scheduler does the computing
                 invalidate(&mut self.regen);
-                self.status = crate::i18n::tr1("lib-part-inserted", "name", &loaded.manifest.name);
+                self.status = Notice::info(crate::i18n::tr1("lib-part-inserted", "name", &loaded.manifest.name));
             }
             None => {
-                self.status = crate::i18n::tr("lib-no-assembly");
+                self.status = Notice::refusal(crate::i18n::tr("lib-no-assembly"));
             }
         }
     }
@@ -1568,7 +1568,7 @@ impl App {
             preview,
             tex: None,
         });
-        self.status = crate::i18n::tr("lib-save-hint");
+        self.status = Notice::info(crate::i18n::tr("lib-save-hint"));
     }
 
     // ============ The splash screen and the progress of background work ============
@@ -1618,7 +1618,7 @@ impl App {
         // fever of endless flickering.
         self.spawn_import_shapes(false); // quietly, in the background: the model on screen is intact, only the geometry is awaited
         self.regen.import_asked = true;
-        self.status = crate::i18n::tr("io-rebuilding-all");
+        self.status = Notice::info(crate::i18n::tr("io-rebuilding-all"));
     }
 
     /// Turn the plane pick for a new sketch on or off (the Sketch button and the K shortcut). It cancels
@@ -1631,7 +1631,7 @@ impl App {
         if self.tools.picking.is_sketch_plane() {
             self.viewing.mode_3d = true; // planes and faces are picked in 3D
             self.chosen.sel = Sel::None;
-            self.status = crate::i18n::tr("g-sketch-pick-plane");
+            self.status = Notice::info(crate::i18n::tr("g-sketch-pick-plane"));
         }
     }
 
@@ -1719,11 +1719,11 @@ impl App {
                 self.params.rev.axis_datum = id;
                 self.params.rev.axis_line = 0; // the axis was set in 3D, so the sketch's axis line no longer applies
                 self.params.rev.pick_axis = false;
-                self.status = format!("{} {}", ph::CHECK, crate::i18n::tr1("g-rev-axis", "what", &crate::i18n::tr(what)));
+                self.status = Notice::info(format!("{} {}", ph::CHECK, crate::i18n::tr1("g-rev-axis", "what", &crate::i18n::tr(what))));
                 true
             }
             None => {
-                self.status = crate::i18n::tr("g-rev-axis-miss");
+                self.status = Notice::refusal(crate::i18n::tr("g-rev-axis-miss"));
                 false
             }
         }
@@ -1832,7 +1832,7 @@ impl App {
                 self.side.joint.new_kind = qymcad_core::feature::JointKind::Rigid;
                 self.side.joint.pick_faces = true;
                 self.side.joint.pick_first = None;
-                self.status = crate::i18n::tr("g-rigid-joint-hint");
+                self.status = Notice::info(crate::i18n::tr("g-rigid-joint-hint"));
             }
             _ => {}
         }
@@ -1864,11 +1864,11 @@ impl App {
         if self.side.section.plane.is_some() || self.side.section.pick {
             self.side.section.put_away();
             invalidate(&mut self.regen);
-            self.status = crate::i18n::tr("tb-section-off");
+            self.status = Notice::info(crate::i18n::tr("tb-section-off"));
         } else {
             self.cancel_all_tools();
             self.side.section.pick = true;
-            self.status = crate::i18n::tr("tb-section-pick");
+            self.status = Notice::info(crate::i18n::tr("tb-section-pick"));
         }
     }
 
@@ -1885,7 +1885,7 @@ impl App {
             self.chosen.sel = Sel::Plane(pi);
         }
         self.regen_after_datum_change();
-        self.status = crate::i18n::tr("plane-from-face-hint");
+        self.status = Notice::info(crate::i18n::tr("plane-from-face-hint"));
     }
 
     // `viewport` was 1509 lines and looked like a monolith, but it was in fact TWO unrelated viewports in
@@ -2058,10 +2058,10 @@ pub(crate) fn is_multi(project: &Project, sel: Sel, tree_sel: &TreeSelection) ->
 /// There is nothing to kill it with in the middle of an OCCT boolean, and no reason to — a COPY is
 /// what is being computed, and the document on screen is intact. `finish_regen_checked` sums it up
 /// when the result arrives marked as cancelled.
-pub(crate) fn cancel_regen(regen: &Rebuilding, status: &mut String) {
+pub(crate) fn cancel_regen(regen: &Rebuilding, status: &mut qymcad_ui_state::Notice) {
     if let Some(p) = regen.busy.as_ref().and_then(|b| b.pulse.as_ref()) {
         p.ask_stop();
-        *status = crate::i18n::tr("io-rebuild-cancelling");
+        *status = Notice::info(crate::i18n::tr("io-rebuild-cancelling"));
     }
 }
 
@@ -2083,7 +2083,7 @@ pub(crate) fn set_component_visible(project: &mut Project, regen: &mut Rebuildin
 /// snapshot of the face into a fixed datum — the part stayed free, but the top-down associativity was
 /// lost silently. To break the link (freezing the geometry as a snapshot), use the part's properties
 /// and its external references.
-pub(crate) fn resolve_placement_plane(cmd: &mut FeatCommand, project: &mut Project, status: &mut String, plane: qymcad_core::feature::SketchPlane) -> qymcad_core::feature::SketchPlane {
+pub(crate) fn resolve_placement_plane(cmd: &mut FeatCommand, project: &mut Project, status: &mut Notice, plane: qymcad_core::feature::SketchPlane) -> qymcad_core::feature::SketchPlane {
     cmd.ref_body = None; // reset on every new placement
     if let qymcad_core::feature::SketchPlane::Face(body, key) = plane {
         let consumer = project.active_ctx();
@@ -2092,7 +2092,7 @@ pub(crate) fn resolve_placement_plane(cmd: &mut FeatCommand, project: &mut Proje
                                                                 // the source is remembered for the session: to highlight its edges and snap to them
             cmd.ref_body = Some(body);
             let src = project.body_owner(body).and_then(|o| project.components.iter().find(|c| c.id == o)).map(|c| crate::i18n::name(&c.name)).unwrap_or_else(|| crate::i18n::tr("g-neighbour"));
-            *status = crate::i18n::tr1("g-sketch-on-foreign-face", "name", &src);
+            *status = Notice::info(crate::i18n::tr1("g-sketch-on-foreign-face", "name", &src));
         }
     }
     plane
@@ -2131,7 +2131,7 @@ fn mirror_part_door(app: &mut App, comp: Option<Id>) {
     }
     // with no part picked before the button the tool is in hand all the same and waits for a click on one
     (app.params.mirror.part, app.params.mirror.waiting) = (comp, comp.is_none());
-    app.status = crate::i18n::tr(if comp.is_some() { "tb-mirror-pick-plane" } else { "tb-mirror-pick-part" });
+    app.status = Notice::info(crate::i18n::tr(if comp.is_some() { "tb-mirror-pick-plane" } else { "tb-mirror-pick-part" }));
 }
 
 pub(crate) fn refresh_interference(bv: qymcad_ui_state::BodyView, drag: qymcad_ui_state::SceneDrag, interference: &mut Interference, live: &LiveGeom, set: &Settings, workbench: Workbench) {
@@ -2480,7 +2480,7 @@ mod frame_select;
 mod piece_part;
 mod look_at_point;
 mod orbit_about;
-pub(crate) use qymcad_ui_state::{props_header, NameSlot};
+pub(crate) use qymcad_ui_state::{props_header, NameSlot, Notice};
 
 /// The sketcher (geometry, dimensions, constraints) lives in `gui/sketching.rs`.
 mod sketching;

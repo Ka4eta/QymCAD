@@ -5,6 +5,7 @@
 //! chooser lists everything the table `qymcad_io::Format` knows, and the file's extension decides what it
 //! becomes - a solid, a mesh or a sketch. A file of a kind the program does not read gets an answer naming the
 //! kinds it does, instead of a reader's error about a format the file was never in.
+use qymcad_ui_state::Notice;
 use std::path::PathBuf;
 
 use qymcad_io::{Format, Lands};
@@ -126,11 +127,11 @@ pub(crate) fn import_answer(want: Want) -> impl FnOnce(&mut App, PathBuf) + 'sta
                 for (key, kinds) in [("import-redrawn", &sketch.redrawn), ("import-invalid", &sketch.invalid), ("import-not-read", &sketch.skipped)] {
                     if !kinds.is_empty() {
                         let list = kinds.iter().map(|(kind, n)| format!("{kind} {n}")).collect::<Vec<_>>().join(", ");
-                        app.status = format!("{} · {}", app.status, crate::i18n::tr1(key, "list", &list));
+                        app.status.words = format!("{} · {}", app.status, crate::i18n::tr1(key, "list", &list));
                     }
                 }
             }
-            Landing::Refused(why) => app.status = why,
+            Landing::Refused(why) => app.status = Notice::refusal(why),
         }
     }
 }

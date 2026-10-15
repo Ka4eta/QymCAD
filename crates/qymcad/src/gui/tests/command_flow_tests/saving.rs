@@ -61,7 +61,7 @@ fn wait_bg_gives_up_on_slow_background_job() {
     app.wait_bg();
     let waited = t.elapsed();
     assert!(waited < std::time::Duration::from_secs(3), "quitting must not hang on a background task: waited {waited:?}");
-    assert!(app.status.contains(&crate::i18n::tr_prefix("io-not-waited", "what")), "it is said honestly that the task stayed in the background: {}", app.status);
+    assert!(app.status.words.contains(&crate::i18n::tr_prefix("io-not-waited", "what")), "it is said honestly that the task stayed in the background: {}", app.status);
     assert!(app.regen.bg.is_empty(), "the queue is cleared and the window will close");
 }
 
@@ -172,7 +172,7 @@ fn failed_save_keeps_project_dirty() {
     app.disk.project_path = Some("/proc/qymcad-no-such/path/proj.qcad".into());
     app.save_project();
     app.wait_bg();
-    assert!(app.status.contains(&crate::i18n::tr_prefix("io-save-error", "error")), "the error is honestly in the status line: {}", app.status);
+    assert!(app.status.words.contains(&crate::i18n::tr_prefix("io-save-error", "error")), "the error is honestly in the status line: {}", app.status);
     assert!(qymcad_ui_state::is_dirty(&mut app.rebuild_ctx()), "the project STAYS dirty - otherwise quitting without a warning would lose the work");
 }
 
@@ -382,7 +382,7 @@ fn the_autosave_line_tells_the_local_time() {
     app.maybe_autosave(true);
     app.wait_bg();
     let after = chrono::Local::now().format("(%H:%M)").to_string();
-    assert!(app.status.contains(&before) || app.status.contains(&after), "the autosave line does not tell the local time {before} .. {after}: {:?}", app.status);
+    assert!(app.status.words.contains(&before) || app.status.words.contains(&after), "the autosave line does not tell the local time {before} .. {after}: {:?}", app.status);
 }
 
 /// "hh:mm" follows the zone it is asked in: ahead of UTC, behind it, and across midnight both ways.

@@ -1,5 +1,6 @@
 //! THE STEPS OF THE TOOLS of a part: options of their bars, their picks, their ends.
 
+use crate::Notice;
 use super::*;
 
 /// Restore the view to the state it was left in. With nothing to restore (the sub-mode was entered
@@ -30,9 +31,9 @@ pub fn is_identity12(m: &[f64; 12]) -> bool {
 /// 86 px: two columns (40+3+40=83) fit with room to spare and hold at exactly two.
 /// ENTER WITH NOTHING YET TO APPLY is refused in words: the tool's own ask repeated after "not yet". A key that did
 /// nothing and said nothing left a person pressing it again.
-pub fn enter_not_ready(ctx: &egui::Context, status: &mut String, ask: &str) {
+pub fn enter_not_ready(ctx: &egui::Context, status: &mut Notice, ask: &str) {
     if !ctx.egui_wants_keyboard_input() && ctx.input(|i| i.key_pressed(egui::Key::Enter)) {
-        *status = qymcad_i18n::tr1("cmd-not-ready", "ask", ask);
+        *status = Notice::refusal(qymcad_i18n::tr1("cmd-not-ready", "ask", ask));
     }
 }
 
@@ -360,8 +361,8 @@ pub fn doc_touched_without_undo(edits: &mut Edits, project: &Project) {
 }
 
 /// The command did not apply: say so and record the fact, so the operation can be rolled back.
-pub fn cmd_fail(cmd_failed: &mut bool, status: &mut String, text: String) {
-    *status = text;
+pub fn cmd_fail(cmd_failed: &mut bool, status: &mut Notice, text: String) {
+    *status = Notice::error(text);
     *cmd_failed = true;
 }
 
@@ -431,14 +432,14 @@ pub fn clipboard_can_copy(project: &Project, sel: Sel, sel_sk: &SketchSelection,
 }
 
 /// Fillet ALL the corners of the current sketch's contour with the `sk_fillet` radius.
-pub fn fillet_all_corners(project: &Project, corner: &mut CornerInput, picking: &mut Picking, sel: Sel, sel_sk: &SketchSelection, status: &mut String, tool_prefs: &SketchToolPrefs) {
+pub fn fillet_all_corners(project: &Project, corner: &mut CornerInput, picking: &mut Picking, sel: Sel, sel_sk: &SketchSelection, status: &mut Notice, tool_prefs: &SketchToolPrefs) {
     // A COMMAND. With a selection, the popup opens on it straight away; without one, the mode becomes "click a shape".
     if let Sel::Sketch(si) = sel {
         let only: Vec<Id> = sel_sk.items.iter().filter(|(k, _)| *k == 1).map(|(_, id)| *id).collect();
         // the tool is held either way: after Enter it waits for the next shape, as a tool of the sketch stays in hand
         *picking = Picking::FilletAll;
         if only.is_empty() {
-            *status = qymcad_i18n::tr("g-fillet-all-hint");
+            *status = Notice::info(qymcad_i18n::tr("g-fillet-all-hint"));
         } else {
             // THE CHOSEN LINES GO IN AS THE WHOLE SET, and the corners they make are the corners one answer cuts:
             // this command is the same act as naming the lines with Shift, said in one word.
@@ -478,7 +479,7 @@ pub fn cancel_feat_cmd(pc: &mut PartCtx) {
     } else if *pc.mode_3d != prev_3d {
         *pc.mode_3d = prev_3d;
     }
-    *pc.status = qymcad_i18n::tr("msg-cancelled");
+    *pc.status = Notice::info(qymcad_i18n::tr("msg-cancelled"));
 }
 
 /// An edge polyline is nearly STRAIGHT (and so fit to be an axis): every point lies on the line from the
@@ -649,7 +650,7 @@ pub fn finish_drawing(ed: Editing, pending_import: &mut PendingImport, sketch_se
                 if ed.project.fill_sketch_polyline(si, pts, closed) {
                     *ed.sel = Sel::Sketch(si);
                 } else {
-                    *ed.status = qymcad_i18n::tr("io-sketch-has-profile");
+                    *ed.status = Notice::refusal(qymcad_i18n::tr("io-sketch-has-profile"));
                 }
             } else {
                 ed.project.add_line_sketch(qymcad_i18n::tr("io-sketch"), pts, closed);

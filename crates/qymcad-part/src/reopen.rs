@@ -1,5 +1,6 @@
 //! A FEATURE REOPENED: its command taken again with its values, picks and options.
 
+use qymcad_ui_state::Notice;
 use super::*;
 
 pub fn start_feat_cmd_edit(pc: &mut qymcad_ui_state::PartCtx, fid: Id) {
@@ -179,7 +180,7 @@ pub fn start_feat_cmd_edit(pc: &mut qymcad_ui_state::PartCtx, fid: Id) {
                 qymcad_ui_state::op_target_body(&qymcad_ui_state::DrawCtx { cam: pc.cam, set: &*pc.set, scheme: pc.scheme, project: &*pc.project, active_path: pc.active_path }, *pc.sel)
             });
             pc.cmd.params = vec![cmd_param_from(&*pc.project, fid, "f-thickness", "thickness", thickness, -100000.0, 100000.0)];
-            *pc.status = qymcad_i18n::tr("msg-edit-thicken");
+            *pc.status = Notice::info(qymcad_i18n::tr("msg-edit-thicken"));
         }
         // A RECOGNISED BODY reopens the recognition tool on its own mesh, with its tolerance and sharp edge in the fields;
         // a polyhedron has no number to change, and the tool opens on it all the same rather than sending a person to
@@ -195,7 +196,7 @@ pub fn start_feat_cmd_edit(pc: &mut qymcad_ui_state::PartCtx, fid: Id) {
             *pc.mode_3d = true;
             pc.split.plane = Some(qymcad_ui_state::op_plane_pick(plane, datum, face));
             pc.cmd.params = vec![cmd_param_from(&*pc.project, fid, "f-offset", "offset", offset, -100000.0, 100000.0)];
-            *pc.status = qymcad_i18n::tr("msg-edit-split-face");
+            *pc.status = Notice::info(qymcad_i18n::tr("msg-edit-split-face"));
         }
         FeatureKind::SplitBody { plane, datum, offset, face, .. } => {
             // EDITING A CUT: restore the reference to the plane and the offset, exactly as at creation, so
@@ -206,7 +207,7 @@ pub fn start_feat_cmd_edit(pc: &mut qymcad_ui_state::PartCtx, fid: Id) {
             *pc.mode_3d = true;
             pc.split.plane = Some(qymcad_ui_state::op_plane_pick(plane, datum, face));
             pc.cmd.params = vec![cmd_param_from(&*pc.project, fid, "f-offset", "offset", offset, -100000.0, 100000.0)];
-            *pc.status = qymcad_i18n::tr("msg-edit-split-body");
+            *pc.status = Notice::info(qymcad_i18n::tr("msg-edit-split-body"));
         }
         // THE PATCH REOPENS on its edges and its kind, the bar showing both; Enter puts the edges picked back. Reported
         // behaviour: a double click on the patch in the tree opened nothing.
@@ -473,7 +474,7 @@ pub fn start_feat_cmd_edit(pc: &mut qymcad_ui_state::PartCtx, fid: Id) {
                     pc.cmd.params = datum_plane_fields_of(&*pc.project, fid, &pl, dist);
                 }
                 PlaneDef::Manual | PlaneDef::FaceGone | PlaneDef::PlaneGone => {
-                    *pc.status = qymcad_i18n::tr("msg-plane-manual");
+                    *pc.status = Notice::info(qymcad_i18n::tr("msg-plane-manual"));
                     return;
                 }
             }
@@ -538,13 +539,13 @@ pub fn start_feat_cmd_edit(pc: &mut qymcad_ui_state::PartCtx, fid: Id) {
             if let Some(ti) = pc.boolean.edit {
                 *pc.sel = qymcad_ui_state::Sel::Feature(ti);
             }
-            *pc.status = qymcad_i18n::tr("msg-bool-switch");
+            *pc.status = Notice::info(qymcad_i18n::tr("msg-bool-switch"));
             return;
         }
         _ => {
             // arrays, mirrors and moves have no command popup yet; they are edited in THE RIGHT-HAND PANEL
             // (the feature is already selected by the click)
-            *pc.status = qymcad_i18n::tr("msg-params-on-right");
+            *pc.status = Notice::info(qymcad_i18n::tr("msg-params-on-right"));
             return;
         }
     }
@@ -556,5 +557,5 @@ pub fn start_feat_cmd_edit(pc: &mut qymcad_ui_state::PartCtx, fid: Id) {
         *pc.sel = qymcad_ui_state::Sel::Feature(ti);
     }
     *pc.mode_3d = true;
-    *pc.status = qymcad_i18n::tr("msg-edit-feature");
+    *pc.status = Notice::info(qymcad_i18n::tr("msg-edit-feature"));
 }

@@ -1,5 +1,6 @@
 //! Meshes brought in: where, in what colours, as what parts, in what units and at what size; undo of an import.
 
+use qymcad_ui_state::Notice;
 use super::*;
 
 /// A MESH COMES IN WHERE THE FILE PUTS IT, UNDER THE NAME THE FILE GIVES IT.
@@ -137,7 +138,7 @@ fn escape_leaves_nothing_imported() {
     let _ = frame(&mut app, &ctx, Vec::new());
     assert_eq!(app.project.bodies.len(), before, "Esc left the model in the document");
     assert_eq!(app.disk.edits.undo.len(), steps, "Esc left a step of undo behind");
-    assert_eq!(app.status, crate::i18n::tr("import-scale-cancelled"));
+    assert_eq!(app.status, Notice::info(crate::i18n::tr("import-scale-cancelled")));
 }
 
 /// A FILE THAT NAMES ITS UNIT AND COMES IN AT A SENSIBLE SIZE LANDS WITHOUT A QUESTION.
@@ -268,7 +269,7 @@ fn a_long_import_shows_its_time_and_can_be_left() {
     );
     let _ = frame(&mut app, &ctx, click(at));
     assert!(app.regen.busy.is_none(), "the import was not left");
-    assert_eq!(app.status, crate::i18n::tr("in-import-cancelled"));
+    assert_eq!(app.status, Notice::info(crate::i18n::tr("in-import-cancelled")));
     let texts = frame(&mut app, &ctx, Vec::new());
     assert!(!texts.iter().any(|(t, _)| *t == cancel), "the card is still up after leaving the import");
 }
@@ -278,9 +279,9 @@ fn a_long_import_shows_its_time_and_can_be_left() {
 fn a_file_of_an_unknown_kind_is_answered_by_name() {
     let (mut app, ctx) = running();
     answer(&mut app, &ctx, Want::Anything, "/somewhere/notes.cdw");
-    assert!(app.status.contains("notes.cdw"), "the answer does not name the file: {}", app.status);
+    assert!(app.status.words.contains("notes.cdw"), "the answer does not name the file: {}", app.status);
     for f in Format::ALL {
-        assert!(app.status.contains(f.name()), "the answer does not say that {} can be opened: {}", f.name(), app.status);
+        assert!(app.status.words.contains(f.name()), "the answer does not say that {} can be opened: {}", f.name(), app.status);
     }
     assert!(app.regen.busy.is_none() && app.tools.pending_import.curves.is_none(), "something was read from a file of an unknown kind");
 }
@@ -291,7 +292,7 @@ fn a_drawing_is_not_taken_into_an_assembly() {
     let (mut app, ctx) = running();
     answer(&mut app, &ctx, Want::Part, &example("plate.dxf"));
     assert!(app.tools.pending_import.curves.is_none(), "a flat drawing was taken in through the door of an assembly");
-    assert_eq!(app.status, crate::i18n::tr1("import-not-a-part", "format", "DXF"), "the refusal does not say where a drawing goes");
+    assert_eq!(app.status, Notice::refusal(crate::i18n::tr1("import-not-a-part", "format", "DXF")), "the refusal does not say where a drawing goes");
 }
 
 /// A MESH PART WHOSE REMOVAL IS UNDONE COMES BACK AS IT WAS, AND NOTHING IS REBUILT: a piece of a mesh is its own

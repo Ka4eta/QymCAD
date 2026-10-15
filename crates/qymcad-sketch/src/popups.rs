@@ -1,5 +1,6 @@
 //! THE FIELDS AT THE GEOMETRY of a sketch: the sizes of a new shape, of a corner, of a turn, the editor of a dimension.
 
+use qymcad_ui_state::Notice;
 use super::*;
 
 pub fn corner_input_popup(cc: &mut qymcad_ui_state::CornerCtx, ctx: &egui::Context, rect: Rect) {
@@ -20,7 +21,7 @@ pub fn corner_input_popup(cc: &mut qymcad_ui_state::CornerCtx, ctx: &egui::Conte
     // A CORNER FOLLOWING THE POINTER HAS NO BOX YET: the box would stand beside a corner that moves, and run from the
     // pointer that goes to it. A click fixes the corner, and the box opens then.
     if following && cc.corner.at.is_some() {
-        *cc.status = qymcad_i18n::tr("sk-corner-click-to-fix");
+        *cc.status = Notice::info(qymcad_i18n::tr("sk-corner-click-to-fix"));
         return;
     }
     // THE FIELD OF THE WHOLE SET, not of one corner: one value cuts every corner the chosen lines make, and the
@@ -170,7 +171,7 @@ pub fn corner_input_popup(cc: &mut qymcad_ui_state::CornerCtx, ctx: &egui::Conte
     cc.corner.buf = buf;
     let refused = judge(&*cc.project, &cc.corner.buf).or_else(|| second_used.then(|| judge2(&*cc.project, &cc.corner.buf2)).flatten()); // taken as zero, it closed the field and did nothing
     if apply && refused.is_some() {
-        *cc.status = format!("{} {}", ph::WARNING, refused.clone().unwrap_or_default());
+        *cc.status = Notice::refusal(refused.clone().unwrap_or_default());
         cc.corner.why = refused;
         apply = false;
     }
@@ -218,12 +219,12 @@ pub fn corner_input_popup(cc: &mut qymcad_ui_state::CornerCtx, ctx: &egui::Conte
                 *cc.status = if pid != 0 && cut > 1 {
                     // MORE THAN ONE CORNER CUT AT ONCE IS SAID AS MANY: "done" would read as the one corner the
                     // pointer was on, and the set is not visible in a word that size.
-                    qymcad_i18n::tr1("sk-filleted-n", "n", &cut.to_string())
+                    Notice::info(qymcad_i18n::tr1("sk-filleted-n", "n", &cut.to_string()))
                 } else {
-                    qymcad_i18n::tr("sk-done")
+                    Notice::info(qymcad_i18n::tr("sk-done"))
                 };
             } else {
-                *cc.status = format!("{} {}", ph::WARNING, qymcad_i18n::tr("sk-fillet-too-big"));
+                *cc.status = Notice::refusal(qymcad_i18n::tr("sk-fillet-too-big"));
                 cc.corner.why = Some(qymcad_i18n::tr("sk-fillet-too-big"));
             }
             if joins {
@@ -667,7 +668,7 @@ pub fn sketch_rotate_popup(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Cont
         rot.angle = parse_num(sk.project, &rot.buf.clone()).unwrap_or(0.0); // the live preview
     }
     if let (true, Err(msg)) = (apply, angle_of(sk.project, &sk.rot.buf.clone())) {
-        *sk.status = msg;
+        *sk.status = Notice::refusal(msg);
         sk.rot.focus = true;
         return;
     }
@@ -712,9 +713,9 @@ pub fn sketch_rotate_popup(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Cont
             let off = mean(&after, &want); // how far the result stands from that
                                            // a tenth of what was asked, and at least a hundredth of a millimetre: below that it did turn
             *sk.status = if asked > 1e-9 && off > (asked * 0.1).max(1e-2) {
-                format!("{} {}", ph::WARNING, qymcad_i18n::tr("sk-turn-held"))
+                Notice::warning(qymcad_i18n::tr("sk-turn-held"))
             } else {
-                qymcad_i18n::tr1("sk-rotated-by", "a", &v.to_string())
+                Notice::info(qymcad_i18n::tr1("sk-rotated-by", "a", &v.to_string()))
             };
             qymcad_ui_state::commit_edit(&mut sk.rebuild());
         }
@@ -800,7 +801,7 @@ pub fn dim_editor(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Context, rect
                         chg = true;
                     }
                     Some(_) => {
-                        *sk.status = qymcad_i18n::tr("sk-dim-must-be-positive");
+                        *sk.status = Notice::refusal(qymcad_i18n::tr("sk-dim-must-be-positive"));
                         close = false; // the field stays open on the text that was refused
                     }
                     None => {}
@@ -1025,7 +1026,7 @@ pub fn dim_editor(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Context, rect
         };
         if let Some(why) = why {
             close = false;
-            *sk.status = why;
+            *sk.status = Notice::refusal(why);
         }
     }
     let apply_value = close && !is_driven && value_differs;
@@ -1088,7 +1089,7 @@ pub fn dim_editor(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Context, rect
                     changed = true;
                 } else if let Err(key) = took {
                     // refused: the field stays open with what was typed, and the status line says why
-                    *sk.status = qymcad_i18n::tr1(key, "max", &qymcad_i18n::num(MAX_SKETCH_LENGTH, 0));
+                    *sk.status = Notice::refusal(qymcad_i18n::tr1(key, "max", &qymcad_i18n::num(MAX_SKETCH_LENGTH, 0)));
                     close = false;
                 }
             }
@@ -1165,7 +1166,7 @@ pub fn dim_editor(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Context, rect
                 p.y = y;
             }
             sk.project.solve_sketch(si);
-            *sk.status = qymcad_i18n::tr1("sk-dim-incompatible", "r", &qymcad_i18n::num(resid, 2));
+            *sk.status = Notice::refusal(qymcad_i18n::tr1("sk-dim-incompatible", "r", &qymcad_i18n::num(resid, 2)));
         }
         qymcad_ui_state::invalidate(&mut *sk.regen);
     }

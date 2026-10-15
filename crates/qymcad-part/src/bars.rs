@@ -1,5 +1,6 @@
 //! THE BARS OF THE PART: the tool bar, the options of a command, the bars of a section and of a pattern of components.
 
+use qymcad_ui_state::Notice;
 use super::*;
 
 /// The top bar of a body-to-body boolean, in the style of the sketcher: the kind of operation, the hint
@@ -102,7 +103,7 @@ pub struct PlaneBarCtx<'a> {
     pub project: &'a mut qymcad_core::model::Project,
     pub edits: &'a mut qymcad_ui_state::Edits,
     pub active_path: &'a [qymcad_core::model::Id],
-    pub status: &'a mut String,
+    pub status: &'a mut qymcad_ui_state::Notice,
     pub m3: &'a mut qymcad_ui_state::Measure3,
 }
 
@@ -124,7 +125,7 @@ pub fn section_bar(pb: &mut PlaneBarCtx, ui: &mut egui::Ui) {
                 let taken: Vec<String> = pb.m3.picks.iter().map(|p| p.what.clone()).collect();
                 ui.label(taken.join(" - "));
                 ui.separator();
-                ui.label(egui::RichText::new(pb.status.as_str()).strong());
+                ui.label(egui::RichText::new(pb.status.words.as_str()).strong());
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui.button(qymcad_i18n::tr("cmd-cancel-btn")).clicked() {
@@ -134,7 +135,7 @@ pub fn section_bar(pb: &mut PlaneBarCtx, ui: &mut egui::Ui) {
         });
         if off {
             pb.m3.clear();
-            *pb.status = qymcad_i18n::tr("in-measure-off");
+            *pb.status = Notice::info(qymcad_i18n::tr("in-measure-off"));
         }
         return;
     }
@@ -161,7 +162,7 @@ pub fn section_bar(pb: &mut PlaneBarCtx, ui: &mut egui::Ui) {
         // the sketch is pointed at, not typed: Enter before it has nothing to start
         qymcad_ui_state::enter_not_ready(&ui.ctx().clone(), pb.status, &qymcad_i18n::tr("g-pick-sketch-for"));
         if cancel {
-            *pb.status = pb.picking.cancel_key().map(qymcad_i18n::tr).unwrap_or_default();
+            *pb.status = Notice::info(pb.picking.cancel_key().map(qymcad_i18n::tr).unwrap_or_default());
             pb.picking.clear();
         }
         return;
@@ -186,7 +187,7 @@ pub fn section_bar(pb: &mut PlaneBarCtx, ui: &mut egui::Ui) {
             });
         });
         if cancel {
-            *status = picking.cancel_key().map(qymcad_i18n::tr).unwrap_or_default(); // the words Esc says for the same
+            *status = Notice::info(picking.cancel_key().map(qymcad_i18n::tr).unwrap_or_default()); // the words Esc says for the same
             picking.clear();
         }
         return;
@@ -253,9 +254,9 @@ pub fn section_bar(pb: &mut PlaneBarCtx, ui: &mut egui::Ui) {
     if section.pick && enter {
         if section.plane.is_some() {
             section.pick = false;
-            *status = qymcad_i18n::tr("vp-section-on");
+            *status = Notice::info(qymcad_i18n::tr("vp-section-on"));
         } else {
-            *status = qymcad_i18n::tr1("cmd-not-ready", "ask", &qymcad_i18n::tr("tb-section-pick"));
+            *status = Notice::refusal(qymcad_i18n::tr1("cmd-not-ready", "ask", &qymcad_i18n::tr("tb-section-pick")));
         }
     }
     if section.plane.is_none() && section.pick {
@@ -270,7 +271,7 @@ pub fn section_bar(pb: &mut PlaneBarCtx, ui: &mut egui::Ui) {
         });
         if off {
             section.pick = false;
-            *status = qymcad_i18n::tr("tb-section-off");
+            *status = Notice::info(qymcad_i18n::tr("tb-section-off"));
             qymcad_ui_state::invalidate(regen);
         }
         return;
@@ -312,16 +313,16 @@ pub fn section_bar(pb: &mut PlaneBarCtx, ui: &mut egui::Ui) {
         if off {
             section.plane = None;
             section.pick = false;
-            *status = qymcad_i18n::tr("tb-section-off");
+            *status = Notice::info(qymcad_i18n::tr("tb-section-off"));
             changed = true;
         }
         if apply {
             section.pick = false;
-            *status = qymcad_i18n::tr("vp-section-on");
+            *status = Notice::info(qymcad_i18n::tr("vp-section-on"));
         }
         if cancel {
             section_cancel(section, regen);
-            *status = qymcad_i18n::tr("tb-section-off");
+            *status = Notice::info(qymcad_i18n::tr("tb-section-off"));
         }
         if changed {
             qymcad_ui_state::invalidate(regen);
@@ -389,7 +390,7 @@ pub fn comp_array_bar(pc: &mut qymcad_ui_state::PartCtx, ui: &mut egui::Ui) {
                 pc.arr.axis_pick = !pc.arr.axis_pick;
                 if pc.arr.axis_pick {
                     refresh_axis_edges(pc); // the straight edges of every visible body, as axis candidates
-                    *pc.status = qymcad_i18n::tr("cmd-array-axis-hint");
+                    *pc.status = Notice::info(qymcad_i18n::tr("cmd-array-axis-hint"));
                 }
             }
             if picked.is_some() {
@@ -467,7 +468,7 @@ pub fn comp_array_bar(pc: &mut qymcad_ui_state::PartCtx, ui: &mut egui::Ui) {
     } else if cancel {
         *pc.carr = qymcad_ui_state::CompArrayCmd::default();
         pc.cmd.params.clear();
-        *pc.status = qymcad_i18n::tr("msg-comp-array-cancelled");
+        *pc.status = Notice::info(qymcad_i18n::tr("msg-comp-array-cancelled"));
     }
 }
 
@@ -504,7 +505,7 @@ pub fn open_comp_array_edit(pc: &mut qymcad_ui_state::PartCtx, pid: Id) {
             }
         }
     }
-    *pc.status = qymcad_i18n::tr("msg-edit-comp-array");
+    *pc.status = Notice::info(qymcad_i18n::tr("msg-edit-comp-array"));
 }
 
 /// THE STEP FIELDS OF A LINEAR PATTERN OF COMPONENTS follow its directions: a second and a third step appear with the

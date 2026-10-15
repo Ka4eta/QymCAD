@@ -166,6 +166,6 @@ mod tests {
         let body = h.app.project.timeline.iter().skip(nodes.saturating_sub(1)).any(|n| matches!(n.kind, qymcad_core::feature::FeatureKind::MeshRecognised { .. }) && !n.dirty);
         assert!(!body, "the recognition was cancelled and its node stands built all the same");
         assert!(h.app.project.regen_errors.is_empty(), "Cancel left the node red, as if it had failed: {:?}", h.app.project.regen_errors);
-        assert!(h.app.status.contains(&crate::i18n::tr("io-rebuild-cancelled")), "Cancel was pressed and the program does not say the rebuild was cancelled: {}", h.app.status);
+        assert!(h.app.status.words.contains(&crate::i18n::tr("io-rebuild-cancelled")), "Cancel was pressed and the program does not say the rebuild was cancelled: {}", h.app.status);
     }
 }

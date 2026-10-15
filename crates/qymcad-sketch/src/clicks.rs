@@ -1,5 +1,6 @@
 //! A CLICK IN A SKETCH: picking, drawing with the tool in hand, the click as the canvas reads it.
 
+use qymcad_ui_state::Notice;
 use super::*;
 
 pub fn sketch_select_click(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, pos: Pos2, additive: bool) {
@@ -21,7 +22,7 @@ pub fn sketch_select_click(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, pos:
                 sk.sel_sk.items.push((qymcad_ui_state::SEL_TEXT, id));
             }
         }
-        *sk.status = qymcad_i18n::tr("sk-text-selected");
+        *sk.status = Notice::info(qymcad_i18n::tr("sk-text-selected"));
         return;
     }
     sk.annot.text = None;
@@ -30,7 +31,7 @@ pub fn sketch_select_click(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, pos:
         sk.annot.note = Some(ni);
         sk.gsel.constraint = None;
         sk.sel_sk.clear(); // the selection and whatever was waiting for it
-        *sk.status = qymcad_i18n::tr("sk-note-selected");
+        *sk.status = Notice::info(qymcad_i18n::tr("sk-note-selected"));
         return;
     }
     sk.annot.note = None;
@@ -39,7 +40,7 @@ pub fn sketch_select_click(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, pos:
     if let Some(ci) = constraint_glyph_at(sk, rect, pos, si).or_else(|| dim_at(sk, rect, pos, si)) {
         sk.gsel.constraint = Some(ci);
         sk.sel_sk.clear(); // the selection and whatever was waiting for it
-        *sk.status = qymcad_i18n::tr("sk-constraint-selected");
+        *sk.status = Notice::info(qymcad_i18n::tr("sk-constraint-selected"));
         return;
     }
     sk.gsel.constraint = None;
@@ -110,9 +111,9 @@ pub fn sketch_select_click(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, pos:
                 // CONSTRUCTION GEOMETRY SERVES AS WELL: what matters is that two points make a line, and a
                 // construction line is exactly what people draw to mirror about.
                 Some(qymcad_core::model::EntityKind::Line { a, b }) => qymcad_ui_state::mirror_about_line(qymcad_ui_state::editing_in!(sk), &mut *sk.sel_sk, a, b),
-                _ => *sk.status = qymcad_i18n::tr("sk-mirror-pick-axis"),
+                _ => *sk.status = Notice::info(qymcad_i18n::tr("sk-mirror-pick-axis")),
             },
-            _ => *sk.status = qymcad_i18n::tr("sk-mirror-pick-axis"),
+            _ => *sk.status = Notice::info(qymcad_i18n::tr("sk-mirror-pick-axis")),
         }
         return;
     }
@@ -127,7 +128,7 @@ pub fn sketch_select_click(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, pos:
             }
             qymcad_ui_state::mirror_takes_the_choice(&mut *sk.sel_sk, &mut *sk.status);
         } else {
-            *sk.status = qymcad_i18n::tr("sk-mirror-pick-what");
+            *sk.status = Notice::info(qymcad_i18n::tr("sk-mirror-pick-what"));
         }
         return;
     }
@@ -146,7 +147,7 @@ pub fn sketch_select_click(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, pos:
                 sk.sel_sk.items.push(refr);
                 if let Some(eid) = middle {
                     sk.sel_sk.at_middle.push(eid);
-                    *sk.status = qymcad_i18n::tr("sk-midpoint-picked");
+                    *sk.status = Notice::info(qymcad_i18n::tr("sk-midpoint-picked"));
                 }
             }
         }
@@ -165,7 +166,7 @@ pub fn sketch_select_click(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, pos:
     // THE OFFSET GATHERS ITS CURVES: a click adds to what it will offset, and Enter offsets them (`sketch_tool_keys`)
     if sk.sel_sk.modify == Some(qymcad_ui_state::EditTool::Offset) {
         if sk.sel_sk.items.iter().any(|(k, _)| *k == 1) {
-            *sk.status = qymcad_i18n::tr("sk-offset-side");
+            *sk.status = Notice::info(qymcad_i18n::tr("sk-offset-side"));
         }
     } else if let Some(op) = sk.sel_sk.modify {
         if qymcad_ui_state::try_modify(qymcad_ui_state::editing_in!(sk), &mut *sk.sel_sk, *sk.sk_pat, &*sk.tool_prefs, op) {
@@ -309,9 +310,9 @@ pub fn sketch_tool_click_inner(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, 
             if sk.tool.circ_tan.is_none() {
                 if let Some(eref) = ref_edge_at(sk, rect, pos, si) {
                     sk.tool.circ_tan = Some(eref);
-                    *sk.status = qymcad_i18n::tr("sk-tangent-base-picked");
+                    *sk.status = Notice::info(qymcad_i18n::tr("sk-tangent-base-picked"));
                 } else {
-                    *sk.status = qymcad_i18n::tr("sk-tangent-pick-base");
+                    *sk.status = Notice::info(qymcad_i18n::tr("sk-tangent-pick-base"));
                 }
             } else if let Some(eref) = sk.tool.circ_tan.take() {
                 let r = qymcad_ui_state::tangent_radius_to_edge(&sk.draw(), si, eref, w);
@@ -323,7 +324,7 @@ pub fn sketch_tool_click_inner(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, 
                     qymcad_ui_state::invalidate(&mut *sk.regen);
                     open_the_size_of_the_new_shape(sk, eid, qymcad_core::feature::Purpose::of(con));
                 } else {
-                    *sk.status = qymcad_i18n::tr("sk-centre-on-edge");
+                    *sk.status = Notice::refusal(qymcad_i18n::tr("sk-centre-on-edge"));
                 }
             }
         }
@@ -368,10 +369,10 @@ pub fn sketch_tool_click_inner(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, 
                         qymcad_ui_state::invalidate(&mut *sk.regen);
                         open_the_size_of_the_new_arc(sk, si, qymcad_core::feature::Purpose::of(con));
                     } else {
-                        *sk.status = qymcad_i18n::tr("sk-arc-end-on-tangent");
+                        *sk.status = Notice::refusal(qymcad_i18n::tr("sk-arc-end-on-tangent"));
                     }
                 } else {
-                    *sk.status = qymcad_i18n::tr("sk-tangent-arc-hint");
+                    *sk.status = Notice::info(qymcad_i18n::tr("sk-tangent-arc-hint"));
                 }
                 sk.tool.pts.clear();
             }
@@ -389,7 +390,7 @@ pub fn sketch_tool_click_inner(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, 
                         sk.project.add_arc_entity(si, Point2::new(cx, cy), Point2::new(s.x, s.y), Point2::new(e.x, e.y), winding(ccw), qymcad_core::feature::Purpose::of(con));
                         open_the_size_of_the_new_arc(sk, si, qymcad_core::feature::Purpose::of(con));
                     } else {
-                        *sk.status = qymcad_i18n::tr("sk-points-collinear-arc");
+                        *sk.status = Notice::refusal(qymcad_i18n::tr("sk-points-collinear-arc"));
                     }
                 } else {
                     // the centre, the start and the end
@@ -415,7 +416,7 @@ pub fn sketch_tool_click_inner(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, 
                 // stretched such a radius to 0.01 and laid twelve corners on one spot, and finishing it ran the memory
                 // past 1.5 GB (a second polygon centred on the corner of the first).
                 sk.tool.pts.pop();
-                *sk.status = qymcad_i18n::tr("sk-polygon-no-size");
+                *sk.status = Notice::refusal(qymcad_i18n::tr("sk-polygon-no-size"));
                 return;
             }
             if sk.tool.pts.len() == 2 {
@@ -478,7 +479,7 @@ pub fn sketch_tool_click_inner(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, 
                     qymcad_ui_state::invalidate(&mut *sk.regen);
                     open_the_size_of_the_new_shape(sk, eid, qymcad_core::feature::Purpose::of(con));
                 } else {
-                    *sk.status = qymcad_i18n::tr("sk-points-collinear-circle");
+                    *sk.status = Notice::refusal(qymcad_i18n::tr("sk-points-collinear-circle"));
                 }
                 sk.tool.pts.clear();
             }
@@ -487,7 +488,7 @@ pub fn sketch_tool_click_inner(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, 
             // a text note, which is not geometry
             if !sk.tool_prefs.text.trim().is_empty() {
                 sk.project.add_note(si, w.x, w.y, sk.tool_prefs.text.clone());
-                *sk.status = qymcad_i18n::tr("sk-note-added");
+                *sk.status = Notice::info(qymcad_i18n::tr("sk-note-added"));
                 *sk.armed = qymcad_ui_state::Armed::None; // placed once, as a label is
                 sk.tool_prefs.text.clear();
             }
@@ -498,9 +499,9 @@ pub fn sketch_tool_click_inner(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, 
             // left undone. Emptied by the font, which could not write the letters typed, it is the font that is
             // named.
             *sk.status = if sk.tool.text_refused {
-                qymcad_i18n::tr1("sk-text-no-letters", "name", &qymcad_ui_state::font_label(&sk.tool_prefs.font, "opt-font"))
+                Notice::refusal(qymcad_i18n::tr1("sk-text-no-letters", "name", &qymcad_ui_state::font_label(&sk.tool_prefs.font, "opt-font")))
             } else {
-                qymcad_i18n::tr("sk-text-needs-string")
+                Notice::refusal(qymcad_i18n::tr("sk-text-needs-string"))
             };
         }
         11 => {
@@ -512,7 +513,7 @@ pub fn sketch_tool_click_inner(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, 
             // Not opened here, on the first click: the second click of the double click lands outside the field
             // that has just taken the focus, egui takes the focus away, and the editor opens with no caret in it.
             if qymcad_ui_state::text_at(&*sk.project, &*sk.view, rect, pos, si).is_some() {
-                *sk.status = qymcad_i18n::tr("sk-text-on-label");
+                *sk.status = Notice::info(qymcad_i18n::tr("sk-text-on-label"));
                 return;
             }
             // text AS GEOMETRY: a parametric object (the outlines of the glyphs) that can be selected,
@@ -532,7 +533,7 @@ pub fn sketch_tool_click_inner(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, 
                 sk.annot.text = sk.project.sketches[si].texts.iter().position(|t| t.id == id);
                 qymcad_ui_state::invalidate(&mut *sk.regen);
                 sk.view.initialized = false;
-                *sk.status = qymcad_i18n::tr1("sk-text-placed", "n", &n.to_string());
+                *sk.status = Notice::info(qymcad_i18n::tr1("sk-text-placed", "n", &n.to_string()));
                 // A LABEL IS PLACED ONCE: the tool is put down, as in the CAD programs people know. Kept in hand it laid
                 // a copy of the label on every stray click until Esc (found checking issue #32). Its string goes too: the
                 // tool taken again offered it, and a click placed the same label once more; the height and the font
@@ -540,14 +541,14 @@ pub fn sketch_tool_click_inner(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, 
                 *sk.armed = qymcad_ui_state::Armed::None;
                 sk.tool_prefs.text.clear();
             } else if !qymcad_ui_state::any_font_at_all(&mut *sk.font_cache) {
-                *sk.status = qymcad_i18n::tr("sk-font-not-found");
+                *sk.status = Notice::refusal(qymcad_i18n::tr("sk-font-not-found"));
             } else if !qymcad_ui_state::font_can_write(&mut *sk.font_cache, &font, &sk.tool_prefs.text) {
                 // THE FONT IS NAMED, because the string is not the one at fault. The list marks a face that
                 // cannot write its own name, which is a different question: a font with Latin and no Cyrillic
                 // looks good there and writes nothing at all in Russian. Here the string is known.
-                *sk.status = qymcad_i18n::tr1("sk-text-no-letters", "name", &qymcad_ui_state::font_label(&font, "opt-font"));
+                *sk.status = Notice::refusal(qymcad_i18n::tr1("sk-text-no-letters", "name", &qymcad_ui_state::font_label(&font, "opt-font")));
             } else {
-                *sk.status = qymcad_i18n::tr("sk-text-empty");
+                *sk.status = Notice::refusal(qymcad_i18n::tr("sk-text-empty"));
             }
         }
         _ => {}
@@ -595,13 +596,13 @@ pub fn sketch_click_at(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Context,
                         sk.corner.buf = qymcad_core::expr::fmt_num(sk.tool_prefs.fillet);
                         sk.corner.focus = true; // the tool stays held: after Enter it waits for the next shape
                     } else {
-                        *sk.status = qymcad_i18n::tr("sk-click-shape-line");
+                        *sk.status = Notice::refusal(qymcad_i18n::tr("sk-click-shape-line"));
                     }
                 }
             } else if sk.armed.draw_kind() != 0 && !qymcad_ui_state::bar_fields_valid(ctx) {
                 // A FIELD OF THE BAR THAT CANNOT BE TAKEN stops the click as it stops Enter: the shape would
                 // be made with the last value the field held, not with what is written in it
-                *sk.status = qymcad_i18n::tr("sk-fix-bar-field");
+                *sk.status = Notice::refusal(qymcad_i18n::tr("sk-fix-bar-field"));
             } else if sk.armed.draw_kind() != 0 {
                 sketch_tool_click(sk, rect, pos);
             } else if sk.armed.dim_kind() != 0 {
@@ -615,7 +616,8 @@ pub fn sketch_click_at(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Context,
                 if sk.measure.pts.len() == 2 {
                     let (a, b) = (sk.measure.pts[0], sk.measure.pts[1]);
                     let d = ((a.x - b.x).powi(2) + (a.y - b.y).powi(2)).sqrt();
-                    *sk.status = qymcad_i18n::trn("sk-distance-dxdy", &[("d", &qymcad_i18n::num(d, 3)), ("dx", &qymcad_i18n::num(b.x - a.x, 3)), ("dy", &qymcad_i18n::num(b.y - a.y, 3))]);
+                    *sk.status =
+                        Notice::info(qymcad_i18n::trn("sk-distance-dxdy", &[("d", &qymcad_i18n::num(d, 3)), ("dx", &qymcad_i18n::num(b.x - a.x, 3)), ("dy", &qymcad_i18n::num(b.y - a.y, 3))]));
                 }
             } else if sk.pending_import.draw_pts.is_some() {
                 let w = snap_world(sk, rect, pos);
@@ -644,7 +646,7 @@ pub fn sketch_click_at(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Context,
                         sk.corner.aim = qymcad_ui_state::Aim::Fixed;
                         sk.corner.pos = Some(pos);
                         sk.corner.focus = true;
-                        *sk.status = corner_set_says(sk);
+                        *sk.status = Notice::info(corner_set_says(sk));
                         return;
                     }
                     sk.corner.track_px = qymcad_ui_state::corner_reach(sk.set);
@@ -740,15 +742,15 @@ pub fn sketch_click_at(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Context,
                         sk.corner.focus = true;
                     }
                     match act {
-                        qymcad_ui_state::CornerClick::LineChosen(_) | qymcad_ui_state::CornerClick::LineLetGo(_) => *sk.status = corner_set_says(sk),
+                        qymcad_ui_state::CornerClick::LineChosen(_) | qymcad_ui_state::CornerClick::LineLetGo(_) => *sk.status = Notice::info(corner_set_says(sk)),
                         // A THIRD LINE AT A STRAIGHT JOINT IS NOT TAKEN, and the point it would have stood
                         // at is named: there is no corner to cut there, and saying so is better than a
                         // line that was not taken for no visible reason.
                         qymcad_ui_state::CornerClick::StraightJoint(pid) => {
                             let name = corner_point_name(sk, si, pid);
-                            *sk.status = qymcad_i18n::tr1("sk-corner-straight", "p", &name);
+                            *sk.status = Notice::refusal(qymcad_i18n::tr1("sk-corner-straight", "p", &name));
                         }
-                        qymcad_ui_state::CornerClick::AtPoint(act) => *sk.status = corner_point_says(sk, act),
+                        qymcad_ui_state::CornerClick::AtPoint(act) => *sk.status = Notice::info(corner_point_says(sk, act)),
                         // A CLICK ON NOTHING CHANGES NOTHING AND SAYS NOTHING. It used to speak, and what it said was a complaint
                         // about the click - that there is no line or point under it - which is the one thing a
                         // person who clicked empty sheet already knows, and which covered the status line of a
@@ -758,7 +760,7 @@ pub fn sketch_click_at(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Context,
                         // says what it waits for, which is the one thing a person who has just taken it needs.
                         // With the field already up it says nothing: the click opened nothing, and the tool is
                         // already saying what it waits for in the hint on its own button.
-                        qymcad_ui_state::CornerClick::Opened => *sk.status = qymcad_i18n::tr(if chamfer { "tb-chamfer-sketch-hint" } else { "tb-fillet-sketch-hint" }),
+                        qymcad_ui_state::CornerClick::Opened => *sk.status = Notice::info(qymcad_i18n::tr(if chamfer { "tb-chamfer-sketch-hint" } else { "tb-fillet-sketch-hint" })),
                     }
                 }
             } else if sk.armed.click_op() != 0 {
@@ -801,11 +803,11 @@ pub fn sketch_click_at(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Context,
                     if ok {
                         sk.sel_sk.clear(); // the selection and whatever was waiting for it
                         qymcad_ui_state::invalidate(&mut *sk.regen);
-                        *sk.status = qymcad_i18n::tr("sk-done");
+                        *sk.status = Notice::info(qymcad_i18n::tr("sk-done"));
                     } else if line_eid.is_none() && qymcad_pick::nearest_circle_entity(&sk.pick(), rect, pos, si).is_none() {
-                        *sk.status = qymcad_i18n::tr("sk-click-curve");
+                        *sk.status = Notice::info(qymcad_i18n::tr("sk-click-curve"));
                     } else {
-                        *sk.status = qymcad_i18n::tr("sk-op-failed-no-intersection");
+                        *sk.status = Notice::refusal(qymcad_i18n::tr("sk-op-failed-no-intersection"));
                     }
                     qymcad_ui_state::commit_edit_if_changed(&mut sk.rebuild()); // a click that changed nothing lays no step
                 }
@@ -835,7 +837,7 @@ pub fn sketch_click_at(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Context,
                 // over only while that clipboard holds some text. Reported behaviour: "Ctrl+V does not paste (Edit ->
                 // Paste works), and no preview comes under the cursor".
                 sk.clip.os_ping = true;
-                *sk.status = qymcad_i18n::tr2("sk-clipboard", "what", &if cut { qymcad_i18n::tr("sk-cut-done") } else { qymcad_i18n::tr("sk-copied") }, "n", &n.to_string());
+                *sk.status = Notice::info(qymcad_i18n::tr2("sk-clipboard", "what", &if cut { qymcad_i18n::tr("sk-cut-done") } else { qymcad_i18n::tr("sk-copied") }, "n", &n.to_string()));
                 // A COPY GOES TO THE CLIPBOARD AND NO FURTHER: the base point is the point the copy is held by when it is
                 // pasted - here or in another sketch, as many times as wanted. Reported behaviour: "a copy meant for the
                 // clipboard becomes a move-copy on the spot". Placing at once is the Copy tool of the panel.
@@ -852,7 +854,7 @@ pub fn sketch_click_at(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Context,
                     sk.project.solve_sketch(si);
                     sk.sel_sk.items = ids.into_iter().map(|id| (1u8, id)).collect();
                     qymcad_ui_state::invalidate(&mut *sk.regen);
-                    *sk.status = qymcad_i18n::tr("sk-pasted");
+                    *sk.status = Notice::info(qymcad_i18n::tr("sk-pasted"));
                     qymcad_ui_state::commit_edit_if_changed(&mut sk.rebuild());
                 }
                 sk.clip.geom_place = false;
@@ -872,12 +874,12 @@ pub fn sketch_click_at(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Context,
                     }
                     *sk.status = if sk.sel_sk.items.iter().any(|(k, _)| *k == 1) {
                         if sk.armed.pat_op() == 2 {
-                            qymcad_i18n::tr("sk-click-rot-centre")
+                            Notice::info(qymcad_i18n::tr("sk-click-rot-centre"))
                         } else {
-                            qymcad_i18n::tr("sk-params-above")
+                            Notice::info(qymcad_i18n::tr("sk-params-above"))
                         }
                     } else {
-                        qymcad_i18n::tr("sk-click-for-array")
+                        Notice::info(qymcad_i18n::tr("sk-click-for-array"))
                     };
                 } else if shift {
                     // Shift continues picking the source
@@ -888,7 +890,7 @@ pub fn sketch_click_at(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Context,
                 } else if sk.armed.pat_op() == 2 {
                     // circular: a click sets or moves the centre, snapping to an intersection or a vertex
                     sk.pat.center = Some(snap_world(sk, rect, pos));
-                    *sk.status = qymcad_i18n::tr("sk-centre-set-params");
+                    *sk.status = Notice::info(qymcad_i18n::tr("sk-centre-set-params"));
                 }
             } else if sk.armed.move_op() != 0 && matches!(*sk.sel, qymcad_ui_state::Sel::Sketch(_)) {
                 // an interactive move or copy: the selection, then the base point, then the target
@@ -903,9 +905,9 @@ pub fn sketch_click_at(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Context,
                     sketch_select_click(sk, rect, pos, shift);
                     qymcad_ui_state::take_whole_rects(&*sk.project, si, &mut *sk.sel_sk);
                     if !sk.sel_sk.items.iter().any(|(k, _)| *k == 1 || *k == qymcad_ui_state::SEL_TEXT) {
-                        *sk.status = qymcad_i18n::tr("sk-click-for-move");
+                        *sk.status = Notice::info(qymcad_i18n::tr("sk-click-for-move"));
                     } else {
-                        *sk.status = qymcad_i18n::tr("sk-click-base-point");
+                        *sk.status = Notice::info(qymcad_i18n::tr("sk-click-base-point"));
                     }
                 } else if sk.tool.move_base.is_none() {
                     sk.tool.move_base = Some(w);
@@ -915,9 +917,9 @@ pub fn sketch_click_at(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Context,
                         sk.rot.angle = 0.0;
                         sk.rot.buf = "0".into();
                         sk.rot.focus = true;
-                        *sk.status = qymcad_i18n::tr("sk-centre-set-angle");
+                        *sk.status = Notice::info(qymcad_i18n::tr("sk-centre-set-angle"));
                     } else {
-                        *sk.status = qymcad_i18n::tr("sk-click-target-point");
+                        *sk.status = Notice::info(qymcad_i18n::tr("sk-click-target-point"));
                     }
                 } else if sk.armed.move_op() != 3 {
                     let Some(base) = sk.tool.move_base.take() else { return };
@@ -931,7 +933,7 @@ pub fn sketch_click_at(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Context,
                         sk.project.solve_sketch(si);
                         // select the copies
                         sk.sel_sk.items = ids.into_iter().map(|id| (1u8, id)).chain(text_ids.into_iter().map(|id| (qymcad_ui_state::SEL_TEXT, id))).collect();
-                        *sk.status = qymcad_i18n::tr("sk-copied");
+                        *sk.status = Notice::info(qymcad_i18n::tr("sk-copied"));
                     } else {
                         // WHERE IT WAS ASKED TO GO, and where the constraints let it go.
                         //
@@ -961,7 +963,7 @@ pub fn sketch_click_at(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Context,
                         };
                         // a tenth of what was asked, and at least a hundredth of a millimetre: below
                         // that the drawing did not move at all
-                        *sk.status = if asked > 1e-9 && went < (asked * 0.1).max(1e-2) { format!("{} {}", ph::WARNING, qymcad_i18n::tr("sk-move-held")) } else { qymcad_i18n::tr("sk-moved") };
+                        *sk.status = if asked > 1e-9 && went < (asked * 0.1).max(1e-2) { Notice::warning(qymcad_i18n::tr("sk-move-held")) } else { Notice::info(qymcad_i18n::tr("sk-moved")) };
                     }
                     *sk.armed = qymcad_ui_state::Armed::None;
                     qymcad_ui_state::invalidate(&mut *sk.regen);
@@ -981,9 +983,9 @@ pub fn sketch_click_at(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Context,
                         *sk.mode_3d = true;
                         sk.view.initialized = false;
                         let n = cands.iter().position(|l| *l == eid).map(|i| i + 1).unwrap_or(1);
-                        *sk.status = format!("{} {}", ph::CHECK, qymcad_i18n::tr1("g-rev-axis", "what", &qymcad_ui_state::axis_line_label(&*sk.project, si, eid, n)));
+                        *sk.status = Notice::info(format!("{} {}", ph::CHECK, qymcad_i18n::tr1("g-rev-axis", "what", &qymcad_ui_state::axis_line_label(&*sk.project, si, eid, n))));
                     }
-                    None => *sk.status = qymcad_i18n::tr("sk-miss-line"),
+                    None => *sk.status = Notice::refusal(qymcad_i18n::tr("sk-miss-line")),
                 }
             } else if let Some(slot) = sk.picking.contour() {
                 // picking the contour for a sweep or loft slot through the half-sketcher: a click on
@@ -995,9 +997,9 @@ pub fn sketch_click_at(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Context,
                     sk.picking.clear();
                     *sk.mode_3d = true;
                     sk.view.initialized = false;
-                    *sk.status = qymcad_i18n::tr("sk-contour-picked");
+                    *sk.status = Notice::info(qymcad_i18n::tr("sk-contour-picked"));
                 } else {
-                    *sk.status = qymcad_i18n::tr("sk-miss-contour");
+                    *sk.status = Notice::refusal(qymcad_i18n::tr("sk-miss-contour"));
                 }
             } else if sk.armed.commanding() {
                 // a click on a contour ALWAYS adds to the selection (as Ctrl used to): a single click
@@ -1010,7 +1012,7 @@ pub fn sketch_click_at(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Context,
                         if !sk.gsel.profiles.remove(&cid) {
                             sk.gsel.profiles.insert(cid); // a repeated click on a contour deselects it
                         }
-                        *sk.status = qymcad_i18n::tr1("sk-profiles-n", "n", &sk.gsel.profiles.len().to_string());
+                        *sk.status = Notice::info(qymcad_i18n::tr1("sk-profiles-n", "n", &sk.gsel.profiles.len().to_string()));
                     }
                 }
             } else if *sk.workbench == qymcad_ui_state::Workbench::Sketch && matches!(*sk.sel, qymcad_ui_state::Sel::Sketch(_)) {

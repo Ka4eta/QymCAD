@@ -1,18 +1,19 @@
 //! Applying the commands that make or finish a solid.
 
+use qymcad_ui_state::Notice;
 use super::*;
 
 /// Apply the SWEEP: the profile (`sweep_prof_sid`) along the path (`sweep_path_sid`). Both sketches are
 /// entered into the timeline if they are not there yet, then the Sweep node follows. The contours come
 /// from the selection in the bar (`sweep_prof_cid` and `sweep_path_cid`; 0 means the first suitable one
 /// is taken automatically).
-pub fn apply_sweep_cmd(feat: qymcad_ui_state::FeatTarget, project: &mut Project, status: &mut String, sweep: qymcad_ui_state::SweepParams) -> Option<Id> {
+pub fn apply_sweep_cmd(feat: qymcad_ui_state::FeatTarget, project: &mut Project, status: &mut qymcad_ui_state::Notice, sweep: qymcad_ui_state::SweepParams) -> Option<Id> {
     if sweep.prof_sid == 0 || sweep.path_sid == 0 {
-        *status = qymcad_i18n::tr("msg-need-profile-path");
+        *status = Notice::refusal(qymcad_i18n::tr("msg-need-profile-path"));
         return None;
     }
     if sweep.prof_sid == sweep.path_sid {
-        *status = qymcad_i18n::tr("msg-profile-path-differ");
+        *status = Notice::refusal(qymcad_i18n::tr("msg-profile-path-differ"));
         return None;
     }
     let prof_name = project.sketches.iter().find(|s| s.id == sweep.prof_sid).map(|s| qymcad_i18n::name(&s.name)).unwrap_or_default();
@@ -34,21 +35,21 @@ pub fn apply_sweep_cmd(feat: qymcad_ui_state::FeatTarget, project: &mut Project,
 }
 
 /// A hole: a cylinder cut at the centre of the picked face, perpendicular to it.
-pub fn apply_hole_cmd(cmd: &qymcad_ui_state::FeatCommand, hole: qymcad_ui_state::HoleCommand, project: &mut Project, sel: qymcad_ui_state::Sel, status: &mut String) -> Option<Id> {
+pub fn apply_hole_cmd(cmd: &qymcad_ui_state::FeatCommand, hole: qymcad_ui_state::HoleCommand, project: &mut Project, sel: qymcad_ui_state::Sel, status: &mut qymcad_ui_state::Notice) -> Option<Id> {
     // the kind plus the diameter and depth of the recess (for a counterbore or a countersink)
     let (dia2, depth2) = if hole.kind != 0 { (qymcad_ui_state::cmd_val(cmd, "dia2"), qymcad_ui_state::cmd_val(cmd, "depth2")) } else { (0.0, 0.0) };
     // "by sketch" mode drills many holes into the picked body, at the isolated points of a sketch
     if hole.mode == 1 {
         let Some(sid) = hole.sketch else {
-            *status = qymcad_i18n::tr("msg-pick-sketch-points");
+            *status = Notice::info(qymcad_i18n::tr("msg-pick-sketch-points"));
             return None;
         };
         let Some(src) = qymcad_ui_state::selected_body(project, &sel) else {
-            *status = qymcad_i18n::tr("msg-pick-body-drill");
+            *status = Notice::info(qymcad_i18n::tr("msg-pick-body-drill"));
             return None;
         };
         if project.sketch_isolated_points(sid).is_empty() {
-            *status = qymcad_i18n::tr("msg-no-isolated-points");
+            *status = Notice::refusal(qymcad_i18n::tr("msg-no-isolated-points"));
             return None;
         }
         let body = project.add_hole_from_sketch(
@@ -61,7 +62,7 @@ pub fn apply_hole_cmd(cmd: &qymcad_ui_state::FeatCommand, hole: qymcad_ui_state:
         return Some(body);
     }
     let qymcad_ui_state::Sel::Face(mi, fi) = sel else {
-        *status = qymcad_i18n::tr("msg-pick-face-centre");
+        *status = Notice::info(qymcad_i18n::tr("msg-pick-face-centre"));
         return None;
     };
     let src = project.mesh_id(mi)?;
@@ -80,10 +81,10 @@ pub fn apply_hole_cmd(cmd: &qymcad_ui_state::FeatCommand, hole: qymcad_ui_state:
 }
 
 /// Apply the thread: `add_thread` on the picked rim, plus storing the parameter expressions.
-pub fn apply_thread_cmd(cmd: &qymcad_ui_state::FeatCommand, project: &mut Project, status: &mut String, thread: qymcad_ui_state::ThreadParams) -> Option<Id> {
+pub fn apply_thread_cmd(cmd: &qymcad_ui_state::FeatCommand, project: &mut Project, status: &mut qymcad_ui_state::Notice, thread: qymcad_ui_state::ThreadParams) -> Option<Id> {
     let src = thread.src?;
     if thread.edge == 0 {
-        *status = qymcad_i18n::tr("msg-pick-cyl-first");
+        *status = Notice::info(qymcad_i18n::tr("msg-pick-cyl-first"));
         return None;
     }
     // the input is a standard plus a size, as in a professional CAD; the geometry (the diameters, the
@@ -116,7 +117,7 @@ pub fn apply_thread_cmd(cmd: &qymcad_ui_state::FeatCommand, project: &mut Projec
 /// to turn the mesh into an object.
 pub fn apply_recognise_cmd(pc: &mut qymcad_ui_state::PartCtx) -> Option<Id> {
     let Some(src) = pc.recognise.src else {
-        *pc.status = qymcad_i18n::tr("msg-recognise");
+        *pc.status = Notice::info(qymcad_i18n::tr("msg-recognise"));
         return None;
     };
     let simplify = qymcad_ui_state::cmd_val(pc.cmd, "simplify");
@@ -145,18 +146,18 @@ pub fn apply_edge_cmd(pc: &mut qymcad_ui_state::PartCtx, cmd: u8) -> Option<Id> 
         .or_else(|| qymcad_ui_state::selected_body(pc.project, pc.sel))
         .or_else(|| qymcad_ui_state::current_body(&qymcad_ui_state::DrawCtx { cam: pc.cam, set: pc.set, scheme: pc.scheme, project: pc.project, active_path: pc.active_path }))
     else {
-        *pc.status = qymcad_i18n::tr("msg-no-body");
+        *pc.status = Notice::refusal(qymcad_i18n::tr("msg-no-body"));
         return None;
     };
     // a hard gate: the body is alive and not consumed by a chain, or it would be a ghost branch...
     if pc.project.consumed_bodies().contains(&body) {
-        *pc.status = qymcad_i18n::tr("msg-body-consumed");
+        *pc.status = Notice::refusal(qymcad_i18n::tr("msg-body-consumed"));
         return None;
     }
     // ...and belongs to the current context (a body of a neighbouring part must not be filleted from
     // inside this one).
     if pc.project.body_owner(body).is_some_and(|o| !pc.project.component_is_within(o, ctx)) {
-        *pc.status = qymcad_i18n::tr("msg-edge-other-part");
+        *pc.status = Notice::refusal(qymcad_i18n::tr("msg-edge-other-part"));
         return None;
     }
     let edges: Vec<u32> = pc.gsel.edges.iter().copied().collect();
@@ -204,7 +205,7 @@ pub fn apply_edge_cmd(pc: &mut qymcad_ui_state::PartCtx, cmd: u8) -> Option<Id> 
 /// (`loft_cids`) and the kind of faces (`loft_ruled`).
 pub fn apply_loft_cmd(pc: &mut qymcad_ui_state::PartCtx) -> Option<Id> {
     if pc.loft.sids.len() < 2 {
-        *pc.status = qymcad_i18n::tr("msg-loft-needs-two");
+        *pc.status = Notice::refusal(qymcad_i18n::tr("msg-loft-needs-two"));
         return None;
     }
     // A cut, a pad or an intersection through sections: the target is the active body of the context.
@@ -220,7 +221,7 @@ pub fn apply_loft_cmd(pc: &mut qymcad_ui_state::PartCtx) -> Option<Id> {
                 op = pc.loft.result - 1; // 1 becomes a cut (0), 2 a union (1), 3 an intersection (2)
             }
             None => {
-                *pc.status = qymcad_i18n::tr("msg-loft-no-body");
+                *pc.status = Notice::warning(qymcad_i18n::tr("msg-loft-no-body"));
             }
         }
     }
@@ -249,12 +250,12 @@ pub fn apply_thicken_cmd(pc: &mut qymcad_ui_state::PartCtx) -> Option<Id> {
         .faces_body
         .or_else(|| qymcad_ui_state::op_target_body(&qymcad_ui_state::DrawCtx { cam: pc.cam, set: pc.set, scheme: pc.scheme, project: pc.project, active_path: pc.active_path }, *pc.sel))?;
     let Some(fid) = pc.gsel.faces.iter().copied().next() else {
-        *pc.status = qymcad_i18n::tr("msg-click-face-thicken");
+        *pc.status = Notice::info(qymcad_i18n::tr("msg-click-face-thicken"));
         return None;
     };
     let t = qymcad_ui_state::cmd_val(pc.cmd, "thickness");
     if t.abs() < 1e-9 {
-        *pc.status = qymcad_i18n::tr("msg-zero-thickness");
+        *pc.status = Notice::refusal(qymcad_i18n::tr("msg-zero-thickness"));
         return None;
     }
     let body = pc.project.add_thicken(src, fid, t);
@@ -277,7 +278,7 @@ pub fn apply_shell_cmd(pc: &mut qymcad_ui_state::PartCtx) -> Option<Id> {
         .or_else(|| qymcad_ui_state::current_body(&qymcad_ui_state::DrawCtx { cam: pc.cam, set: pc.set, scheme: pc.scheme, project: pc.project, active_path: pc.active_path }))?; // a part is one body; `qymcad_ui_state::current_body` falls back without entering it
     let faces: Vec<u32> = pc.gsel.faces.iter().copied().collect();
     if faces.is_empty() {
-        *pc.status = qymcad_i18n::tr("msg-click-face-open");
+        *pc.status = Notice::info(qymcad_i18n::tr("msg-click-face-open"));
         return None;
     }
     let body = pc.project.add_shell_mode(src, qymcad_ui_state::cmd_val(pc.cmd, "thickness"), faces, pc.opts.shell_side);
@@ -298,11 +299,11 @@ pub fn apply_draft_cmd(pc: &mut qymcad_ui_state::PartCtx) -> Option<Id> {
         .or_else(|| qymcad_ui_state::current_body(&qymcad_ui_state::DrawCtx { cam: pc.cam, set: pc.set, scheme: pc.scheme, project: pc.project, active_path: pc.active_path }))?; // a part is one body; `qymcad_ui_state::current_body` falls back without entering it
     let faces: Vec<u32> = pc.gsel.faces.iter().copied().collect();
     if faces.is_empty() {
-        *pc.status = qymcad_i18n::tr("msg-click-face-draft");
+        *pc.status = Notice::info(qymcad_i18n::tr("msg-click-face-draft"));
         return None;
     }
     if pc.draft.neutral == 0 {
-        *pc.status = qymcad_i18n::tr("msg-pick-neutral");
+        *pc.status = Notice::info(qymcad_i18n::tr("msg-pick-neutral"));
         return None;
     }
     let body = pc.project.add_draft(src, faces, pc.draft.neutral, qymcad_ui_state::cmd_val(pc.cmd, "angle"), pc.draft.flip);
@@ -328,11 +329,11 @@ pub fn apply_sketch_cmd(pc: &mut qymcad_ui_state::PartCtx, cmd: u8) -> Option<Id
         // nothing picked: the one contour of the sketch is the profile; of several, none is chosen for the person -
         // Enter with nothing taken extruded them all at once, two squares apart into a part of two pieces
         if closed.is_empty() {
-            *pc.status = qymcad_i18n::tr("msg-no-closed-contour");
+            *pc.status = Notice::refusal(qymcad_i18n::tr("msg-no-closed-contour"));
             return None;
         }
         if closed.len() > 1 {
-            *pc.status = qymcad_i18n::tr("msg-pick-a-contour");
+            *pc.status = Notice::info(qymcad_i18n::tr("msg-pick-a-contour"));
             return None;
         }
         targets = closed.clone();
@@ -354,7 +355,7 @@ pub fn apply_sketch_cmd(pc: &mut qymcad_ui_state::PartCtx, cmd: u8) -> Option<Id
     let need_target = (cmd == 1 || cmd == 3) && matches!(pc.feat.op, 2 | 3);
     let target = if need_target { owner_body.unwrap_or(0) } else { 0 };
     if need_target && target == 0 {
-        *pc.status = format!("{} {}", ph::WARNING, qymcad_i18n::tr("cmd-cut-needs-body"));
+        *pc.status = Notice::refusal(qymcad_i18n::tr("cmd-cut-needs-body"));
         return None;
     }
     let reach = qymcad_ui_state::cmd_reach(pc.cmd, *pc.feat);
@@ -402,7 +403,7 @@ pub fn apply_sketch_cmd(pc: &mut qymcad_ui_state::PartCtx, cmd: u8) -> Option<Id
         if last != 0 {
             store_cmd_exprs(pc.cmd, pc.project, last); // the dimensions (the height) go onto the node of the operation
         } else {
-            qymcad_ui_state::cmd_fail(pc.cmd_failed, pc.status, format!("{} {}", ph::WARNING, qymcad_i18n::tr("cmd-op-failed")));
+            qymcad_ui_state::cmd_fail(pc.cmd_failed, pc.status, qymcad_i18n::tr("cmd-op-failed"));
         }
     } else {
         // A REVOLVE puts ALL the contours and the boolean into ONE node, exactly as an extrude does.
@@ -448,7 +449,7 @@ pub fn apply_push_face_cmd(pc: &mut qymcad_ui_state::PartCtx) -> Option<Id> {
         .or_else(|| qymcad_ui_state::op_target_body(&qymcad_ui_state::DrawCtx { cam: pc.cam, set: pc.set, scheme: pc.scheme, project: pc.project, active_path: pc.active_path }, *pc.sel))?;
     let fid = pc.gsel.faces.iter().copied().next();
     let Some(fid) = fid else {
-        *pc.status = qymcad_i18n::tr("msg-click-face-push");
+        *pc.status = Notice::info(qymcad_i18n::tr("msg-click-face-push"));
         return None;
     };
     // the face key is taken from the built body: the offset is later resolved BY NAME, not by index
@@ -461,12 +462,12 @@ pub fn apply_push_face_cmd(pc: &mut qymcad_ui_state::PartCtx) -> Option<Id> {
     // AND IF THE FACE WAS NOT FOUND AFTER ALL, SAY SO. A silent return from here was exactly that
     // "pressed it, and nothing": silence is indistinguishable from a broken program.
     let Some(key) = key else {
-        *pc.status = qymcad_i18n::tr("msg-faces-not-found");
+        *pc.status = Notice::refusal(qymcad_i18n::tr("msg-faces-not-found"));
         return None;
     };
     let dist = qymcad_ui_state::cmd_val(pc.cmd, "dist");
     if dist.abs() < 1e-9 {
-        *pc.status = qymcad_i18n::tr("msg-zero-offset");
+        *pc.status = Notice::refusal(qymcad_i18n::tr("msg-zero-offset"));
         return None;
     }
     let body = pc.project.add_push_face(src, key, dist);
@@ -482,7 +483,7 @@ pub fn apply_boolean(pc: &mut qymcad_ui_state::PartCtx) {
     // a body taken and then taken away by Ctrl+Z is not combined: the node would only stand red
     if [a, b].iter().any(|&x| pc.project.mesh_index(x).is_none()) {
         (pc.boolean.pick, pc.boolean.b) = (None, None);
-        *pc.status = qymcad_i18n::tr1("cmd-picks-gone", "ask", &qymcad_i18n::tr("tb-bool-bodies-hint"));
+        *pc.status = Notice::refusal(qymcad_i18n::tr1("cmd-picks-gone", "ask", &qymcad_i18n::tr("tb-bool-bodies-hint")));
         return;
     }
     qymcad_ui_state::begin_edit(&mut *pc.edits, &*pc.project, qymcad_i18n::tr("f-operation"));
@@ -491,7 +492,7 @@ pub fn apply_boolean(pc: &mut qymcad_ui_state::PartCtx) {
     qymcad_ui_state::mark_dirty_for_rebuild(&mut pc.rebuild()); // the document is marked; the scheduler does the computing
     let (project, sel, view) = (&mut *pc.project, &mut *pc.sel, &mut *pc.view);
     qymcad_ui_state::select_body(project, sel, view, res);
-    *pc.status = qymcad_i18n::tr("vp-bool-created");
+    *pc.status = Notice::info(qymcad_i18n::tr("vp-bool-created"));
     qymcad_ui_state::commit_edit(&mut pc.rebuild());
 }
 

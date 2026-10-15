@@ -132,7 +132,7 @@ mod tests {
         let t = &app.project.sketches[si].texts[0];
         assert_eq!(t.height, height_before, "the height was applied while the font was not there to bake with");
         assert_eq!(t.glyphs.len(), before.len(), "the drawing was re-baked without its own font");
-        assert!(!app.status.trim().is_empty(), "the edit was refused and nothing was said about it");
+        assert!(!app.status.words.trim().is_empty(), "the edit was refused and nothing was said about it");
     }
 
     /// THE LIST OF FONTS IS A LIST: it opens, it narrows to what is typed, and a click on a row takes that
@@ -293,7 +293,11 @@ mod tests {
 
         assert!(app.project.sketches[si].texts.is_empty(), "a label with nothing in it was placed all the same");
         let said = app.status.clone();
-        assert_eq!(said, qymcad_i18n::tr1("sk-text-no-letters", "name", "Liberation Sans"), "the program blamed the string instead of naming the font that cannot write it: {said:?}");
+        assert_eq!(
+            said,
+            qymcad_ui_state::Notice::refusal(qymcad_i18n::tr1("sk-text-no-letters", "name", "Liberation Sans")),
+            "the program blamed the string instead of naming the font that cannot write it: {said:?}"
+        );
     }
 
     /// A NOTE ASKS ITS LETTERS OF THE FONT IT IS DRAWN IN: the interface's. A letter no font of the window has (a
@@ -310,7 +314,7 @@ mod tests {
         hand.sk_text("A\u{17000}", 20.0).frame(Vec::new());
         drop(hand);
         assert_eq!(app.tool_prefs.text, "A", "the note kept a letter no font of the window can draw");
-        assert_eq!(app.status, qymcad_i18n::tr("sk-note-no-letters"), "nothing says why the letter went");
+        assert_eq!(app.status, qymcad_ui_state::Notice::refusal(qymcad_i18n::tr("sk-note-no-letters")), "nothing says why the letter went");
     }
 
     /// THE FONT OF A LABEL IS CHANGED WHERE THE LABEL IS EDITED, and the label changes at once.

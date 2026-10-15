@@ -1,5 +1,6 @@
 //! An import asked about again from its node, and a raw mesh moved by its node.
 
+use qymcad_ui_state::Notice;
 use super::*;
 
 /// CTRL+Z WHILE AN IMPORT ASKS ABOUT ITS SCALE TAKES THAT IMPORT BACK, as Cancel does: the window goes, the mesh
@@ -109,7 +110,7 @@ fn esc_leaves_an_import_asked_about_again_as_it_was() {
     assert!((side_of(&app, body) - 10.0).abs() < 1e-6, "Esc left the cube {} across", side_of(&app, body));
     assert_eq!(app.disk.edits.undo.len(), steps, "Esc left a step of undo behind");
     assert_eq!(app.project.import_scale(body), Some(1.0), "Esc left the node's factor changed");
-    assert_eq!(app.status, crate::i18n::tr("import-scale-kept"), "Esc does not say the scale is left as it was");
+    assert_eq!(app.status, Notice::info(crate::i18n::tr("import-scale-kept")), "Esc does not say the scale is left as it was");
     assert!(app.project.timeline.iter().all(|n| !n.dirty) && app.regen.busy.is_none(), "Esc started a rebuild of the mesh piece");
     assert_eq!(qymcad_ui_state::current_ctx_id(&app.active_path, &app.project), inside, "Esc on the window also stepped out of the part");
 }

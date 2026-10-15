@@ -1,5 +1,6 @@
 //! THE FONTS: found, picked, drawn.
 
+use crate::Notice;
 use super::*;
 
 /// The bytes of the default system font (used for text); cached.
@@ -151,7 +152,7 @@ pub fn text_popups(mut ed: Editing, font_cache: &mut FontCache, tc: &mut TextCtx
         let kept: String = tc.text.chars().filter(|c| c.is_whitespace() || ctx.fonts_mut(|f| f.has_glyph(&font, *c))).collect();
         if kept != *tc.text {
             *tc.text = kept;
-            *ed.status = qymcad_i18n::tr("sk-note-no-letters");
+            *ed.status = Notice::refusal(qymcad_i18n::tr("sk-note-no-letters"));
         }
     } else if tc.armed.draw_kind() == 11 {
         let stale = tc.tool.text_ghost.as_ref().is_none_or(|(t, h, f, _)| t != &*tc.text || *h != tc.tool_text_height || f != &*tc.font);
@@ -167,7 +168,7 @@ pub fn text_popups(mut ed: Editing, font_cache: &mut FontCache, tc: &mut TextCtx
                 tc.tool.text_refused = kept != *tc.text || (tc.tool.text_refused && tc.text.trim().is_empty());
                 if kept != *tc.text {
                     *tc.text = kept;
-                    *ed.status = qymcad_i18n::tr1("sk-text-no-letters", "name", &font_label(&font, "opt-font"));
+                    *ed.status = Notice::refusal(qymcad_i18n::tr1("sk-text-no-letters", "name", &font_label(&font, "opt-font")));
                 }
                 // what the font does write, the field shows in it: the tool's font stands behind the interface's
                 // own, so a script the interface has no letters for is drawn rather than boxed (egui adds a font of
@@ -187,7 +188,7 @@ pub fn text_popups(mut ed: Editing, font_cache: &mut FontCache, tc: &mut TextCtx
     text_obj_editor(ed.reborrow(), font_cache, tc, ctx, rect);
     let mut want_file = false;
     if let Some(f) = font_picker_window(font_cache, ctx, &mut want_file) {
-        *ed.status = qymcad_i18n::tr1("pk-font-is", "name", &f.family);
+        *ed.status = Notice::info(qymcad_i18n::tr1("pk-font-is", "name", &f.family));
         if font_cache.picker.for_label {
             // THE LABEL BEING EDITED CHANGES ITS FONT, at once and visibly: the glyphs are re-baked in the
             // face just chosen, with the string and the height as they stand in the popup.
@@ -395,14 +396,14 @@ pub fn font_label(font: &qymcad_core::model::FontRef, when_unknown: &str) -> Str
 ///
 /// The name comes out of the FILE, not out of the file name: the label keeps the family it was written in,
 /// and that is what has to be shown in the bar and looked for later on another machine.
-pub fn choose_font(cache: &mut FontCache, tool_font: &mut qymcad_core::model::FontRef, path: &str) -> String {
+pub fn choose_font(cache: &mut FontCache, tool_font: &mut qymcad_core::model::FontRef, path: &str) -> crate::Notice {
     match cache.read(path, 0) {
         Some(f) => {
-            let said = qymcad_i18n::tr1("pk-font-is", "name", &f.family);
+            let said = crate::Notice::info(qymcad_i18n::tr1("pk-font-is", "name", &f.family));
             *tool_font = f;
             said
         }
-        None => qymcad_i18n::tr1("pk-font-error", "error", path),
+        None => crate::Notice::error(qymcad_i18n::tr1("pk-font-error", "error", path)),
     }
 }
 

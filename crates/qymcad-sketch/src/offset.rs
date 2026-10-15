@@ -1,5 +1,6 @@
 //! THE OFFSET of curves in a sketch: its side, its box, its curves.
 
+use qymcad_ui_state::Notice;
 use super::*;
 
 /// THE SIDE OF AN OFFSET FIXED BY A CLICK: with curves chosen, a click that names no curve fixes the side of the copy
@@ -9,7 +10,7 @@ pub(crate) fn offset_side_click(sk: &mut qymcad_ui_state::SketchCtx, hit: Option
         return false;
     }
     sk.sel_sk.offset = qymcad_ui_state::OffsetAim { at: Some(at), buf: qymcad_core::expr::fmt_num(sk.tool_prefs.offset), focus: true };
-    *sk.status = qymcad_i18n::tr("sk-offset-type");
+    *sk.status = Notice::info(qymcad_i18n::tr("sk-offset-type"));
     true
 }
 
@@ -19,7 +20,7 @@ pub struct OffsetCtx<'a> {
     pub edits: &'a mut qymcad_ui_state::Edits,
     pub regen: &'a mut qymcad_ui_state::Rebuilding,
     pub sel_sk: &'a mut qymcad_ui_state::SketchSelection,
-    pub status: &'a mut String,
+    pub status: &'a mut qymcad_ui_state::Notice,
     pub tool_prefs: &'a mut qymcad_ui_state::SketchToolPrefs,
 }
 
@@ -43,9 +44,9 @@ pub(crate) fn offset_make(oc: OffsetCtx, si: usize, dist: f64, toward: Option<Po
         oc.sel_sk.items.clear();
         oc.sel_sk.at_middle.clear();
         oc.sel_sk.offset = qymcad_ui_state::OffsetAim::default();
-        *oc.status = qymcad_i18n::tr("sk-offset-made");
+        *oc.status = Notice::info(qymcad_i18n::tr("sk-offset-made"));
     } else {
-        *oc.status = qymcad_i18n::tr("sk-offset-takes");
+        *oc.status = Notice::refusal(qymcad_i18n::tr("sk-offset-takes"));
     }
 }
 
@@ -61,7 +62,7 @@ pub(crate) fn offset_on_enter(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::C
         return;
     }
     if qymcad_ui_state::bar_field_bad("sk_offset") {
-        *sk.status = qymcad_i18n::tr("sk-offset-field-bad");
+        *sk.status = Notice::refusal(qymcad_i18n::tr("sk-offset-field-bad"));
         return;
     }
     let pointer = ctx.input(|i| i.pointer.hover_pos()).filter(|p| rect.contains(*p)).map(|p| qymcad_ui_state::to_world(&*sk.view, rect, p));
@@ -119,13 +120,13 @@ pub fn offset_box(oc: OffsetCtx, view: &qymcad_ui_state::View2d, si: usize, ctx:
     let refused = why(&*oc.project, &buf);
     oc.sel_sk.offset.buf = buf;
     if apply && refused.is_some() {
-        *oc.status = format!("{} {}", ph::WARNING, refused.unwrap_or_default());
+        *oc.status = Notice::refusal(refused.unwrap_or_default());
     } else if apply {
         let d = oc.tool_prefs.offset;
         offset_make(oc, si, d, Some(at));
     } else if cancel || ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
         oc.sel_sk.offset = qymcad_ui_state::OffsetAim::default();
-        *oc.status = qymcad_i18n::tr("sk-offset-side");
+        *oc.status = Notice::info(qymcad_i18n::tr("sk-offset-side"));
     }
 }
 

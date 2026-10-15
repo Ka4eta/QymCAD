@@ -82,7 +82,7 @@ pub(super) mod tests {
         hand.key(egui::Key::Enter); // the command applies
         assert!(hand.app.project.comp_pattern_of(comp).is_none(), "a grid past the limit was made; the status line: {}", hand.app.status);
         let limit = qymcad_core::feature::MAX_PATTERN_INSTANCES.to_string();
-        assert!(hand.app.status.contains("10100") && hand.app.status.contains(&limit), "the refusal does not name the grid and the limit: {}", hand.app.status);
+        assert!(hand.app.status.words.contains("10100") && hand.app.status.words.contains(&limit), "the refusal does not name the grid and the limit: {}", hand.app.status);
     }
 
     /// With no part selected the command does not start and says why.
@@ -93,7 +93,7 @@ pub(super) mod tests {
         app.chosen.sel = Sel::None;
         app.start_comp_array(1);
         assert_eq!(app.side.carr.mode, 0, "the command must not open without a source");
-        assert_eq!(app.status, crate::i18n::tr("msg-pick-part-first"), "the reason must be said out loud");
+        assert_eq!(app.status, qymcad_ui_state::Notice::info(crate::i18n::tr("msg-pick-part-first")), "the reason must be said out loud");
     }
 
     /// Esc cancels without a trace.

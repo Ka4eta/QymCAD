@@ -1,5 +1,6 @@
 //! THE JOINTS OF AN ASSEMBLY: their gizmos, their animation, their editing, the tools of an assembly.
 
+use crate::Notice;
 use super::*;
 
 /// The DOF gizmo handles of a joint in the frame of the context: (the origin, [(slot, whether it is a
@@ -305,7 +306,7 @@ pub fn start_joint_anim(joint_anim: &mut Option<JointAnim>, project: &mut Projec
 
 /// Change the KIND of an existing joint on the fly, KEEPING its anchors (without recreating the
 /// joint). Returns true when the kind changed (the caller then regenerates).
-pub fn change_joint_kind(project: &mut Project, status: &mut String, jid: Id, newk: qymcad_core::feature::JointKind) -> bool {
+pub fn change_joint_kind(project: &mut Project, status: &mut Notice, jid: Id, newk: qymcad_core::feature::JointKind) -> bool {
     // CHANGING THE KIND IS THE CORE'S BUSINESS: the mating side follows it (an anchor's frame is built
     // FOR A KIND), and so does the declared "as it stands". The interface here only wrote the `kind`
     // field, and after a change of kind the joint kept the side chosen for the previous kind's frame.
@@ -316,15 +317,15 @@ pub fn change_joint_kind(project: &mut Project, status: &mut String, jid: Id, ne
     // message saying the anchor kinds did not suit, but it always answered "they do": the rule existed
     // only in the message. It is not needed either — an anchor is a full coordinate system, and the
     // kind of joint only says which degrees of freedom stay free.
-    *status = qymcad_i18n::tr1("g-joint-kind-set", "kind", &qymcad_i18n::tr(newk.label()));
+    *status = Notice::info(qymcad_i18n::tr1("g-joint-kind-set", "kind", &qymcad_i18n::tr(newk.label())));
     true
 }
 
 /// Leave the joint editing mode (Esc or Done).
-pub fn exit_joint_edit(joint: &mut JointCommand, status: &mut String) {
+pub fn exit_joint_edit(joint: &mut JointCommand, status: &mut Notice) {
     joint.edit = None;
     joint.edit_repick = None;
-    *status = qymcad_i18n::tr("g-joint-edit-done");
+    *status = Notice::info(qymcad_i18n::tr("g-joint-edit-done"));
 }
 
 /// The name of the PART that owns body `body` (for the anchor's label in the editing popup).
@@ -370,7 +371,7 @@ pub struct JointCtx<'a> {
     pub joint_anim: &'a mut Option<JointAnim>,
     pub comp_giz: &'a CompGizmo,
     pub project: &'a mut qymcad_core::model::Project,
-    pub status: &'a mut String,
+    pub status: &'a mut Notice,
     pub edits: &'a mut Edits,
     pub sel_conn: &'a mut Option<Id>,
     pub live: &'a mut LiveGeom,

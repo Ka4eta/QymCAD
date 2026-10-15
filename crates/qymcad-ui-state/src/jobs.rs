@@ -195,7 +195,7 @@ pub enum JobResult {
     /// worker too - it is heavy on large meshes).
     MeshImported { path: String, format: MeshFormat, pieces: Vec<MeshPiece> },
     /// An export finished: the status plus the shapes moved into the worker (to be returned to the self.live.shapes cache).
-    Exported { status: String, shapes_back: Vec<(Id, qymcad_kernel::Shape)> },
+    Exported { status: crate::Notice, shapes_back: Vec<(Id, qymcad_kernel::Shape)> },
     /// A project was loaded (in a thread): the parsed timeline plus the faces. The bodies' geometry comes from the
     /// bundle rather than being rebuilt, so the window shows the model at once.
     ProjectLoaded { path: String, project: Box<Project>, shapes: Vec<(Id, qymcad_kernel::Shape)> },

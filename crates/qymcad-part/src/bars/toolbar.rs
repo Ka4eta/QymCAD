@@ -1,5 +1,6 @@
 //! The tool bar and the button panel of the Part workbench, and the modes of fillet and chamfer.
 
+use qymcad_ui_state::Notice;
 use super::*;
 
 /// The shared Create buttons: THE DATUMS — they exist both in a Part and in an Assembly. A sketch is
@@ -190,7 +191,7 @@ pub fn wb_toolbar(bc: &mut qymcad_ui_state::BarCtx, ui: &mut egui::Ui) {
                     }
                     if qymcad_ui_state::icon_tool(ui, qymcad_ui_state::IconId::SketchProject, &qymcad_i18n::tr("tb-project-body-hint"), bc.armed.click_op() == 6) {
                         qymcad_ui_state::set_click_op(&mut qymcad_ui_state::tools_in!(bc), &mut *bc.mode_3d, 6);
-                        *bc.status = qymcad_i18n::tr("tb-project-hint");
+                        *bc.status = Notice::info(qymcad_i18n::tr("tb-project-hint"));
                     }
                     if qymcad_ui_state::icon_tool(ui, qymcad_ui_state::IconId::SketchFillet, &qymcad_i18n::tr("tb-fillet-sketch-hint"), bc.armed.click_op() == 4) {
                         qymcad_ui_state::start_corner_tool(bc, 4);
@@ -246,9 +247,9 @@ pub fn wb_toolbar(bc: &mut qymcad_ui_state::BarCtx, ui: &mut egui::Ui) {
                         qymcad_ui_state::set_measure(&mut qymcad_ui_state::tools_in!(bc), on);
                         if on {
                             *bc.mode_3d = false;
-                            *bc.status = qymcad_i18n::tr("in-measure-hint");
+                            *bc.status = Notice::info(qymcad_i18n::tr("in-measure-hint"));
                         } else {
-                            *bc.status = qymcad_i18n::tr("in-measure-off");
+                            *bc.status = Notice::info(qymcad_i18n::tr("in-measure-off"));
                         }
                     }
                     // --- Constraints ---

@@ -1,5 +1,6 @@
 //! THE CORNER TOOLS OF A SKETCH: rounding and chamfering a corner, modifying, mirroring.
 
+use crate::Notice;
 use super::*;
 
 /// Apply an edit operation to the selection. Returns true when it was applied.
@@ -60,7 +61,7 @@ pub(crate) fn try_modify_in(ed: Editing, sel_sk: &mut SketchSelection, sk_pat: S
         }
         // the distance field refusing its value refuses the offset too: the last good distance is not what was typed
         EditTool::Offset if bar_field_bad("sk_offset") => {
-            *ed.status = qymcad_i18n::tr("sk-offset-field-bad");
+            *ed.status = Notice::refusal(qymcad_i18n::tr("sk-offset-field-bad"));
             false
         }
         EditTool::Offset => ed.project.offset_entities(si, &eids, tool_prefs.offset) > 0,
@@ -83,7 +84,7 @@ pub struct CornerCtx<'a> {
     /// The sheet the corner stands on: where the field was opened says which side of the point the corner is.
     pub view: &'a View2d,
     pub regen: &'a mut Rebuilding,
-    pub status: &'a mut String,
+    pub status: &'a mut Notice,
     pub tool_prefs: &'a mut SketchToolPrefs,
     /// THE SCHEME IN HAND, and where every colour of the preview is read from. See `PopupLooks` for why a colour
     /// is not kept in the state of the tool.
@@ -184,11 +185,11 @@ pub fn modify_button(mut ed: Editing, t: &mut Tools, sk_pat: SketchPattern, tool
             // it has to stay highlighted so one can see it is still chosen."
             sel_sk.mirror_of = eids;
             sel_sk.modify = Some(op); // the tool in hand on its second step too, so a click or a box is read as its own
-            *ed.status = qymcad_i18n::tr("sk-mirror-pick-axis");
+            *ed.status = Notice::info(qymcad_i18n::tr("sk-mirror-pick-axis"));
         } else {
             sel_sk.clear();
             sel_sk.modify = Some(op);
-            *ed.status = qymcad_i18n::tr("sk-mirror-pick-what");
+            *ed.status = Notice::info(qymcad_i18n::tr("sk-mirror-pick-what"));
         }
         return;
     }
@@ -200,11 +201,11 @@ pub fn modify_button(mut ed: Editing, t: &mut Tools, sk_pat: SketchPattern, tool
         sel_sk.offset = OffsetAim::default(); // a side fixed for the copy before is not this copy's side
         let curves = sel_sk.items.iter().any(|(k, _)| *k == 1);
         // points chosen and no curve: said what the tool takes, not "pick the entities" as though nothing were chosen
-        *ed.status = qymcad_i18n::tr(match (curves, sel_sk.items.is_empty()) {
-            (true, _) => "sk-offset-side",
-            (false, false) => "sk-offset-takes",
-            (false, true) => "g-pick-for-op",
-        });
+        *ed.status = match (curves, sel_sk.items.is_empty()) {
+            (true, _) => Notice::info(qymcad_i18n::tr("sk-offset-side")),
+            (false, false) => Notice::refusal(qymcad_i18n::tr("sk-offset-takes")),
+            (false, true) => Notice::info(qymcad_i18n::tr("g-pick-for-op")),
+        };
         return;
     }
     let chosen = !sel_sk.items.is_empty();
@@ -215,7 +216,7 @@ pub fn modify_button(mut ed: Editing, t: &mut Tools, sk_pat: SketchPattern, tool
         sel_sk.modify = Some(op);
         // SOMETHING WAS CHOSEN AND NOTHING OF IT COULD BE OFFSET (points, construction): said so, and what the tool
         // takes. "Pick the entities" read as though nothing had been chosen, and the tool looked broken.
-        *ed.status = qymcad_i18n::tr(if chosen && op == EditTool::Offset { "sk-offset-takes" } else { "g-pick-for-op" });
+        *ed.status = if chosen && op == EditTool::Offset { Notice::refusal(qymcad_i18n::tr("sk-offset-takes")) } else { Notice::info(qymcad_i18n::tr("g-pick-for-op")) };
     }
 }
 
@@ -276,14 +277,14 @@ pub(crate) fn mirror_about_in(ed: Editing, sel_sk: &mut SketchSelection, about: 
     // the bar went on saying Mirror, and the next click chose as the arrow does.
     sel_sk.clear();
     sel_sk.modify = Some(EditTool::Mirror);
-    *ed.status = qymcad_i18n::tr("sk-mirror-done");
+    *ed.status = Notice::info(qymcad_i18n::tr("sk-mirror-done"));
 }
 
 /// THE MIRROR TAKES WHAT IS CHOSEN as what it reflects: the curves of the selection, which stays lit on screen. The
 /// first click with the tool in hand and nothing held, a Shift + click and a box all choose through here.
-pub fn mirror_takes_the_choice(sel_sk: &mut SketchSelection, status: &mut String) {
+pub fn mirror_takes_the_choice(sel_sk: &mut SketchSelection, status: &mut Notice) {
     sel_sk.mirror_of = sel_sk.items.iter().filter(|(k, _)| *k == 1).map(|(_, id)| *id).collect();
-    *status = qymcad_i18n::tr(if sel_sk.mirror_of.is_empty() { "sk-mirror-pick-what" } else { "sk-mirror-pick-axis" });
+    *status = Notice::info(qymcad_i18n::tr(if sel_sk.mirror_of.is_empty() { "sk-mirror-pick-what" } else { "sk-mirror-pick-axis" }));
 }
 
 /// ESC FROM AN EDITING BUTTON THAT WORKS ON A CLICK, whatever it is: the tool goes down, and what it was working on
@@ -297,7 +298,7 @@ pub fn mirror_takes_the_choice(sel_sk: &mut SketchSelection, status: &mut String
 /// The other editing buttons act on one click and keep nothing of their own, so for them Esc takes the button alone.
 ///
 /// `None` means no editing button is in hand and the ladder should carry on to its next rung.
-pub fn leave_editing_tool(t: &mut Tools, status: &mut String) -> Option<()> {
+pub fn leave_editing_tool(t: &mut Tools, status: &mut Notice) -> Option<()> {
     let corner = match t.armed.click_op() {
         0 => return None,
         4 | 5 => true,
@@ -305,14 +306,14 @@ pub fn leave_editing_tool(t: &mut Tools, status: &mut String) -> Option<()> {
     };
     // EXTEND HOLDING A LINE lets it go first and stays in hand, as a drawing tool drops its points before itself
     if t.armed.click_op() == 2 && t.tool.extend.take().is_some() {
-        *status = qymcad_i18n::tr("opt-extend-hint");
+        *status = Notice::info(qymcad_i18n::tr("opt-extend-hint"));
         return Some(());
     }
     *t.armed = Armed::None;
     if corner {
         t.corner.put_down();
         t.sel_sk.clear();
-        *status = qymcad_i18n::tr("in-selection-cleared");
+        *status = Notice::info(qymcad_i18n::tr("in-selection-cleared"));
     }
     Some(())
 }
@@ -321,7 +322,7 @@ impl Tools<'_> {
     /// ESC FROM AN EDITING BUTTON THAT WORKS ON A CLICK, said as a question: was one in hand, and has it been put
     /// down with what it was working on. `leave_editing_tool` says what each of them takes with it; this is the same
     /// answer in the shape the ladder of cancellations reads.
-    pub fn leave_click_tool(&mut self, status: &mut String) -> bool {
+    pub fn leave_click_tool(&mut self, status: &mut Notice) -> bool {
         leave_editing_tool(self, status).is_some()
     }
 }
@@ -334,10 +335,10 @@ impl Tools<'_> {
 /// Otherwise the tool goes AND THE EDIT MODE WITH IT. Only the expected pick was extinguished while the mode stayed:
 /// the tool bar went on saying "Mirror" and the button in the panel stayed pressed - switched off yet looking switched
 /// on, and a click did nothing.
-pub fn escape_waiting_tool(t: &mut Tools, status: &mut String) {
+pub fn escape_waiting_tool(t: &mut Tools, status: &mut Notice) {
     if t.sel_sk.modify == Some(EditTool::Offset) && t.sel_sk.offset.at.is_some() {
         t.sel_sk.offset = OffsetAim::default();
-        *status = qymcad_i18n::tr("sk-offset-side");
+        *status = Notice::info(qymcad_i18n::tr("sk-offset-side"));
         return;
     }
     t.sel_sk.constraint = None;
@@ -921,7 +922,7 @@ pub fn start_corner_tool(bc: &mut BarCtx, op: u8) {
     if bc.armed.click_op() != op {
         return; // pressed again: the tool goes back down, and what was chosen stays chosen
     }
-    *bc.status = qymcad_i18n::tr(if op == 5 { "tb-chamfer-sketch-hint" } else { "tb-fillet-sketch-hint" });
+    *bc.status = Notice::info(qymcad_i18n::tr(if op == 5 { "tb-chamfer-sketch-hint" } else { "tb-fillet-sketch-hint" }));
     bc.corner.track_px = corner_reach(&*bc.set);
     let si = match *bc.sel {
         Sel::Sketch(si) => si,
@@ -962,7 +963,7 @@ pub fn set_click_op(t: &mut Tools, mode_3d: &mut bool, op: u8) {
 }
 
 /// Turn the dimension tool on or off (k: 1 = linear, 2 = angular, 3 = radius).
-pub fn set_dim_tool(t: &mut Tools, mode_3d: &mut bool, project: &Project, sel: Sel, sketch_ses: SketchSession, status: &mut String, k: u8) {
+pub fn set_dim_tool(t: &mut Tools, mode_3d: &mut bool, project: &Project, sel: Sel, sketch_ses: SketchSession, status: &mut Notice, k: u8) {
     let cur = t.armed.dim_kind();
     exit_draw_tools(&mut t.reborrow()); // entering a tool means leaving all the others, in one move
     let Tools { armed, annot: _, cmd: _, corner: _, dim: _, drag: _, gsel: _, inline: _, measure: _, pat: _, pending_import: _, picking: _, place: _, sel_sk: _, tool: _ } = t;
@@ -970,9 +971,9 @@ pub fn set_dim_tool(t: &mut Tools, mode_3d: &mut bool, project: &Project, sel: S
     if armed.dim_kind() != 0 {
         *mode_3d = false;
         if edit_si(project, &sketch_ses).is_none() && !matches!(sel, Sel::Sketch(_)) {
-            *status = qymcad_i18n::tr("g-open-sketch-dim");
+            *status = Notice::info(qymcad_i18n::tr("g-open-sketch-dim"));
         } else {
-            *status = qymcad_i18n::tr("g-dim-hint");
+            *status = Notice::info(qymcad_i18n::tr("g-dim-hint"));
         }
     }
 }

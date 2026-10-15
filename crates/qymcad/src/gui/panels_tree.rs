@@ -3,6 +3,7 @@
 //! Split out of `panels.rs`, which had grown to 6 129 lines holding four unrelated subjects, where finding
 //! the row of a feature meant scrolling past the settings window.
 
+use qymcad_ui_state::Notice;
 use super::*;
 
 impl App {
@@ -106,7 +107,7 @@ impl App {
             return;
         }
         let Some(clip) = self.side.clip.tree else {
-            self.status = crate::i18n::tr("tree-clipboard-empty");
+            self.status = Notice::refusal(crate::i18n::tr("tree-clipboard-empty"));
             return;
         };
         if let TreeClip::Feature { nid } = clip {
@@ -140,14 +141,14 @@ impl App {
                 if cut {
                     if self.project.move_sketch_node(sid, target) {
                         self.side.clip.tree = None;
-                        self.status = crate::i18n::tr("status-sketch-moved");
+                        self.status = Notice::info(crate::i18n::tr("status-sketch-moved"));
                     } else {
-                        self.status = crate::i18n::tr("status-sketch-move-failed");
+                        self.status = Notice::error(crate::i18n::tr("status-sketch-move-failed"));
                     }
                 } else if self.project.clone_sketch_node(sid, target).is_some() {
-                    self.status = crate::i18n::tr("status-sketch-copied");
+                    self.status = Notice::info(crate::i18n::tr("status-sketch-copied"));
                 } else {
-                    self.status = crate::i18n::tr("status-sketch-copy-failed");
+                    self.status = Notice::error(crate::i18n::tr("status-sketch-copy-failed"));
                 }
                 qymcad_ui_state::invalidate(&mut self.regen);
             }
@@ -156,11 +157,11 @@ impl App {
                 if cut {
                     if self.project.reparent_component(id, target) {
                         self.side.clip.tree = None;
-                        self.status = crate::i18n::tr("status-component-moved");
+                        self.status = Notice::info(crate::i18n::tr("status-component-moved"));
                     } else if into_part {
-                        self.status = crate::i18n::tr("status-paste-needs-assembly");
+                        self.status = Notice::refusal(crate::i18n::tr("status-paste-needs-assembly"));
                     } else {
-                        self.status = crate::i18n::tr("status-move-impossible");
+                        self.status = Notice::refusal(crate::i18n::tr("status-move-impossible"));
                     }
                     qymcad_ui_state::invalidate(&mut self.regen);
                 } else if let Some(cl) = self.project.clone_component(id, target) {
@@ -168,12 +169,12 @@ impl App {
                     if let Some(ci) = self.project.components.iter().position(|c| c.id == cl) {
                         self.chosen.sel = Sel::Component(ci);
                     }
-                    self.status = crate::i18n::tr("status-component-copied");
+                    self.status = Notice::info(crate::i18n::tr("status-component-copied"));
                 } else if into_part {
-                    self.status = crate::i18n::tr("status-paste-needs-assembly");
+                    self.status = Notice::refusal(crate::i18n::tr("status-paste-needs-assembly"));
                     qymcad_ui_state::invalidate(&mut self.regen);
                 } else {
-                    self.status = crate::i18n::tr("status-component-copy-failed");
+                    self.status = Notice::error(crate::i18n::tr("status-component-copy-failed"));
                     qymcad_ui_state::invalidate(&mut self.regen);
                 }
             }

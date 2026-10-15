@@ -1,12 +1,13 @@
 //! WHAT CHANGES THE BODIES OF A PART AT ONCE: a piece made a part, a feature or a body deleted, the resync after it.
 
+use qymcad_ui_state::Notice;
 use super::*;
 
 /// MAKE THE PIECE `body` A PART of its own, named `name`, as one step of undo: the tested core method, then the rebuild. The
 /// status names the new part, or says why nothing was made.
 pub fn piece_to_part(pc: &mut qymcad_ui_state::PartCtx, body: Id, name: String) {
     if name.trim().is_empty() {
-        *pc.status = qymcad_i18n::tr("piece-part-name-empty"); // a part is given a name; nothing is made without one
+        *pc.status = Notice::refusal(qymcad_i18n::tr("piece-part-name-empty")); // a part is given a name; nothing is made without one
         return;
     }
     qymcad_ui_state::begin_edit(&mut *pc.edits, &*pc.project, qymcad_i18n::tr("act-piece-to-part")); // THE OPERATION BOUNDARY
@@ -15,9 +16,9 @@ pub fn piece_to_part(pc: &mut qymcad_ui_state::PartCtx, body: Id, name: String) 
             let name = pc.project.components.iter().find(|c| c.id == part).map(|c| qymcad_i18n::name(&c.name)).unwrap_or_default();
             *pc.sel = qymcad_ui_state::Sel::None;
             resync_after_topology_change(pc);
-            *pc.status = qymcad_i18n::tr1("status-piece-to-part", "name", &name);
+            *pc.status = Notice::info(qymcad_i18n::tr1("status-piece-to-part", "name", &name));
         }
-        None => *pc.status = qymcad_i18n::tr("status-piece-to-part-none"),
+        None => *pc.status = Notice::refusal(qymcad_i18n::tr("status-piece-to-part-none")),
     }
     qymcad_ui_state::commit_edit(&mut pc.rebuild());
 }
@@ -77,7 +78,11 @@ pub fn delete_sketch_full(pc: &mut qymcad_ui_state::PartCtx, sid: Id, dependents
     }
     *pc.sel = qymcad_ui_state::Sel::None;
     resync_after_topology_change(pc);
-    *pc.status = if removed.is_empty() { qymcad_i18n::tr("sketch-deleted") } else { qymcad_i18n::tr1("sketch-deleted-n", "n", &removed.len().to_string()) };
+    *pc.status = if removed.is_empty() {
+        Notice::info(qymcad_i18n::tr("sketch-deleted"))
+    } else {
+        Notice::info(qymcad_i18n::tr1("sketch-deleted-n", "n", &removed.len().to_string()))
+    };
     qymcad_ui_state::commit_edit(&mut pc.rebuild());
 }
 
@@ -135,9 +140,9 @@ pub fn mirror_part_take(pc: &mut qymcad_ui_state::PartCtx, mesh: Option<usize>) 
     match comp {
         Some(c) => {
             (pc.mirror.part, pc.mirror.waiting) = (Some(c), false);
-            *pc.status = qymcad_i18n::tr("tb-mirror-pick-plane");
+            *pc.status = Notice::info(qymcad_i18n::tr("tb-mirror-pick-plane"));
         }
-        None => *pc.status = qymcad_i18n::tr("tb-mirror-pick-part"),
+        None => *pc.status = Notice::info(qymcad_i18n::tr("tb-mirror-pick-part")),
     }
 }
 
@@ -147,7 +152,7 @@ pub fn mirror_part_apply(
     edits: &mut qymcad_ui_state::Edits,
     regen: &mut qymcad_ui_state::Rebuilding,
     active_path: &[qymcad_core::model::Id],
-    status: &mut String,
+    status: &mut qymcad_ui_state::Notice,
 ) {
     let (Some(src), Some((o, n))) = (mirror.part, mirror.at) else { return };
     qymcad_ui_state::begin_edit(edits, project, qymcad_i18n::tr("mp-title"));
@@ -156,6 +161,6 @@ pub fn mirror_part_apply(
     let cnt = project.add_mirror_component(src, wo, wn).len();
     mirror.drop_part();
     regen.pending = true; // the scheduler builds the copy once the operation is closed
-    *status = qymcad_i18n::tr1("vp-mirror-created", "n", &cnt.to_string());
+    *status = Notice::info(qymcad_i18n::tr1("vp-mirror-created", "n", &cnt.to_string()));
     qymcad_ui_state::close_edit(edits, project);
 }

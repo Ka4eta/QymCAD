@@ -1,5 +1,6 @@
 //! PIECES OF THE PANELS: the properties of a point, a face, a mesh, an axis; the names of features; the tree of library parts.
 
+use qymcad_ui_state::Notice;
 use super::*;
 
 /// Toggle the parts library window; on the first opening it builds the catalogue tree.
@@ -440,14 +441,14 @@ pub(crate) fn mesh_props(deferred: &mut DeferredUi, project: &mut Project, regen
 /// Enter the joint EDITING mode (a double click on its glyph): the top parameter bar plus the popup of
 /// anchors A and B. The competing picking and creating modes are cleared and the joint is selected, so
 /// its degree-of-freedom gizmo is visible.
-pub(crate) fn enter_joint_edit(joint: &mut JointCommand, sel: &mut Sel, status: &mut String, jid: Id) {
+pub(crate) fn enter_joint_edit(joint: &mut JointCommand, sel: &mut Sel, status: &mut qymcad_ui_state::Notice, jid: Id) {
     joint.edit = Some(jid);
     joint.edit_repick = None;
     joint.pick_faces = false;
     joint.pick_first = None;
     joint.ground_pick = false;
     *sel = Sel::Joint(jid);
-    *status = crate::i18n::tr("g-joint-edit-hint");
+    *status = Notice::info(crate::i18n::tr("g-joint-edit-hint"));
 }
 
 /// WHAT THE STATUS LINE SAYS ON ENTERING A SKETCH: its name - or, for a sketch on a face of another part's body,

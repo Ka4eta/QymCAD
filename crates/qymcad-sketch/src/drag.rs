@@ -1,5 +1,6 @@
 //! DRAGGING IN A SKETCH: points, curves, the power trim, the references a drag reads.
 
+use qymcad_ui_state::Notice;
 use super::*;
 
 /// The index of the constraint whose glyph is nearest to a screen point (for deleting by click).
@@ -254,7 +255,7 @@ pub fn power_trim_sweep(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, prev: P
     if cut > 0 {
         sk.sel_sk.clear();
         qymcad_ui_state::invalidate(&mut *sk.regen);
-        *sk.status = qymcad_i18n::tr1("sk-trimmed-n", "n", &sk.trim.done.len().to_string());
+        *sk.status = Notice::info(qymcad_i18n::tr1("sk-trimmed-n", "n", &sk.trim.done.len().to_string()));
     }
     cut
 }
@@ -332,7 +333,7 @@ pub fn resolve_dim_ref(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, pos: Pos
             _ => None,
         });
         if let Some(c) = center {
-            *sk.status = qymcad_i18n::tr("g-dim-from-centre");
+            *sk.status = Notice::info(qymcad_i18n::tr("g-dim-from-centre"));
             return Some(qymcad_ui_state::DimRef::Point(c));
         }
     }
@@ -585,7 +586,8 @@ pub fn sketch_drag_update(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Conte
                 }
                 qymcad_ui_state::box_select(qymcad_ui_state::editing_in!(sk), &mut *sk.sel_sk, *sk.sketch_ses, rect, a, b);
                 if sk.sel_sk.modify == Some(qymcad_ui_state::EditTool::Offset) && sk.sel_sk.items.iter().any(|(k, _)| *k == 1) {
-                    *sk.status = qymcad_i18n::tr("sk-offset-side"); // what to do next, not how many were chosen
+                    *sk.status = Notice::info(qymcad_i18n::tr("sk-offset-side"));
+                    // what to do next, not how many were chosen
                 }
                 // the box chooses what the mirror reflects, in either of its steps, as its Shift + click does
                 if sk.sel_sk.modify == Some(qymcad_ui_state::EditTool::Mirror) {

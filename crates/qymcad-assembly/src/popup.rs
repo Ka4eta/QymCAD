@@ -1,5 +1,6 @@
 //! THE POPUP OF A JOINT at the geometry, and its values stepped.
 
+use qymcad_ui_state::Notice;
 use super::*;
 
 /// Where the window of mate `jid` was placed last, kept between frames.
@@ -143,17 +144,17 @@ pub fn joint_popup(jc: &mut qymcad_ui_state::JointCtx, ctx: &egui::Context, rect
             ui.horizontal(|ui| {
                 if ui.button(qymcad_i18n::tr(if as_built_now { "j-as-built-again" } else { "j-as-built" })).on_hover_text(qymcad_i18n::tr("j-as-built-hint")).clicked() {
                     if jc.project.set_joint_as_built(jid) {
-                        *jc.status = qymcad_i18n::tr("j-as-built-ok");
+                        *jc.status = Notice::info(qymcad_i18n::tr("j-as-built-ok"));
                         changed = true;
                     } else {
                         // NO SILENT REFUSAL: the anchor may have failed to resolve, and that must be
                         // learned here rather than from a part that does not move.
-                        *jc.status = qymcad_i18n::tr("j-as-built-failed");
+                        *jc.status = Notice::error(qymcad_i18n::tr("j-as-built-failed"));
                     }
                 }
                 if as_built_now && ui.button(qymcad_i18n::tr("j-as-built-off")).clicked() {
                     jc.project.clear_joint_as_built(jid);
-                    *jc.status = qymcad_i18n::tr("j-as-built-cleared");
+                    *jc.status = Notice::info(qymcad_i18n::tr("j-as-built-cleared"));
                     changed = true;
                 }
             });

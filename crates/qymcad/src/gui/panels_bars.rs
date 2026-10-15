@@ -297,7 +297,8 @@ pub(crate) fn status_bar(sc: &mut qymcad_ui_state::StatusCtx, ui: &mut egui::Ui)
     // costs one comparison of two numbers when there is nothing to do. It never waits for the network.
     crate::gui::update_ui::ask_if_due(set);
     ui.horizontal(|ui| {
-        ui.label(status);
+        // a warning yellow with its icon, an error red with its: the line is where a person looks after an action
+        qymcad_ui_state::say(ui, &scheme.pal, status, qymcad_ui_state::NoticeSize::Line);
         update_note(scheme, win, ui);
         if let Some(sid) = sketch_ses.editing {
             if let Some(si) = project.sketches.iter().position(|s| s.id == sid) {

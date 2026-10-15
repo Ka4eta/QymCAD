@@ -1,5 +1,6 @@
 //! THE SETTINGS WINDOW and the body of each of its sections.
 
+use qymcad_ui_state::Notice;
 use super::*;
 
 /// THE STEP THE INTERFACE SCALE SNAPS TO. Five hundredths: a scale of 1.37 is of no use to anybody, and
@@ -72,7 +73,7 @@ pub(crate) fn settings_window(wc: &mut qymcad_ui_state::WinCtx, ctx: &egui::Cont
                 for sec in &visible {
                     if ui.selectable_label(cur == *sec, crate::i18n::tr(sec.key())).clicked() {
                         wc.scheme.section = *sec;
-                        wc.scheme.note.clear();
+                        wc.scheme.note.words.clear();
                     }
                 }
                 ui.separator();
@@ -84,7 +85,7 @@ pub(crate) fn settings_window(wc: &mut qymcad_ui_state::WinCtx, ctx: &egui::Cont
                     if ui.small_button(format!("{}  {}", ph::FOLDER_OPEN, crate::i18n::tr("settings-open-folder"))).clicked() {
                         let (bin, args) = crate::gui::reveal_command(ui.ctx().os(), &dir);
                         if let Err(e) = crate::system::start(bin, &args) {
-                            wc.scheme.note = crate::i18n::tr1("settings-open-folder-failed", "error", &e.to_string());
+                            wc.scheme.note = Notice::error(crate::i18n::tr1("settings-open-folder-failed", "error", &e.to_string()));
                         }
                     }
                 }
@@ -104,10 +105,11 @@ pub(crate) fn settings_window(wc: &mut qymcad_ui_state::WinCtx, ctx: &egui::Cont
                         // reset shows only after a restart
                         crate::gui::apply_language(&*wc.set);
                         crate::gui::apply_theme(&mut *wc.scheme, &*wc.set, ctx);
-                        wc.scheme.note = crate::i18n::tr1("settings-reset-done", "name", &crate::i18n::tr(cur.key()));
+                        wc.scheme.note = Notice::info(crate::i18n::tr1("settings-reset-done", "name", &crate::i18n::tr(cur.key())));
                     }
                     if !wc.scheme.note.is_empty() {
-                        ui.label(egui::RichText::new(&wc.scheme.note).small().color(wc.scheme.pal.hint()));
+                        let note = qymcad_ui_state::notice_text(&wc.scheme.pal, &wc.scheme.note, qymcad_ui_state::NoticeSize::Small);
+                        ui.label(if wc.scheme.note.tone == qymcad_ui_state::Tone::Info { note.color(wc.scheme.pal.hint()) } else { note });
                     }
                 });
             });

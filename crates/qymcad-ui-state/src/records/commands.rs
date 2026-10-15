@@ -1,5 +1,6 @@
 //! The records of the commands of the tools: their targets, parameters, inputs and options.
 
+use crate::Notice;
 use super::*;
 
 /// WHAT EXACTLY THE COMMAND BUILDS: the operation on the body and the direction. These used to be three
@@ -445,11 +446,11 @@ pub enum Then {
 }
 
 impl Then {
-    pub fn take(self, boolean: &mut BoolCommand, status: &mut String) {
+    pub fn take(self, boolean: &mut BoolCommand, status: &mut Notice) {
         if let Then::Boolean(a) = self {
             boolean.pick = a.map(|a| (a, 0));
             boolean.b = None;
-            *status = qymcad_i18n::tr(if a.is_some() { "tb-bool-pick-b" } else { "tb-pick-body-a-first" });
+            *status = Notice::info(qymcad_i18n::tr(if a.is_some() { "tb-bool-pick-b" } else { "tb-pick-body-a-first" }));
         }
     }
 }

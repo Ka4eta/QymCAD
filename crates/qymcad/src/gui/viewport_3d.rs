@@ -5,6 +5,7 @@
 //! frame test for a click had to be written past three thousand lines of painting. The same skeleton as the
 //! sketch viewport in `sketching.rs`, so one shape reads the same way everywhere.
 
+use qymcad_ui_state::Notice;
 use super::*;
 
 // THE 3D VIEWPORT moved here from `gui.rs`, with phases of its own: what was grabbed -> drive what was
@@ -447,7 +448,7 @@ impl App {
                     // ONE door is asked, and it takes only what is under the cursor.
                     match self.infer_axis_anchor(rect, pos) {
                         Some((_, anchor)) => qymcad_assembly::joint_axis_pick_apply(&mut self.joint_ctx(), anchor),
-                        None => self.status = crate::i18n::tr("j-axis-miss"),
+                        None => self.status = Notice::refusal(crate::i18n::tr("j-axis-miss")),
                     }
                 } else if self.side.joint.edit_repick.is_some() {
                     // Editing a mate: the NEW anchor A or B is inferred under the cursor, as when creating one
@@ -456,22 +457,23 @@ impl App {
                     // The Tangent tool: TWO SURFACES are pointed at, and there are no connectors.
                     match self.pick_part_face_at(rect, pos) {
                         Some((body, key)) => qymcad_assembly::tangent_pick_click(&mut self.joint_ctx(), body, key),
-                        None => self.status = crate::i18n::tr("vp-miss-face"),
+                        None => self.status = Notice::refusal(crate::i18n::tr("vp-miss-face")),
                     }
                 } else if self.side.joint.width_pick.is_some() {
                     // The Width tool: FACES are pointed at - two walls and the part between them.
                     match self.pick_part_face_at(rect, pos) {
                         Some((body, key)) => qymcad_assembly::width_pick_click(&self.active_path, &mut self.side.joint, &mut self.project, &mut self.status, body, key),
-                        None => self.status = crate::i18n::tr("vp-miss-face"),
+                        None => self.status = Notice::refusal(crate::i18n::tr("vp-miss-face")),
                     }
                 } else if self.side.joint.group_pick.is_some() {
                     // The Group tool: a click on a part adds it to the set or removes it.
                     match crate::gui::pick::pick_body_at(&self.painting(), rect, pos).and_then(|mi| self.project.mesh_id(mi)) {
                         Some(body) => qymcad_assembly::group_pick_click(&self.active_path, &mut self.side.joint, &mut self.project, &mut self.status, body),
-                        None => self.status = crate::i18n::tr("j-body-miss"),
+                        None => self.status = Notice::refusal(crate::i18n::tr("j-body-miss")),
                     }
                 } else if self.side.joint.relation_pick.is_some() {
-                    self.status = crate::i18n::tr("j-relation-pick-in-list"); // a relation ties mates: they are picked in the list, not on the canvas
+                    self.status = Notice::info(crate::i18n::tr("j-relation-pick-in-list"));
+                // a relation ties mates: they are picked in the list, not on the canvas
                 } else if self.side.joint.ground_pick {
                     let hit = crate::gui::pick::pick_body_at(&self.painting(), rect, pos).and_then(|mi| self.project.mesh_id(mi));
                     qymcad_assembly::ground_click(&mut self.joint_ctx(), hit); // the Ground tool: a click on a part fixes it or releases it
@@ -489,7 +491,7 @@ impl App {
                     // mirrored copy, shown before Enter makes it (`mirror_part_apply`)
                     let plane = crate::gui::pick::pick_sketch_plane_at(&self.painting(), rect, pos).and_then(|sp| qymcad_ui_state::plane_in_context(&self.painting(), sp));
                     self.params.mirror.at = plane.or(self.params.mirror.at); // a miss keeps the plane taken before
-                    self.status = crate::i18n::tr(if plane.is_some() { "mp-plane-taken" } else { "vp-miss-mirror-plane" });
+                    self.status = if plane.is_some() { Notice::info(crate::i18n::tr("mp-plane-taken")) } else { Notice::refusal(crate::i18n::tr("vp-miss-mirror-plane")) };
                 } else if self.side.section.pick {
                     // THE SECTION: a click on a plane, a datum or a face sets the cutting plane
                     let plane = crate::gui::pick::pick_sketch_plane_at(&self.painting(), rect, pos).and_then(|sp| qymcad_ui_state::plane_in_context(&self.painting(), sp));
@@ -500,21 +502,21 @@ impl App {
                         self.make_offset_plane_from_face(target, body, key);
                         self.tools.picking.set_plane_face(None);
                     } else {
-                        self.status = crate::i18n::tr("vp-miss-face-only");
+                        self.status = Notice::refusal(crate::i18n::tr("vp-miss-face-only"));
                     }
                 } else if self.tools.pending_import.curves.is_some() {
                     // placing an imported DXF or SVG: the click sets the sketch plane
                     if let Some(sp) = crate::gui::pick::pick_sketch_plane_at(&self.painting(), rect, pos) {
                         self.place_pending_import(sp);
                     } else {
-                        self.status = crate::i18n::tr("vp-miss-place-import");
+                        self.status = Notice::refusal(crate::i18n::tr("vp-miss-place-import"));
                     }
                 } else if let Some(si) = self.tools.picking.replace_sketch() {
                     // RE-placing a sketch: the click sets a new plane and the bodies are rebuilt
                     if let Some(sp) = crate::gui::pick::pick_sketch_plane_at(&self.painting(), rect, pos) {
                         crate::gui::sketching::set_sketch_plane(&mut self.sketch_ctx(), si, sp);
                     } else {
-                        self.status = crate::i18n::tr("vp-miss-plane");
+                        self.status = Notice::refusal(crate::i18n::tr("vp-miss-plane"));
                     }
                 } else if self.tools.picking.is_sketch_plane() {
                     // choosing a plane or a face for a new sketch by a click in the viewport
@@ -530,19 +532,19 @@ impl App {
                         let resolved = self.project.sketches[si].plane;
                         if let (Some(w), Some(fr)) = (corner_w, qymcad_ui_state::world_frame_of_plane(&self.draw_ctx(), &resolved)) {
                             self.project.sketches[si].origin_uv = Some(fr.project(qymcad_core::geom::Point3::new(w[0], w[1], w[2])));
-                            self.status = crate::i18n::tr("vp-sketch-origin-bound");
+                            self.status = Notice::info(crate::i18n::tr("vp-sketch-origin-bound"));
                         }
                     } else {
-                        self.status = crate::i18n::tr("vp-miss-plane");
+                        self.status = Notice::refusal(crate::i18n::tr("vp-miss-plane"));
                     }
                 } else if self.tools.armed.cmd_kind() == 16 {
                     // MIRROR: the click picks the mirror PLANE, datum or face (Enter applies it)
                     match crate::gui::pick::pick_sketch_plane_at(&self.painting(), rect, pos) {
                         Some(sp) => {
                             self.params.mirror.plane = (self.params.mirror.plane != Some(sp)).then_some(sp); // the same plane again lets it go
-                            self.status = crate::i18n::tr(if self.params.mirror.plane.is_some() { "vp-mirror-plane-picked" } else { "msg-mirror-pick" });
+                            self.status = Notice::info(crate::i18n::tr(if self.params.mirror.plane.is_some() { "vp-mirror-plane-picked" } else { "msg-mirror-pick" }));
                         }
-                        None => self.status = crate::i18n::tr("vp-miss-plane-short"),
+                        None => self.status = Notice::refusal(crate::i18n::tr("vp-miss-plane-short")),
                     }
                 } else if self.tools.armed.cmd_kind() == 27 || self.tools.armed.cmd_kind() == 29 {
                     // SPLIT BODY: the click picks the cutting PLANE, datum or face (Enter applies it)
@@ -554,20 +556,20 @@ impl App {
                                 // how many pieces will come out is visible AT ONCE: otherwise "it cuts
                                 // nothing" would only be learnt on Enter, after a click and an offset
                                 // had already been spent
-                                Some(n) if n >= 2 => crate::i18n::tr1("vp-cut-plane-picked", "n", &n.to_string()),
-                                _ => crate::i18n::tr("vp-plane-cuts-nothing"),
+                                Some(n) if n >= 2 => Notice::info(crate::i18n::tr1("vp-cut-plane-picked", "n", &n.to_string())),
+                                _ => Notice::refusal(crate::i18n::tr("vp-plane-cuts-nothing")),
                             };
                         }
-                        None => self.status = crate::i18n::tr("vp-miss-plane-short"),
+                        None => self.status = Notice::refusal(crate::i18n::tr("vp-miss-plane-short")),
                     }
                 } else if self.tools.armed.cmd_kind() == 20 {
                     // DATUM PLANE: the click picks the base plane, datum or face the offset is measured from
                     match crate::gui::pick::pick_sketch_plane_at(&self.painting(), rect, pos) {
                         Some(sp) => {
                             self.side.datum.plane_pick = (self.side.datum.plane_pick != Some(sp)).then_some(sp); // the same plane again lets it go
-                            self.status = crate::i18n::tr(if self.side.datum.plane_pick.is_some() { "vp-ref-picked" } else { "hint-plane-offset" });
+                            self.status = Notice::info(crate::i18n::tr(if self.side.datum.plane_pick.is_some() { "vp-ref-picked" } else { "hint-plane-offset" }));
                         }
-                        None => self.status = crate::i18n::tr("vp-miss-plane-short"),
+                        None => self.status = Notice::refusal(crate::i18n::tr("vp-miss-plane-short")),
                     }
                 } else if self.tools.armed.cmd_kind() == 21 && self.side.datum.pt_mode == 1 {
                     // DATUM POINT, "at a vertex": a click on a vertex of the current part makes an ASSOCIATIVE reference
@@ -576,9 +578,9 @@ impl App {
                         Some((body, edge, end)) => {
                             let at = crate::gui::vertex_local_pos(&self.live, body, edge, end).unwrap_or([0.0; 3]);
                             self.side.datum.pt_vert = Some((body, edge, end, at));
-                            self.status = crate::i18n::tr("vp-vertex-picked");
+                            self.status = Notice::info(crate::i18n::tr("vp-vertex-picked"));
                         }
-                        None => self.status = crate::i18n::tr("vp-miss-vertex-current"),
+                        None => self.status = Notice::refusal(crate::i18n::tr("vp-miss-vertex-current")),
                     }
                 } else if self.tools.armed.cmd_kind() == 21 {
                     let hit = crate::gui::pick::pick_vertex_pos(&self.painting(), rect, pos);
@@ -590,11 +592,11 @@ impl App {
                             Some(od) => {
                                 self.side.datum.axis_hit = (self.side.datum.axis_hit != Some(h)).then_some(h); // the same edge or face again lets it go
                                 self.side.datum.axis_ref = self.side.datum.axis_hit.map(|_| od);
-                                self.status = crate::i18n::tr(if self.side.datum.axis_hit.is_some() { "vp-axis-picked" } else { "msg-axis-pick" });
+                                self.status = Notice::info(crate::i18n::tr(if self.side.datum.axis_hit.is_some() { "vp-axis-picked" } else { "msg-axis-pick" }));
                             }
-                            None => self.status = crate::i18n::tr("vp-ref-gives-no-axis"),
+                            None => self.status = Notice::refusal(crate::i18n::tr("vp-ref-gives-no-axis")),
                         },
-                        None => self.status = crate::i18n::tr("vp-miss-edge-or-cyl"),
+                        None => self.status = Notice::refusal(crate::i18n::tr("vp-miss-edge-or-cyl")),
                     }
                 } else if self.tools.armed.cmd_kind() == 22 && self.side.datum.axis_mode == 2 {
                     // DATUM AXIS BY TWO POINTS: two datum points or vertices are gathered; datum points make it parametric
@@ -610,12 +612,12 @@ impl App {
                                 let d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
                                 let l = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt();
                                 self.side.datum.axis_ref = (l > 1e-9).then(|| (a, [d[0] / l, d[1] / l, d[2] / l]));
-                                self.status = crate::i18n::tr("vp-two-points-set");
+                                self.status = Notice::info(crate::i18n::tr("vp-two-points-set"));
                             } else {
-                                self.status = crate::i18n::tr("vp-point1-set");
+                                self.status = Notice::info(crate::i18n::tr("vp-point1-set"));
                             }
                         }
-                        None => self.status = crate::i18n::tr("vp-miss-datum-point"),
+                        None => self.status = Notice::refusal(crate::i18n::tr("vp-miss-datum-point")),
                     }
                 } else if (10..=15).contains(&self.tools.armed.cmd_kind()) && self.tools.cmd.edit.is_none() {
                     // A PRIMITIVE: a click on a vertex, a datum point, a plane or a face places it (with an orientation)
@@ -623,9 +625,9 @@ impl App {
                         Some(m) => {
                             self.params.prim.frame = Some(m);
                             self.params.prim.place = Some([m[3], m[7], m[11]]);
-                            self.status = crate::i18n::tr("vp-placement-set");
+                            self.status = Notice::info(crate::i18n::tr("vp-placement-set"));
                         }
-                        None => self.status = crate::i18n::tr("vp-miss-placement"),
+                        None => self.status = Notice::refusal(crate::i18n::tr("vp-miss-placement")),
                     }
                 } else if (self.tools.armed.cmd_kind() == 18 || self.side.carr.mode == 2) && self.params.arr.axis_pick {
                     // A CIRCULAR PATTERN, of bodies or of parts: the click picks the AXIS (`gui/array_axis.rs`)
@@ -643,9 +645,9 @@ impl App {
                         Some(fid) => {
                             self.params.chamfer.ref_face = if self.params.chamfer.ref_face == fid { 0 } else { fid };
                             self.params.chamfer.pick_ref = false;
-                            self.status = if self.params.chamfer.ref_face != 0 { crate::i18n::tr("vp-chamfer-ref-set") } else { crate::i18n::tr("vp-chamfer-ref-cleared") };
+                            self.status = if self.params.chamfer.ref_face != 0 { Notice::info(crate::i18n::tr("vp-chamfer-ref-set")) } else { Notice::info(crate::i18n::tr("vp-chamfer-ref-cleared")) };
                         }
-                        None => self.status = crate::i18n::tr("vp-miss-body-face"),
+                        None => self.status = Notice::refusal(crate::i18n::tr("vp-miss-body-face")),
                     }
                 } else if self.side.m3.on {
                     // MEASURING IN 3D: the click picks a vertex, an edge or a face; the second one computes

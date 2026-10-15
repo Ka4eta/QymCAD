@@ -1,5 +1,6 @@
 //! THE TABLE OF PARAMETERS: its rows, its window, an edit of a parameter.
 
+use qymcad_ui_state::Notice;
 use super::*;
 
 /// THE ROWS OF THE PARAMETER TABLE. They were lifted out of the window into a METHOD OF THEIR OWN, because a
@@ -207,7 +208,7 @@ pub(crate) fn params_rows_ui(wc: &mut qymcad_ui_state::WinCtx, ui: &mut egui::Ui
                     done
                 };
                 if done.is_err() {
-                    *wc.status = crate::i18n::tr1("par-name-bad", "name", &nm);
+                    *wc.status = Notice::refusal(crate::i18n::tr1("par-name-bad", "name", &nm));
                 }
             }
             Act::SetExpr(i, e) => {

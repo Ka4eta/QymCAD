@@ -54,7 +54,7 @@ mod tests {
                     scheme: &app.scheme,
                     set: &mut app.set,
                     sketch_ses: &app.sketch_ses,
-                    status: "",
+                    status: &qymcad_ui_state::Notice::default(),
                     win: &mut app.win,
                 },
                 ui,

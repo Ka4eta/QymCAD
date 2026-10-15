@@ -1,5 +1,6 @@
 //! WHAT A CLICK TAKES for a command: a profile, a face, an edge, a hole's place, a reference.
 
+use qymcad_ui_state::Notice;
 use super::*;
 
 /// A command driven by a sketch (extrude or revolve): pick a profile, set the size on the canvas, Enter.
@@ -21,9 +22,9 @@ pub fn profile_click_3d(pc: &mut qymcad_ui_state::PartCtx, rect: egui::Rect, pos
             if !pc.gsel.profiles.remove(&cid) {
                 pc.gsel.profiles.insert(cid);
             }
-            *pc.status = qymcad_i18n::tr1("sk-profiles-n", "n", &pc.gsel.profiles.len().to_string());
+            *pc.status = Notice::info(qymcad_i18n::tr1("sk-profiles-n", "n", &pc.gsel.profiles.len().to_string()));
         }
-        None => *pc.status = qymcad_i18n::tr("sk-miss-contour"),
+        None => *pc.status = Notice::refusal(qymcad_i18n::tr("sk-miss-contour")),
     }
 }
 
@@ -63,7 +64,7 @@ pub fn whole_body_on_double_click(pc: &mut qymcad_ui_state::PartCtx, double: boo
 /// behaviour: a click past the body with a fillet in hand said nothing, the status line as it was.
 pub fn click_on_nothing(pc: &mut qymcad_ui_state::PartCtx) {
     if pc.armed.commanding() {
-        *pc.status = qymcad_i18n::tr1("vp-miss-cmd", "ask", &cmd_hint(&*pc.armed, &*pc.gsel, &*pc.trim));
+        *pc.status = Notice::refusal(qymcad_i18n::tr1("vp-miss-cmd", "ask", &cmd_hint(&*pc.armed, &*pc.gsel, &*pc.trim)));
         return;
     }
     if matches!(*pc.sel, qymcad_ui_state::Sel::Face(..) | qymcad_ui_state::Sel::Mesh(..) | qymcad_ui_state::Sel::Component(..) | qymcad_ui_state::Sel::Edge(..) | qymcad_ui_state::Sel::Vertex(..)) {
@@ -158,7 +159,7 @@ pub fn thread_let_go(pc: &mut qymcad_ui_state::PartCtx, body: Id, rim: u32) -> b
     if pc.cmd.edit.is_none() {
         qymcad_ui_state::set_thread_params(pc.cmd, *pc.thread);
     }
-    *pc.status = qymcad_i18n::tr("cmd-thread-pick-hint");
+    *pc.status = Notice::info(qymcad_i18n::tr("cmd-thread-pick-hint"));
     true
 }
 
@@ -194,9 +195,9 @@ pub fn datum_point_snap(pc: &mut qymcad_ui_state::PartCtx, hit: Option<[f64; 3]>
                     p.val = w[k];
                 }
             }
-            *pc.status = qymcad_i18n::tr("vp-point-bound");
+            *pc.status = Notice::info(qymcad_i18n::tr("vp-point-bound"));
         }
-        None => *pc.status = qymcad_i18n::tr("vp-miss-vertex-or-xyz"),
+        None => *pc.status = Notice::refusal(qymcad_i18n::tr("vp-miss-vertex-or-xyz")),
     }
 }
 
@@ -206,7 +207,7 @@ pub fn take_boolean_pick(pc: &mut qymcad_ui_state::PartCtx, hit: Option<Id>) {
         // a second click on body B lets it go, as a second click on any pick does
         Some(b) if pc.boolean.b == Some(b) => {
             pc.boolean.b = None;
-            *pc.status = qymcad_i18n::tr("tb-bool-pick-b");
+            *pc.status = Notice::info(qymcad_i18n::tr("tb-bool-pick-b"));
         }
         Some(b) if b != a => {
             // A TRIAL ON THE LIVE SHAPES FIRST: an intersection that gives no body, or a cut that removes nothing (the two
@@ -214,20 +215,20 @@ pub fn take_boolean_pick(pc: &mut qymcad_ui_state::PartCtx, hit: Option<Id>) {
             // node that goes red. Without both shapes (a mesh, a body not built yet) the rebuild judges it as before.
             if let (0 | 2, Some(sa), Some(sb)) = (op, pc.live.shapes.get(&a), pc.live.shapes.get(&b)) {
                 if let Err(why) = qymcad_kernel::ask::boolean_gives_body(sa, sb, op) {
-                    *pc.status = qymcad_i18n::tr(match why {
+                    *pc.status = Notice::refusal(qymcad_i18n::tr(match why {
                         qymcad_kernel::BoolVerdict::NothingInCommon => "vp-bool-nothing-in-common",
                         qymcad_kernel::BoolVerdict::CutRemovedNothing => "vp-bool-cut-removes-nothing",
                         _ => "vp-bool-failed",
-                    });
+                    }));
                     return;
                 }
             }
             // B IS TAKEN, NOT SPENT: it is shown as the tool until Enter, and nothing enters the document before
             pc.boolean.b = Some(b);
-            *pc.status = qymcad_i18n::tr("vp-bool-b-taken");
+            *pc.status = Notice::info(qymcad_i18n::tr("vp-bool-b-taken"));
         }
-        Some(_) => *pc.status = qymcad_i18n::tr("vp-this-is-a"),
-        None => *pc.status = qymcad_i18n::tr("vp-miss-body-b"),
+        Some(_) => *pc.status = Notice::info(qymcad_i18n::tr("vp-this-is-a")),
+        None => *pc.status = Notice::refusal(qymcad_i18n::tr("vp-miss-body-b")),
     }
 }
 
@@ -255,7 +256,7 @@ pub fn take_sketch_if_waiting(pc: &mut qymcad_ui_state::PartCtx) {
 /// (see the 2D click handler and `set_contour_slot`). It replaces cycling through contours with arrows.
 pub fn begin_contour_pick(pc: &mut qymcad_ui_state::PartCtx, slot: qymcad_ui_state::ContourSlot, sid: Id) {
     let Some(si) = pc.project.sketch_index(sid) else {
-        *pc.status = qymcad_i18n::tr("g-slot-sketch-missing");
+        *pc.status = Notice::refusal(qymcad_i18n::tr("g-slot-sketch-missing"));
         return;
     };
     *pc.picking = qymcad_ui_state::Picking::Contour(slot);
@@ -270,7 +271,7 @@ pub fn begin_contour_pick(pc: &mut qymcad_ui_state::PartCtx, slot: qymcad_ui_sta
         qymcad_ui_state::ContourSlot::SweepPath => "g-slot-path",
         qymcad_ui_state::ContourSlot::LoftSection(_) => "g-slot-section",
     };
-    *pc.status = qymcad_i18n::tr1("g-contour-pick-of", "what", &qymcad_i18n::tr(what));
+    *pc.status = Notice::info(qymcad_i18n::tr1("g-contour-pick-of", "what", &qymcad_i18n::tr(what)));
 }
 
 pub fn enter_contour_reselect(pc: &mut qymcad_ui_state::PartCtx) {
@@ -284,7 +285,7 @@ pub fn enter_contour_reselect(pc: &mut qymcad_ui_state::PartCtx) {
     *pc.mode_3d = false; // back to the flat half-sketcher: a click on a contour changes the set of profiles
     pc.view.initialized = false;
     pc.cmd.focus = false;
-    *pc.status = qymcad_i18n::tr("g-contour-reselect");
+    *pc.status = Notice::info(qymcad_i18n::tr("g-contour-reselect"));
 }
 
 /// The straight edges of ALL visible (unconsumed) bodies go into `axis_edges` (the body plus a local
@@ -394,20 +395,20 @@ pub fn refresh_edges(pc: &mut qymcad_ui_state::PartCtx) {
 
 /// A CLICK OF THE SECTION TOOL while it picks its plane: the plane taken puts the section on, and the same plane
 /// clicked again lets it go - as a pick of every command is let go. The tool stays picking until Apply or Enter.
-pub fn section_pick_click(section: &mut qymcad_ui_state::SectionTool, regen: &mut qymcad_ui_state::Rebuilding, status: &mut String, plane: Option<([f64; 3], [f64; 3])>) {
+pub fn section_pick_click(section: &mut qymcad_ui_state::SectionTool, regen: &mut qymcad_ui_state::Rebuilding, status: &mut qymcad_ui_state::Notice, plane: Option<([f64; 3], [f64; 3])>) {
     let Some((o, n)) = plane else {
-        *status = qymcad_i18n::tr("vp-miss-plane-datum-face");
+        *status = Notice::refusal(qymcad_i18n::tr("vp-miss-plane-datum-face"));
         return;
     };
     let same = section.plane.is_some_and(|(po, pn)| (0..3).all(|i| (po[i] - o[i]).abs() < 1e-6 && (pn[i] - n[i]).abs() < 1e-6));
     if same {
         section.plane = None;
-        *status = qymcad_i18n::tr("tb-section-pick");
+        *status = Notice::info(qymcad_i18n::tr("tb-section-pick"));
     } else {
         section.plane = Some((o, n));
         section.offset = 0.0;
         section.rot = [0.0, 0.0];
-        *status = qymcad_i18n::tr("vp-section-on");
+        *status = Notice::info(qymcad_i18n::tr("vp-section-on"));
     }
     qymcad_ui_state::invalidate(regen);
 }

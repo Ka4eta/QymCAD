@@ -1,5 +1,6 @@
 //! THE BARS OF A JOINT: editing it, making it, the tool bar.
 
+use qymcad_ui_state::Notice;
 use super::*;
 
 /// The top bar of JOINT EDIT MODE (a double click on the glyph), in the style of the tool bars: the
@@ -148,7 +149,7 @@ pub fn joint_create_finish(jc: &mut qymcad_ui_state::JointCtx, keep: bool) {
     // A JOINT KEPT LEAVES THE TOOL IN HAND for the next pair, as a mate dialog does; one taken away puts it down
     if keep {
         (jc.joint.pick_faces, jc.joint.pick_first) = (true, None);
-        *jc.status = qymcad_i18n::tr("j-created");
+        *jc.status = Notice::info(qymcad_i18n::tr("j-created"));
     }
 }
 
@@ -210,7 +211,7 @@ pub fn joint_tool_bar(jc: &mut qymcad_ui_state::JointCtx, ui: &mut egui::Ui) {
             tangent_finish(jc, apply && !cancel);
         } else if cancel {
             jc.joint.tangent_pick = None;
-            *jc.status = qymcad_i18n::tr("j-tangent-off");
+            *jc.status = Notice::info(qymcad_i18n::tr("j-tangent-off"));
         }
         return;
     }
@@ -242,7 +243,7 @@ pub fn joint_tool_bar(jc: &mut qymcad_ui_state::JointCtx, ui: &mut egui::Ui) {
             width_pick_confirm(jc);
         } else if cancel {
             jc.joint.width_pick = None;
-            *jc.status = qymcad_i18n::tr("j-width-off");
+            *jc.status = Notice::info(qymcad_i18n::tr("j-width-off"));
         }
         return;
     }
@@ -275,7 +276,7 @@ pub fn joint_tool_bar(jc: &mut qymcad_ui_state::JointCtx, ui: &mut egui::Ui) {
             group_pick_confirm(jc);
         } else if cancel {
             jc.joint.group_pick = None;
-            *jc.status = qymcad_i18n::tr("j-group-off");
+            *jc.status = Notice::info(qymcad_i18n::tr("j-group-off"));
         }
         return;
     }
@@ -304,7 +305,7 @@ pub fn joint_tool_bar(jc: &mut qymcad_ui_state::JointCtx, ui: &mut egui::Ui) {
         qymcad_ui_state::enter_not_ready(ui.ctx(), jc.status, &qymcad_i18n::tr("j-ground-click"));
         if cancel {
             jc.joint.ground_pick = false;
-            *jc.status = qymcad_i18n::tr("j-ground-off");
+            *jc.status = Notice::info(qymcad_i18n::tr("j-ground-off"));
         }
         return;
     }
@@ -331,7 +332,7 @@ pub fn joint_tool_bar(jc: &mut qymcad_ui_state::JointCtx, ui: &mut egui::Ui) {
         }
         if cancel {
             jc.joint.conn_pick = false;
-            *jc.status = qymcad_i18n::tr("j-conn-off");
+            *jc.status = Notice::info(qymcad_i18n::tr("j-conn-off"));
         }
         return;
     }
@@ -390,7 +391,7 @@ pub fn joint_tool_bar(jc: &mut qymcad_ui_state::JointCtx, ui: &mut egui::Ui) {
         }
         if cancel {
             jc.joint.relation_pick = None;
-            *jc.status = qymcad_i18n::tr("j-relation-off");
+            *jc.status = Notice::info(qymcad_i18n::tr("j-relation-off"));
         } else if done {
             relation_pick_confirm(jc);
         }
@@ -486,7 +487,7 @@ pub fn joint_tool_bar(jc: &mut qymcad_ui_state::JointCtx, ui: &mut egui::Ui) {
     if cancel {
         jc.joint.pick_faces = false;
         jc.joint.pick_first = None;
-        *jc.status = qymcad_i18n::tr("j-cancelled");
+        *jc.status = Notice::info(qymcad_i18n::tr("j-cancelled"));
     }
 }
 

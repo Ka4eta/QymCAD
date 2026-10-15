@@ -428,7 +428,7 @@ fn a_drawing_says_what_it_did_not_read() {
     answer(&mut app, &ctx, Want::Anything, &p.to_string_lossy());
     let _ = frame(&mut app, &ctx, Vec::new());
     let said = crate::i18n::tr1("import-not-read", "list", "TEXT 1");
-    assert!(app.status.contains(&said), "the door does not say the text was not read: {:?}", app.status);
+    assert!(app.status.words.contains(&said), "the door does not say the text was not read: {:?}", app.status);
 }
 
 /// WHAT A DRAWING HOLDS WITH INVALID NUMBERS IS SAID AT THE DOOR: a DXF spline whose knots run backwards, with fit
@@ -454,9 +454,9 @@ fn a_drawing_says_what_it_held_invalid() {
     let waiting = app.tools.pending_import.curves.as_ref().map(|(c, _, _)| c.len()).unwrap_or(0);
     assert!(waiting > 0, "the spline did not come in through its fit points; the status says: {}", app.status);
     let said = crate::i18n::tr1("import-redrawn", "list", "SPLINE 1");
-    assert!(app.status.contains(&said), "the door does not say the spline was drawn through its fit points: {:?}", app.status);
+    assert!(app.status.words.contains(&said), "the door does not say the spline was drawn through its fit points: {:?}", app.status);
     for other in ["import-invalid", "import-not-read"] {
         let wrong = crate::i18n::tr1(other, "list", "SPLINE 1");
-        assert!(!app.status.contains(&wrong), "a spline drawn through its fit points is also named as {other}: {:?}", app.status);
+        assert!(!app.status.words.contains(&wrong), "a spline drawn through its fit points is also named as {other}: {:?}", app.status);
     }
 }

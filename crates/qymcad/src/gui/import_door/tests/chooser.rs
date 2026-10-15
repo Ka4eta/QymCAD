@@ -97,7 +97,7 @@ fn a_missing_step_or_iges_is_said_to_be_not_found() {
         answer(&mut app, &ctx, Want::Anything, &path);
         settle(&mut app, &ctx);
         let said = crate::i18n::name(&format!("cad-file-not-found#{path}"));
-        assert!(app.status.contains(&said), "{ext}: a missing file is reported as {:?}, not as {said:?}", app.status);
+        assert!(app.status.words.contains(&said), "{ext}: a missing file is reported as {:?}, not as {said:?}", app.status);
     }
 }
 
@@ -123,7 +123,7 @@ fn an_svg_is_read_in_the_background() {
     answer(&mut app, &ctx, Want::Anything, &deep.to_string_lossy());
     settle(&mut app, &ctx);
     let said = crate::i18n::name(&format!("io-svg-too-deep#{}", qymcad_io::SVG_MAX_DEPTH));
-    assert!(app.status.contains(&said), "a drawing {groups} levels deep is reported as {:?}, not as {said:?}", app.status);
+    assert!(app.status.words.contains(&said), "a drawing {groups} levels deep is reported as {:?}, not as {said:?}", app.status);
 }
 
 /// SOLIDS AND A MESH ARE READ IN THE BACKGROUND, each by its own reader.
@@ -187,7 +187,7 @@ fn a_solid_and_a_mesh_are_read_in_the_background() {
         }
         assert!(app.regen.busy.is_none(), "{path}: still reading after half a minute");
         assert!(app.project.bodies.len() > before, "{path}: nothing came into the document; the status says: {}", app.status);
-        assert!(app.status.contains(says), "{path}: the status does not name the format it read: {}", app.status);
+        assert!(app.status.words.contains(says), "{path}: the status does not name the format it read: {}", app.status);
     }
 }
 
@@ -217,7 +217,7 @@ fn a_file_the_kernel_cannot_read_is_answered_in_words() {
     let (mut app, ctx) = running();
     answer(&mut app, &ctx, Want::Anything, &p.to_string_lossy());
     settle(&mut app, &ctx);
-    assert!(!app.status.is_empty() && !app.status.contains("cad-"), "the status shows a service code instead of words: {}", app.status);
+    assert!(!app.status.is_empty() && !app.status.words.contains("cad-"), "the status shows a service code instead of words: {}", app.status);
 }
 
 /// THE REPORTED FILE, THROUGH THE DOOR IT WAS OPENED BY. `QYM_IGES` names it.
@@ -231,5 +231,5 @@ fn the_reported_iges_opens_through_the_door() {
     let waiting = app.tools.pending_import.curves.as_ref().map(|(c, _, _)| c.len()).unwrap_or(0);
     eprintln!("PROBE {path}: {waiting} curves waiting for their plane; the status: {}", app.status);
     assert!(waiting >= 80, "the cell came in as {waiting} curves; the status says: {}", app.status);
-    assert!(app.status.contains(&crate::i18n::tr("io-iges-definitions-only")), "the status does not say the file only defines: {}", app.status);
+    assert!(app.status.words.contains(&crate::i18n::tr("io-iges-definitions-only")), "the status does not say the file only defines: {}", app.status);
 }

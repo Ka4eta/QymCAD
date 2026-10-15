@@ -1,5 +1,6 @@
 //! WHAT A CLICK TAKES IN AN ASSEMBLY: anchors, edges, faces, origins, widths, groups, tangents, relations, ground.
 
+use qymcad_ui_state::Notice;
 use super::*;
 
 /// WHETHER A TOOL IS READING CLICKS ON PARTS: the anchors of a mate, width, tangent, group, grounding, relation or a
@@ -40,14 +41,14 @@ pub fn geometry_ready_for_anchor(live: &qymcad_ui_state::LiveGeom, project: &Pro
 /// THE WALLS MUST FACE THE SAME WAY. "Midway" means something only along a COMMON normal; walls that
 /// look in different directions have no midpoint, and taking such an anchor silently would promise
 /// something that does not exist.
-pub fn width_pick_click(active_path: &[Id], joint: &mut qymcad_ui_state::JointCommand, project: &mut Project, status: &mut String, body: Id, key: qymcad_core::feature::FaceKey) {
+pub fn width_pick_click(active_path: &[Id], joint: &mut qymcad_ui_state::JointCommand, project: &mut Project, status: &mut qymcad_ui_state::Notice, body: Id, key: qymcad_core::feature::FaceKey) {
     use qymcad_core::feature::AnchorRef;
     if joint.width_pick.is_none() {
         return;
     }
     let ctx = qymcad_ui_state::current_ctx_id(active_path, project);
     let Some(owner) = project.body_owner(body) else {
-        *status = qymcad_i18n::tr("j-face-no-part");
+        *status = Notice::refusal(qymcad_i18n::tr("j-face-no-part"));
         return;
     };
     let comp = project.ancestor_child_of(ctx, owner).unwrap_or(owner);
@@ -57,14 +58,14 @@ pub fn width_pick_click(active_path: &[Id], joint: &mut qymcad_ui_state::JointCo
     let same = |a: &AnchorRef| matches!(a, AnchorRef::FaceCenter(b, k) if *b == body && (if k.id != 0 { k.id == key.id } else { k.index == key.index }));
     if let Some(i) = sel.iter().position(|(_, a)| same(a)) {
         sel.remove(i);
-        *status = qymcad_i18n::tr1("j-width-picked", "n", &sel.len().to_string());
+        *status = Notice::info(qymcad_i18n::tr1("j-width-picked", "n", &sel.len().to_string()));
         return;
     }
     if sel.len() == 1 {
         if let Some((_, AnchorRef::FaceCenter(_, k0))) = sel.first() {
             let dot = k0.normal[0] * n[0] + k0.normal[1] * n[1] + k0.normal[2] * n[2];
             if dot.abs() < 0.999 {
-                *status = qymcad_i18n::tr("j-width-walls-differ");
+                *status = Notice::refusal(qymcad_i18n::tr("j-width-walls-differ"));
                 return;
             }
         }
@@ -74,17 +75,17 @@ pub fn width_pick_click(active_path: &[Id], joint: &mut qymcad_ui_state::JointCo
     }
     sel.push((comp, AnchorRef::FaceCenter(body, key)));
     let n = sel.len();
-    *status = qymcad_i18n::tr1("j-width-picked", "n", &n.to_string());
+    *status = Notice::info(qymcad_i18n::tr1("j-width-picked", "n", &n.to_string()));
 }
 
 /// A click on a body while the group tool is active: add its part to the set or take it out.
-pub fn group_pick_click(active_path: &[Id], joint: &mut qymcad_ui_state::JointCommand, project: &mut Project, status: &mut String, body: Id) {
+pub fn group_pick_click(active_path: &[Id], joint: &mut qymcad_ui_state::JointCommand, project: &mut Project, status: &mut qymcad_ui_state::Notice, body: Id) {
     if joint.group_pick.is_none() {
         return;
     }
     let ctx = qymcad_ui_state::current_ctx_id(active_path, project);
     let Some(owner) = project.body_owner(body) else {
-        *status = qymcad_i18n::tr("j-body-no-part");
+        *status = Notice::refusal(qymcad_i18n::tr("j-body-no-part"));
         return;
     };
     // A joint runs between components AT THE LEVEL OF THE CONTEXT, and so does a group: what gets
@@ -98,7 +99,7 @@ pub fn group_pick_click(active_path: &[Id], joint: &mut qymcad_ui_state::JointCo
         None => sel.push(comp),
     }
     let n = sel.len();
-    *status = qymcad_i18n::tr1("j-group-picked", "n", &n.to_string());
+    *status = Notice::info(qymcad_i18n::tr1("j-group-picked", "n", &n.to_string()));
 }
 
 /// The arming half of the tool: the reading of the flag and the clearing of every OTHER tool stayed with
@@ -106,42 +107,42 @@ pub fn group_pick_click(active_path: &[Id], joint: &mut qymcad_ui_state::JointCo
 pub fn start_ground_pick_armed(jc: &mut qymcad_ui_state::JointCtx, on: bool) {
     jc.joint.ground_pick = on;
     jc.joint.pick_first = None;
-    *jc.status = if on { qymcad_i18n::tr("tb-ground-pick") } else { qymcad_i18n::tr("tb-ground-off") };
+    *jc.status = if on { Notice::info(qymcad_i18n::tr("tb-ground-pick")) } else { Notice::info(qymcad_i18n::tr("tb-ground-off")) };
 }
 
 /// The arming half of the tool: the reading of the flag and the clearing of every OTHER tool stayed with
 /// the application, because mutual exclusion between workbenches is its decision and not the assembly's.
 pub fn start_group_pick_armed(jc: &mut qymcad_ui_state::JointCtx, on: bool) {
     jc.joint.group_pick = on.then(Vec::new);
-    *jc.status = qymcad_i18n::tr(if on { "j-group-pick" } else { "j-group-off" });
+    *jc.status = Notice::info(qymcad_i18n::tr(if on { "j-group-pick" } else { "j-group-off" }));
 }
 
 /// The arming half of the tool: the reading of the flag and the clearing of every OTHER tool stayed with
 /// the application, because mutual exclusion between workbenches is its decision and not the assembly's.
 pub fn start_tangent_pick_armed(jc: &mut qymcad_ui_state::JointCtx, on: bool) {
     jc.joint.tangent_pick = on.then(Vec::new);
-    *jc.status = qymcad_i18n::tr(if on { "j-tangent-pick" } else { "j-tangent-off" });
+    *jc.status = Notice::info(qymcad_i18n::tr(if on { "j-tangent-pick" } else { "j-tangent-off" }));
 }
 
 /// The arming half of the tool: the reading of the flag and the clearing of every OTHER tool stayed with
 /// the application, because mutual exclusion between workbenches is its decision and not the assembly's.
 pub fn start_width_pick_armed(jc: &mut qymcad_ui_state::JointCtx, on: bool) {
     jc.joint.width_pick = on.then(Vec::new);
-    *jc.status = qymcad_i18n::tr(if on { "j-width-pick" } else { "j-width-off" });
+    *jc.status = Notice::info(qymcad_i18n::tr(if on { "j-width-pick" } else { "j-width-off" }));
 }
 
 /// The arming half of the tool: the reading of the flag and the clearing of every OTHER tool stayed with
 /// the application, because mutual exclusion between workbenches is its decision and not the assembly's.
 pub fn start_conn_pick_armed(jc: &mut qymcad_ui_state::JointCtx, on: bool) {
     jc.joint.conn_pick = on;
-    *jc.status = qymcad_i18n::tr(if on { "j-conn-pick" } else { "j-conn-off" });
+    *jc.status = Notice::info(qymcad_i18n::tr(if on { "j-conn-pick" } else { "j-conn-off" }));
 }
 
 /// The arming half of the tool: the reading of the flag and the clearing of every OTHER tool stayed with
 /// the application, because mutual exclusion between workbenches is its decision and not the assembly's.
 pub fn start_relation_pick_armed(jc: &mut qymcad_ui_state::JointCtx, on: bool) {
     jc.joint.relation_pick = on.then(qymcad_ui_state::RelationPick::default);
-    *jc.status = qymcad_i18n::tr(if on { "j-relation-pick" } else { "j-relation-off" });
+    *jc.status = Notice::info(qymcad_i18n::tr(if on { "j-relation-pick" } else { "j-relation-off" }));
 }
 
 /// TAKE A PICK FOR THE SECONDARY AXIS: a click on an edge or a face sets the axis of the connector.
@@ -152,13 +153,13 @@ pub fn start_relation_pick_armed(jc: &mut qymcad_ui_state::JointCtx, on: bool) {
 pub fn joint_axis_pick_apply(jc: &mut qymcad_ui_state::JointCtx, anchor: qymcad_core::feature::AnchorRef) {
     let Some(cid) = jc.joint.axis_pick else { return };
     if jc.project.anchor_direction(&anchor).is_none() {
-        *jc.status = qymcad_i18n::tr("j-axis-no-direction");
+        *jc.status = Notice::refusal(qymcad_i18n::tr("j-axis-no-direction"));
         return;
     }
     jc.project.set_connector_axis_ref(cid, Some(anchor));
     jc.joint.axis_pick = None;
     qymcad_ui_state::mark_dirty_for_rebuild(&mut jc.rebuild()); // the document is marked; the planner does the counting
-    *jc.status = qymcad_i18n::tr("j-axis-set");
+    *jc.status = Notice::info(qymcad_i18n::tr("j-axis-set"));
 }
 
 /// Apply a newly picked anchor while editing (swap the face, edge or vertex of A or B on the fly). The
@@ -168,30 +169,30 @@ pub fn joint_edit_repick_apply(jc: &mut qymcad_ui_state::JointCtx, body: Id, anc
     let Some((jid, is_b)) = jc.joint.edit_repick else { return };
     let ctx = qymcad_ui_state::current_ctx_id(jc.active_path, jc.project);
     let Some(body_owner) = jc.project.body_owner(body) else {
-        *jc.status = qymcad_i18n::tr("j-anchor-no-part");
+        *jc.status = Notice::refusal(qymcad_i18n::tr("j-anchor-no-part"));
         return;
     };
     if !jc.project.component_is_within(body_owner, ctx) {
-        *jc.status = qymcad_i18n::tr("j-outside-assembly");
+        *jc.status = Notice::refusal(qymcad_i18n::tr("j-outside-assembly"));
         return;
     }
     let place = jc.project.ancestor_child_of(ctx, body_owner).unwrap_or(body_owner);
     let Some(j) = jc.project.joints.iter().find(|x| x.id == jid) else { return };
     let (cid, other) = if is_b { (j.b, j.a) } else { (j.a, j.b) };
     if jc.project.connector(other).map(|c| c.owner) == Some(place) {
-        *jc.status = qymcad_i18n::tr("j-same-part");
+        *jc.status = Notice::refusal(qymcad_i18n::tr("j-same-part"));
         return;
     }
     jc.project.set_connector_anchor(cid, place, anchor);
     jc.joint.edit_repick = None;
     qymcad_ui_state::mark_dirty_for_rebuild(&mut jc.rebuild()); // the document is marked; the planner does the counting
-    *jc.status = qymcad_i18n::tr1("jt-anchor-replaced", "side", if is_b { "B" } else { "A" });
+    *jc.status = Notice::info(qymcad_i18n::tr1("jt-anchor-replaced", "side", if is_b { "B" } else { "A" }));
 }
 
 /// A thin wrapper: a click on AN EDGE -> an `EdgeMid` axis anchor.
 pub fn joint_pick_edge_click(jc: &mut qymcad_ui_state::JointCtx, body: Id, edge_id: u32) {
     let Some(owner) = jc.project.body_owner(body) else {
-        *jc.status = qymcad_i18n::tr("j-edge-no-part");
+        *jc.status = Notice::refusal(qymcad_i18n::tr("j-edge-no-part"));
         return;
     };
     joint_pick_anchor_click(jc, owner, qymcad_core::feature::AnchorRef::EdgeMid(body, edge_id));
@@ -205,7 +206,7 @@ pub fn joint_pick_face_click(jc: &mut qymcad_ui_state::JointCtx, body: Id, key: 
         return;
     }
     let Some(owner) = jc.project.body_owner(body) else {
-        *jc.status = qymcad_i18n::tr("j-face-no-part");
+        *jc.status = Notice::refusal(qymcad_i18n::tr("j-face-no-part"));
         return;
     };
     joint_pick_anchor_click(jc, owner, qymcad_core::feature::AnchorRef::FaceCenter(body, key));
@@ -217,7 +218,7 @@ pub fn joint_pick_face_click(jc: &mut qymcad_ui_state::JointCtx, body: Id, key: 
 /// a click stopped depending on what was chosen in the tool bar a minute earlier.
 pub fn joint_pick_anchor_at(jc: &mut qymcad_ui_state::JointCtx, body: Id, anchor: qymcad_core::feature::AnchorRef) {
     let Some(owner) = jc.project.body_owner(body) else {
-        *jc.status = qymcad_i18n::tr("j-anchor-no-part");
+        *jc.status = Notice::refusal(qymcad_i18n::tr("j-anchor-no-part"));
         return;
     };
     joint_pick_anchor_click(jc, owner, anchor);
@@ -229,7 +230,7 @@ pub fn joint_pick_anchor_at(jc: &mut qymcad_ui_state::JointCtx, body: Id, anchor
 /// rather than anything on its surface. So any click will do - a face, an edge, wherever it landed.
 pub fn joint_pick_origin_click(jc: &mut qymcad_ui_state::JointCtx, body: Id) {
     let Some(owner) = jc.project.body_owner(body) else {
-        *jc.status = qymcad_i18n::tr("j-face-no-part");
+        *jc.status = Notice::refusal(qymcad_i18n::tr("j-face-no-part"));
         return;
     };
     joint_pick_anchor_click(jc, owner, qymcad_core::feature::AnchorRef::Origin);
@@ -265,7 +266,7 @@ pub fn relation_pick_confirm(jc: &mut qymcad_ui_state::JointCtx) {
     let need = relation_picks_needed(pick.kind);
     let have = if need == 1 { pick.picks.len() / 2 } else { pick.picks.len() };
     if have < need || pick.picks.len() < 2 {
-        *jc.status = qymcad_i18n::tr2("j-relation-picked", "n", &have.to_string(), "need", &need.to_string());
+        *jc.status = Notice::info(qymcad_i18n::tr2("j-relation-picked", "n", &have.to_string(), "need", &need.to_string()));
         return;
     }
     let ((ja, sa), (jb, sb)) = (pick.picks[0], pick.picks[1]);
@@ -283,7 +284,7 @@ pub fn relation_pick_confirm(jc: &mut qymcad_ui_state::JointCtx) {
         }
     }
     jc.joint.relation_pick = None;
-    *jc.status = qymcad_i18n::tr("j-relation-made-ok");
+    *jc.status = Notice::info(qymcad_i18n::tr("j-relation-made-ok"));
     qymcad_ui_state::mark_dirty_for_rebuild(&mut jc.rebuild()); // the document is marked; the planner does the counting
     qymcad_ui_state::commit_edit(&mut jc.rebuild());
 }
@@ -297,7 +298,7 @@ pub fn relation_pick_click(jc: &mut qymcad_ui_state::JointCtx, joint: Id) {
         if let Some(p) = jc.joint.relation_pick.as_mut() {
             p.picks.retain(|(id, _)| *id != joint);
             let got = if need == 1 { 0 } else { p.picks.len() };
-            *jc.status = qymcad_i18n::tr2("j-relation-picked", "n", &got.to_string(), "need", &need.to_string());
+            *jc.status = Notice::info(qymcad_i18n::tr2("j-relation-picked", "n", &got.to_string(), "need", &need.to_string()));
         }
         return;
     }
@@ -308,7 +309,7 @@ pub fn relation_pick_click(jc: &mut qymcad_ui_state::JointCtx, joint: Id) {
     for &want in &wanted {
         let Some(slot) = relation_slot_of(jc.project, joint, want) else {
             // NO SILENT REFUSAL: the click has already happened and an answer is expected.
-            *jc.status = qymcad_i18n::tr(if want { "j-relation-need-turn" } else { "j-relation-need-travel" });
+            *jc.status = Notice::refusal(qymcad_i18n::tr(if want { "j-relation-need-turn" } else { "j-relation-need-travel" }));
             return;
         };
         taken.push((joint, slot));
@@ -316,7 +317,7 @@ pub fn relation_pick_click(jc: &mut qymcad_ui_state::JointCtx, joint: Id) {
     let Some(pick) = jc.joint.relation_pick.as_mut() else { return };
     pick.picks.extend(taken);
     let got = if need == 1 { 1 } else { pick.picks.len() };
-    *jc.status = qymcad_i18n::tr2("j-relation-picked", "n", &got.to_string(), "need", &need.to_string());
+    *jc.status = Notice::info(qymcad_i18n::tr2("j-relation-picked", "n", &got.to_string(), "need", &need.to_string()));
 }
 
 /// DELETE AN ANCHOR - or say why that is not possible.
@@ -324,7 +325,7 @@ pub fn delete_connector_asked(jc: &mut qymcad_ui_state::JointCtx, cid: Id) {
     let users = jc.project.connector_users(cid).len();
     if users > 0 {
         // NO SILENT REFUSAL: the cross was pressed, and what held the anchor back must be said.
-        *jc.status = qymcad_i18n::tr1("j-conn-in-use", "n", &users.to_string());
+        *jc.status = Notice::refusal(qymcad_i18n::tr1("j-conn-in-use", "n", &users.to_string()));
         return;
     }
     qymcad_ui_state::begin_edit(jc.edits, jc.project, qymcad_i18n::tr("j-conn-deleted"));
@@ -332,7 +333,7 @@ pub fn delete_connector_asked(jc: &mut qymcad_ui_state::JointCtx, cid: Id) {
     if *jc.sel_conn == Some(cid) {
         *jc.sel_conn = None;
     }
-    *jc.status = qymcad_i18n::tr("j-conn-deleted");
+    *jc.status = Notice::info(qymcad_i18n::tr("j-conn-deleted"));
     qymcad_ui_state::commit_edit(&mut jc.rebuild());
 }
 
@@ -341,14 +342,14 @@ pub fn width_pick_confirm(jc: &mut qymcad_ui_state::JointCtx) {
     let Some(sel) = jc.joint.width_pick.clone() else { return };
     if sel.len() < 3 {
         // NO SILENT REFUSAL: some of the anchors have already been shown and a result is expected.
-        *jc.status = qymcad_i18n::tr("j-width-need-three");
+        *jc.status = Notice::refusal(qymcad_i18n::tr("j-width-need-three"));
         return;
     }
     qymcad_ui_state::begin_edit(jc.edits, jc.project, qymcad_i18n::tr("j-width-made")); // THE BOUNDARY OF AN OPERATION
     let ids: Vec<Id> = sel.iter().map(|(owner, a)| jc.project.add_connector(*owner, a.clone())).collect();
     jc.project.add_width(&[ids[0], ids[1]], ids[2]);
     jc.joint.width_pick = None;
-    *jc.status = qymcad_i18n::tr("j-width-made-ok");
+    *jc.status = Notice::info(qymcad_i18n::tr("j-width-made-ok"));
     joint_console_settle(jc); // the tab goes halfway now, not on some later solve
     qymcad_ui_state::commit_edit(&mut jc.rebuild());
 }
@@ -365,7 +366,7 @@ pub fn tangent_pick_click(jc: &mut qymcad_ui_state::JointCtx, body: Id, key: qym
     }
     let ctx = qymcad_ui_state::current_ctx_id(jc.active_path, jc.project);
     let Some(owner) = jc.project.body_owner(body) else {
-        *jc.status = qymcad_i18n::tr("j-face-no-part");
+        *jc.status = Notice::refusal(qymcad_i18n::tr("j-face-no-part"));
         return;
     };
     let comp = jc.project.ancestor_child_of(ctx, owner).unwrap_or(owner);
@@ -377,26 +378,26 @@ pub fn tangent_pick_click(jc: &mut qymcad_ui_state::JointCtx, body: Id, key: qym
     // the surface taken and clicked again is let go, as a second click on any pick
     if let Some(k) = sel.iter().position(|(_, a)| matches!(a, AnchorRef::FaceCenter(b, fk) if *b == body && fk.index == key.index)) {
         sel.remove(k);
-        *jc.status = qymcad_i18n::tr("j-tangent-pick");
+        *jc.status = Notice::info(qymcad_i18n::tr("j-tangent-pick"));
         return;
     }
     if let Some((_, AnchorRef::FaceCenter(b0, k0))) = sel.first().cloned() {
         // the second surface must complement the first: a cylinder to a plane and the other way round
         if jc.project.face_cylinder(b0, &k0).is_some() == is_cyl {
-            *jc.status = qymcad_i18n::tr("j-tangent-need-cylinder");
+            *jc.status = Notice::refusal(qymcad_i18n::tr("j-tangent-need-cylinder"));
             return;
         }
     }
     let Some(sel) = jc.joint.tangent_pick.as_mut() else { return };
     sel.push((comp, AnchorRef::FaceCenter(body, key)));
     if sel.len() < 2 {
-        *jc.status = qymcad_i18n::tr("j-tangent-second");
+        *jc.status = Notice::info(qymcad_i18n::tr("j-tangent-second"));
         return;
     }
     let pair = sel.clone();
     qymcad_ui_state::begin_edit(jc.edits, jc.project, qymcad_i18n::tr("j-tangent-made")); // THE BOUNDARY OF AN OPERATION
     jc.project.add_tangent(pair[0].0, pair[0].1.clone(), pair[1].0, pair[1].1.clone());
-    *jc.status = qymcad_i18n::tr("j-tangent-made-ok");
+    *jc.status = Notice::info(qymcad_i18n::tr("j-tangent-made-ok"));
     joint_console_settle(jc); // the round part rests on the flat one now, not on some later solve
                               // THE OPERATION STAYS OPEN: the part rests where the condition puts it as a preview until Apply or Enter keeps it and
                               // Esc takes it away (`tangent_finish`); the two picks stay in `tangent_pick` as the mark of that
@@ -413,7 +414,7 @@ pub fn tangent_finish(jc: &mut qymcad_ui_state::JointCtx, keep: bool) {
         qymcad_ui_state::close_edit(jc.edits, jc.project); // closed, not committed: committing drops the asked rebuild
     } else {
         qymcad_ui_state::abort_edit(&mut jc.rebuild());
-        *jc.status = qymcad_i18n::tr("j-tangent-off");
+        *jc.status = Notice::info(qymcad_i18n::tr("j-tangent-off"));
     }
 }
 
@@ -422,13 +423,13 @@ pub fn group_pick_confirm(jc: &mut qymcad_ui_state::JointCtx) {
     let Some(sel) = jc.joint.group_pick.clone() else { return };
     if sel.len() < 2 {
         // NO SILENT REFUSAL: a part has already been clicked and a result is expected.
-        *jc.status = qymcad_i18n::tr("j-group-need-two");
+        *jc.status = Notice::refusal(qymcad_i18n::tr("j-group-need-two"));
         return;
     }
     qymcad_ui_state::begin_edit(jc.edits, jc.project, qymcad_i18n::tr("j-group-made")); // THE BOUNDARY OF AN OPERATION
     jc.project.add_group(&sel);
     jc.joint.group_pick = None;
-    *jc.status = qymcad_i18n::tr1("j-group-made-n", "n", &sel.len().to_string());
+    *jc.status = Notice::info(qymcad_i18n::tr1("j-group-made-n", "n", &sel.len().to_string()));
     qymcad_ui_state::mark_dirty_for_rebuild(&mut jc.rebuild()); // the document is marked; the planner does the counting
     qymcad_ui_state::commit_edit(&mut jc.rebuild());
 }
@@ -437,7 +438,7 @@ pub fn group_pick_confirm(jc: &mut qymcad_ui_state::JointCtx) {
 pub fn ground_click(jc: &mut qymcad_ui_state::JointCtx, hit: Option<Id>) {
     match hit {
         Some(body) => joint_pick_ground_click(jc, body),
-        None => *jc.status = qymcad_i18n::tr("vp-miss-part-ground"),
+        None => *jc.status = Notice::refusal(qymcad_i18n::tr("vp-miss-part-ground")),
     }
 }
 
@@ -447,7 +448,7 @@ pub fn ground_click(jc: &mut qymcad_ui_state::JointCtx, hit: Option<Id>) {
 pub fn joint_pick_ground_click(jc: &mut qymcad_ui_state::JointCtx, body: Id) {
     let ctx = qymcad_ui_state::current_ctx_id(jc.active_path, jc.project);
     let Some(owner) = jc.project.body_owner(body) else {
-        *jc.status = qymcad_i18n::tr("j-body-no-part");
+        *jc.status = Notice::refusal(qymcad_i18n::tr("j-body-no-part"));
         return;
     };
     let comp = jc.project.ancestor_child_of(ctx, owner).unwrap_or(owner);
@@ -456,7 +457,7 @@ pub fn joint_pick_ground_click(jc: &mut qymcad_ui_state::JointCtx, body: Id) {
     jc.project.set_grounded(comp, !g);
     qymcad_ui_state::mark_dirty_for_rebuild(&mut jc.rebuild()); // the document is marked; the planner does the counting
     let name = jc.project.components.iter().find(|c| c.id == comp).map(|c| qymcad_i18n::name(&c.name)).unwrap_or_default();
-    *jc.status = if !g { qymcad_i18n::tr1("jt-grounded", "name", &name) } else { qymcad_i18n::tr1("jt-released", "name", &name) };
+    *jc.status = if !g { Notice::info(qymcad_i18n::tr1("jt-grounded", "name", &name)) } else { Notice::info(qymcad_i18n::tr1("jt-released", "name", &name)) };
     qymcad_ui_state::close_edit(jc.edits, jc.project); // closed, not committed: committing drops the asked rebuild, and the assembly would not be solved
 }
 
@@ -476,7 +477,7 @@ pub fn joint_pick_anchor_click(jc: &mut qymcad_ui_state::JointCtx, owner: Id, an
         let cid = jc.project.add_connector_standalone(owner, anchor);
         jc.joint.conn_pick = false;
         *jc.sel_conn = Some(cid);
-        *jc.status = qymcad_i18n::tr("j-conn-made-ok");
+        *jc.status = Notice::info(qymcad_i18n::tr("j-conn-made-ok"));
         qymcad_ui_state::commit_edit(&mut jc.rebuild());
         return;
     }
@@ -484,7 +485,7 @@ pub fn joint_pick_anchor_click(jc: &mut qymcad_ui_state::JointCtx, owner: Id, an
     // are visible so they can be referred to, but they are dimmed for a reason - no joint lands on them.
     let ctx = qymcad_ui_state::current_ctx_id(jc.active_path, jc.project);
     if !jc.project.component_is_within(owner, ctx) {
-        *jc.status = qymcad_i18n::tr("j-outside-assembly-joint");
+        *jc.status = Notice::refusal(qymcad_i18n::tr("j-outside-assembly-joint"));
         return;
     }
     // AN ANCHOR ON A MOVING PART IS REPORTED AT ONCE, NOT LATER.
@@ -500,7 +501,7 @@ pub fn joint_pick_anchor_click(jc: &mut qymcad_ui_state::JointCtx, owner: Id, an
     // IT IS ASKED BEFORE WAITING FOR GEOMETRY: "you pointed at the wrong part" is an objection on the
     // merits, and it holds whether or not the live B-rep has come up.
     if jc.project.anchor_sits_on_moving_part(owner, &anchor) {
-        *jc.status = qymcad_i18n::tr("j-anchor-on-moving-part-refused");
+        *jc.status = Notice::refusal(qymcad_i18n::tr("j-anchor-on-moving-part-refused"));
         return;
     }
     // WHILE THE GEOMETRY IS ON ITS WAY, NO ANCHOR IS TAKEN.
@@ -518,24 +519,24 @@ pub fn joint_pick_anchor_click(jc: &mut qymcad_ui_state::JointCtx, owner: Id, an
         // the truth. But if the preparation IS ALREADY OVER and there is still no live body (an import
         // that did not restore, an operation that did not build), then "one moment" is a lie: there is
         // nothing to wait for, and the face will be clicked until it is given up on.
-        *jc.status = qymcad_i18n::tr(if jc.live.ready { "j-geometry-missing" } else { "j-geometry-on-its-way" });
+        *jc.status = if jc.live.ready { Notice::refusal(qymcad_i18n::tr("j-geometry-missing")) } else { Notice::info(qymcad_i18n::tr("j-geometry-on-its-way")) };
         return;
     }
     match jc.joint.pick_first.take() {
         None => {
             jc.joint.pick_first = Some((owner, anchor));
-            *jc.status = qymcad_i18n::tr("j-anchor-a-picked");
+            *jc.status = Notice::info(qymcad_i18n::tr("j-anchor-a-picked"));
         }
         Some((owner_a, anchor_a)) => {
             // THE SAME PLACE AGAIN lets anchor A go, as a second click lets go every pick: the joint asks for A anew
             if owner_a == owner && anchor_a == anchor {
                 let target = if jc.joint.anchor_mode == 3 { qymcad_i18n::tr("j-origin-lower") } else { qymcad_i18n::tr("j-place-lower") };
-                *jc.status = qymcad_i18n::tr1("jt-click-a", "what", &target);
+                *jc.status = Notice::info(qymcad_i18n::tr1("jt-click-a", "what", &target));
                 return;
             }
             if owner_a == owner {
                 jc.joint.pick_first = Some((owner_a, anchor_a)); // the same part - wait for another one
-                *jc.status = qymcad_i18n::tr("j-pick-other-part");
+                *jc.status = Notice::info(qymcad_i18n::tr("j-pick-other-part"));
                 return;
             }
             // a joint runs between components AT THE LEVEL OF THE CONTEXT (the direct children of ctx,
@@ -546,7 +547,7 @@ pub fn joint_pick_anchor_click(jc: &mut qymcad_ui_state::JointCtx, owner: Id, an
             let place_b = jc.project.ancestor_child_of(ctx, owner).unwrap_or(owner);
             if place_a == place_b {
                 jc.joint.pick_first = Some((owner_a, anchor_a)); // both anchors in one subassembly - an internal joint
-                *jc.status = qymcad_i18n::tr("j-same-subassembly");
+                *jc.status = Notice::refusal(qymcad_i18n::tr("j-same-subassembly"));
                 return;
             }
             // The "anchor compatibility" check is gone from here: it always answered "compatible", so
@@ -568,7 +569,7 @@ pub fn joint_pick_anchor_click(jc: &mut qymcad_ui_state::JointCtx, owner: Id, an
             // were placed. After a solve there is nothing left to take: the joint mates the anchors and
             // drags the part away.
             if jc.joint.new_as_built && !jc.project.set_joint_as_built(jid) {
-                *jc.status = qymcad_i18n::tr("j-as-built-failed");
+                *jc.status = Notice::error(qymcad_i18n::tr("j-as-built-failed"));
             }
             let children = jc.project.component_children(ctx);
             if !children.iter().any(|&c| jc.project.is_grounded(c)) {
@@ -582,7 +583,7 @@ pub fn joint_pick_anchor_click(jc: &mut qymcad_ui_state::JointCtx, owner: Id, an
             // guessing to look for it there.
             jc.joint.edit = Some(jid);
             qymcad_ui_state::mark_dirty_for_rebuild(&mut jc.rebuild()); // the document is marked; the planner does the counting
-            *jc.status = qymcad_i18n::tr("j-created");
+            *jc.status = Notice::info(qymcad_i18n::tr("j-created"));
             // THE OPERATION STAYS OPEN: the joint stands solved as a preview until Apply or Enter keeps it and Esc takes it
             // away (`joint_create_finish`). It is solved here: no rebuild runs while an operation is open, and the parts
             // would stand where they were until Enter.

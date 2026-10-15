@@ -1,5 +1,6 @@
 //! THE FIELDS AT THE GEOMETRY: where the popup of a command stands, and the popups themselves.
 
+use qymcad_ui_state::Notice;
 use super::*;
 
 /// HOW FAR BESIDE ITS ARROW THE FIELDS OF A COMMAND STAND, on the screen: clear of the arrow and of the ball at its tip
@@ -323,9 +324,9 @@ pub fn feat_cmd_popup(pc: &mut qymcad_ui_state::PartCtx, ctx: &egui::Context, re
             // popup, and the status line kept the command's own ask as if the key had not been pressed
             if enter && !all_ok {
                 *pc.status = match &bad {
-                    Some((field, msg)) => format!("{field}: {msg}"),
-                    None if checking => qymcad_i18n::tr("cmd-trial-checking"),
-                    None => qymcad_i18n::tr("sk-fix-bar-field"), // a field of the bar above, the sides of a prism
+                    Some((field, msg)) => Notice::refusal(format!("{field}: {msg}")),
+                    None if checking => Notice::info(qymcad_i18n::tr("cmd-trial-checking")),
+                    None => Notice::refusal(qymcad_i18n::tr("sk-fix-bar-field")), // a field of the bar above, the sides of a prism
                 };
             }
             ui.horizontal(|ui| {
@@ -422,7 +423,7 @@ pub fn body_num_popup(pc: &mut qymcad_ui_state::PartCtx, ctx: &egui::Context, re
                         qymcad_ui_state::begin_edit(pc.edits, pc.project, qymcad_i18n::tr("status-move-component"));
                         let to = qymcad_core::feature::mat_mul12(&t, &pc.project.component_transform(comp));
                         if !pc.project.move_component_by_hand(comp, to) {
-                            *pc.status = qymcad_i18n::tr("j-group-grounded");
+                            *pc.status = Notice::info(qymcad_i18n::tr("j-group-grounded"));
                         }
                         qymcad_ui_state::invalidate_placement(pc.regen);
                         qymcad_ui_state::commit_edit(&mut pc.rebuild());

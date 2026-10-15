@@ -1,5 +1,6 @@
 //! The records of the window itself: the 2D view, the workbench, the caches, the windows, the edits, the rebuild, the scheme.
 
+use crate::Notice;
 use super::*;
 
 #[derive(Clone, Copy)]
@@ -470,9 +471,9 @@ pub struct Rebuilding {
     pub rebinds: Vec<qymcad_core::feature::Rebind>,
     /// The last line the rebuild itself wrote on the status line: its end replaces only that, not what an operation
     /// wrote since.
-    pub line: String,
+    pub line: crate::Notice,
     /// What stood on the status line before a quiet rebuild wrote its progress over it - put back when it ends well.
-    pub over: String,
+    pub over: crate::Notice,
     /// THE STATE AS OF THE PREVIOUS REBUILD: the document's key, the list of dirty nodes and the number of live
     /// B-reps. The scheduler recomputes only if AT LEAST ONE of those has changed.
     ///
@@ -566,7 +567,7 @@ pub struct SchemeUi {
     /// The settings search's query.
     pub search: String,
     /// What to say after a section is reset or after an attempt to open the config folder.
-    pub note: String,
+    pub note: crate::Notice,
 }
 
 impl Default for SchemeUi {
@@ -577,7 +578,7 @@ impl Default for SchemeUi {
             edit: SchemeEdit::default(),
             section: settings_sections::SettingsSection::General,
             search: String::new(),
-            note: String::new(),
+            note: Notice::default(),
         }
     }
 }

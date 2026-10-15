@@ -1,5 +1,6 @@
 //! Smaller records: the scheme being edited, a relation picked, the save dialog, joint drags, labels, meshes and edges cached, the edit in hand.
 
+use crate::Notice;
 use super::*;
 
 /// THE CUSTOM SCHEME SCREEN: what is being edited and what to say about saving.
@@ -198,7 +199,7 @@ pub struct Editing<'a> {
     pub edits: &'a mut Edits,
     pub regen: &'a mut Rebuilding,
     pub sel: &'a mut Sel,
-    pub status: &'a mut String,
+    pub status: &'a mut Notice,
     pub view: &'a mut View2d,
 }
 
@@ -218,7 +219,7 @@ pub fn construction_selected(ed: Editing, sel_sk: &SketchSelection, sketch_ses: 
     let now = ed.project.toggle_construction(si, &eids);
     ed.project.solve_sketch(si);
     invalidate(ed.regen);
-    *ed.status = qymcad_i18n::tr(if now { "in-made-construction" } else { "in-made-normal" });
+    *ed.status = Notice::info(qymcad_i18n::tr(if now { "in-made-construction" } else { "in-made-normal" }));
     close_edit(ed.edits, ed.project);
     true
 }

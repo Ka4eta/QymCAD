@@ -1,10 +1,11 @@
 //! EDITING A SKETCH: what is under the pointer, contours, boxes, the labels of constraints.
 
+use crate::Notice;
 use super::*;
 
 /// Select all the geometry of a sketch: entities (lines, arcs, circles), primitives and free points
 /// (apart from the system ones — the origin and the axes). Used by Ctrl+A.
-pub fn select_all_sketch(annot: &mut AnnotEdit, gsel: &mut GeomSelection, project: &Project, sel_sk: &mut SketchSelection, status: &mut String, si: usize) {
+pub fn select_all_sketch(annot: &mut AnnotEdit, gsel: &mut GeomSelection, project: &Project, sel_sk: &mut SketchSelection, status: &mut Notice, si: usize) {
     let Some(s) = project.sketches.get(si) else { return };
     let sys: std::collections::HashSet<Id> = s.system_ids().into_iter().collect();
     // points already taken by entities and primitives: they are not added as separate points
@@ -42,11 +43,11 @@ pub fn select_all_sketch(annot: &mut AnnotEdit, gsel: &mut GeomSelection, projec
     sel_sk.items = sel;
     gsel.constraint = None;
     annot.note = None;
-    *status = qymcad_i18n::tr1("g-selected-n", "n", &n.to_string());
+    *status = Notice::info(qymcad_i18n::tr1("g-selected-n", "n", &n.to_string()));
 }
 
 /// Delete the current sketch selection (entities, primitives and points, apart from the system ones).
-pub fn delete_sketch_sel(project: &mut Project, regen: &mut Rebuilding, sel_sk: &mut SketchSelection, status: &mut String, si: usize) {
+pub fn delete_sketch_sel(project: &mut Project, regen: &mut Rebuilding, sel_sk: &mut SketchSelection, status: &mut Notice, si: usize) {
     let eids: Vec<Id> = sel_sk.items.iter().filter(|(k, _)| *k == 1).map(|(_, id)| *id).collect();
     let eids: Vec<Id> = {
         let s = &project.sketches[si];
@@ -68,7 +69,7 @@ pub fn delete_sketch_sel(project: &mut Project, regen: &mut Rebuilding, sel_sk: 
     project.solve_sketch(si);
     sel_sk.clear(); // the selection, and whatever was waiting on it
     invalidate(regen);
-    *status = qymcad_i18n::tr("g-deleted");
+    *status = Notice::info(qymcad_i18n::tr("g-deleted"));
 }
 
 /// Turn a reference object into a REAL point (creating the midpoint or the origin if needed) -> its Id.
@@ -483,7 +484,7 @@ pub fn box_select_sketch(ed: Editing, sel_sk: &mut SketchSelection, rect: Rect, 
             sel_sk.items.push((0, id));
         }
     }
-    *ed.status = qymcad_i18n::tr1("g-selected-n", "n", &sel_sk.items.len().to_string());
+    *ed.status = Notice::info(qymcad_i18n::tr1("g-selected-n", "n", &sel_sk.items.len().to_string()));
 }
 
 /// The closed contours of sketch `si` (by Id) that will do as the profile of a feature.

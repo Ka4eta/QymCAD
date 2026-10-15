@@ -4,6 +4,7 @@
 //! diagnostics of degrees of freedom. Every function here works over `qymcad_ui_state::SketchCtx` - the records the sketch
 //! edits - and asks the application for nothing.
 
+use qymcad_ui_state::Notice;
 use egui::{Color32, Pos2, Rect};
 use egui_phosphor::regular as ph;
 use qymcad_core::geom::Point2;
@@ -607,7 +608,7 @@ pub fn finish_point_drag(sk: &mut qymcad_ui_state::SketchCtx) {
 /// Selection mode (the arrow): every tool is switched off and geometry is picked by click.
 pub fn sketch_select_mode(sk: &mut qymcad_ui_state::SketchCtx) {
     qymcad_ui_state::exit_draw_tools(&mut qymcad_ui_state::tools_in!(sk)); // the single transition from a mode back to selection
-    *sk.status = qymcad_i18n::tr("sk-select-hint");
+    *sk.status = Notice::info(qymcad_i18n::tr("sk-select-hint"));
 }
 
 /// Degrees of freedom, redundancy and free points (a wrapper over `qymcad_ui_state::sketch_diag` for the older call
@@ -754,14 +755,14 @@ fn delete_selected_in(sk: &mut qymcad_ui_state::SketchCtx, si: usize) {
         if ti < sk.project.sketches[si].texts.len() {
             sk.project.delete_sketch_text(si, ti);
             qymcad_ui_state::invalidate(&mut *sk.regen);
-            *sk.status = qymcad_i18n::tr("in-text-deleted");
+            *sk.status = Notice::info(qymcad_i18n::tr("in-text-deleted"));
         }
         return;
     }
     if let Some(ni) = sk.annot.note.take() {
         if ni < sk.project.sketches[si].notes.len() {
             sk.project.sketches[si].notes.remove(ni);
-            *sk.status = qymcad_i18n::tr("in-note-deleted");
+            *sk.status = Notice::info(qymcad_i18n::tr("in-note-deleted"));
         }
         return;
     }
@@ -769,7 +770,7 @@ fn delete_selected_in(sk: &mut qymcad_ui_state::SketchCtx, si: usize) {
         if ci < sk.project.sketches[si].constraints.len() {
             sk.project.delete_sketch_constraint(si, ci); // also cleans up an orphaned midpoint
             qymcad_ui_state::invalidate(&mut *sk.regen);
-            *sk.status = qymcad_i18n::tr("in-constraint-deleted");
+            *sk.status = Notice::info(qymcad_i18n::tr("in-constraint-deleted"));
         }
         return;
     }
@@ -800,7 +801,7 @@ fn delete_selected_in(sk: &mut qymcad_ui_state::SketchCtx, si: usize) {
     sk.project.solve_sketch(si);
     sk.sel_sk.clear(); // the selection and whatever was waiting for it
     qymcad_ui_state::invalidate(&mut *sk.regen);
-    *sk.status = qymcad_i18n::tr("in-deleted");
+    *sk.status = Notice::info(qymcad_i18n::tr("in-deleted"));
 }
 
 /// EDIT -> INSERT IN A SKETCH: with geometry in the clipboard, the placing is armed (a ghost, then a click), the tool in
@@ -812,7 +813,7 @@ pub fn arm_paste(sk: &mut qymcad_ui_state::SketchCtx) -> bool {
     }
     qymcad_ui_state::exit_draw_tools(&mut qymcad_ui_state::tools_in!(sk));
     (sk.clip.geom_pending, sk.clip.geom_place) = (None, true);
-    *sk.status = qymcad_i18n::tr("g-insert-click");
+    *sk.status = Notice::info(qymcad_i18n::tr("g-insert-click"));
     true
 }
 
