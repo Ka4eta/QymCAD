@@ -17,9 +17,16 @@ const CAPTION_SIZE: f32 = 11.0;
 
 /// THE BAR OF THE WORKBENCH OPEN at `edge` (none: as at a side).
 pub(crate) fn wb_toolbar(bc: &mut qymcad_ui_state::BarCtx, ui: &mut egui::Ui, edge: Option<qymcad_shell::Edge>) {
-    use qymcad_ui_state::catalogue::{arrange, hint, pressed, Command};
     let edge = edge.unwrap_or(qymcad_shell::Edge::Left);
     let bench = bc.workbench.code();
+    // the bar of each workbench under its own key, and each button under the code of its command: a button taking the
+    // place of another is a new widget, which egui would otherwise take for an old one whose id changed
+    ui.push_id(bench, |ui| bar_of(bc, ui, edge, bench));
+}
+
+/// THE BAR OF `bench`, laid and pressed.
+fn bar_of(bc: &mut qymcad_ui_state::BarCtx, ui: &mut egui::Ui, edge: qymcad_shell::Edge, bench: &'static str) {
+    use qymcad_ui_state::catalogue::{arrange, hint, pressed, Command};
     let rows = crate::command_catalog::of_bench(bench);
     let arranged = arrange(&rows, bc.set.bar_sets.get(bench));
     let look = bc.set.bar.look();
@@ -57,7 +64,8 @@ pub(crate) fn wb_toolbar(bc: &mut qymcad_ui_state::BarCtx, ui: &mut egui::Ui, ed
     for p in &plan.on_bar {
         let c = arranged.on_bar[p.item];
         let img = qymcad_ui_state::icon_image(ui, c.icon, look.size * ICON_SHARE);
-        let r = ui.put(p.rect, egui::Button::image(img).selected(pressed(c.launch, bc))).on_hover_text(hint(c, bc));
+        let button = egui::Button::image(img).selected(pressed(c.launch, bc));
+        let r = ui.scope_builder(egui::UiBuilder::new().max_rect(p.rect).id_salt(c.code), |ui| ui.add_sized(p.rect.size(), button)).inner.on_hover_text(hint(c, bc));
         qymcad_shell::note_button(ui.ctx(), p.rect, qymcad_shell::Button::Plain);
         if r.clicked() {
             chosen = Some(c);

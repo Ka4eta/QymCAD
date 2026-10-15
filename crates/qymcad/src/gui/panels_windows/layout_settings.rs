@@ -146,7 +146,11 @@ pub(crate) fn layout_diagram(set: &mut qymcad_ui_state::Settings, ui: &mut egui:
                     over = pick.over;
                     touched = Some(key);
                 }
-                // dropped on a panel: into its strip, before it or after it by the half the pointer is in
+                // dropped on a panel: into its strip, before it or after it by the half the pointer is in; nothing joins
+                // the strip of a pinned one
+                if shell.pinned(key) {
+                    continue;
+                }
                 let zone = ui.interact(tile, egui::Id::new(("layout-tile-drop", *key)), egui::Sense::hover());
                 if let Some(c) = zone.dnd_release_payload::<Carried>() {
                     let at = ui.ctx().pointer_interact_pos().unwrap_or(tile.center());
@@ -217,6 +221,13 @@ fn tile_ui(shell: &qymcad_shell::Shell, key: &'static str, tile: egui::Rect, ui:
     } else {
         egui::Rect::from_min_max(tile.min, egui::pos2(tile.max.x - row, tile.max.y))
     };
+    // A PLACE THAT NEITHER MOVES NOR HIDES is drawn as the menu is: a band in the colour of the menu with a lock
+    if pinned && !shell.hideable(key) {
+        ui.painter().rect_filled(tile, 0.0, vis.faint_bg_color);
+        let words = format!("{}  {name}", ph::LOCK_SIMPLE);
+        ui.painter().text(tile.left_center() + egui::vec2(6.0, 0.0), egui::Align2::LEFT_CENTER, words, egui::FontId::proportional(TILE_TEXT), vis.weak_text_color());
+        return pick;
+    }
     let carried = egui::Id::new(("layout-tile", key));
     let lifted = ui.ctx().is_being_dragged(carried);
     let fill = if hidden || lifted { vis.faint_bg_color } else { vis.widgets.inactive.weak_bg_fill };
@@ -226,12 +237,14 @@ fn tile_ui(shell: &qymcad_shell::Shell, key: &'static str, tile: egui::Rect, ui:
     let label = egui::Label::new(if hidden { words.weak() } else { words }).wrap().selectable(false);
     // THE NAME STAYS ON THE TILE, and what is carried is the plate under the pointer: a drag source carries its content
     // along see-through, so the source holds nothing to see
-    let mut child = ui.new_child(egui::UiBuilder::new().max_rect(body.shrink(3.0)).layout(egui::Layout::left_to_right(egui::Align::Center)));
+    // every part of a tile under the key of its panel: a tile laid where another stood is a new widget, not an old one
+    // whose id changed
+    let mut child = ui.new_child(egui::UiBuilder::new().max_rect(body.shrink(3.0)).layout(egui::Layout::left_to_right(egui::Align::Center)).id_salt(("tile-name", key)));
     child.add(label);
     if pinned {
         ui.interact(body, carried, egui::Sense::hover()).on_hover_text(crate::i18n::tr1("settings-layout-pinned", "name", &name));
     } else {
-        let mut handle = ui.new_child(egui::UiBuilder::new().max_rect(body));
+        let mut handle = ui.new_child(egui::UiBuilder::new().max_rect(body).id_salt(("tile-handle", key)));
         handle.dnd_drag_source(carried, Carried { key }, |ui| ui.allocate_space(body.size())).response.on_hover_text(&name);
     }
     if lifted {
@@ -243,14 +256,17 @@ fn tile_ui(shell: &qymcad_shell::Shell, key: &'static str, tile: egui::Rect, ui:
             Switch::Eye => {
                 let glyph = if hidden { ph::EYE_SLASH } else { ph::EYE };
                 let hint = if hidden { "settings-layout-show" } else { "settings-layout-hide" };
-                if ui.put(at, egui::Button::new(glyph).small().frame(false)).on_hover_text(crate::i18n::tr1(hint, "name", &name)).clicked() {
+                let eye = ui.scope_builder(egui::UiBuilder::new().max_rect(at).id_salt(("tile-eye", key)), |ui| ui.add_sized(at.size(), egui::Button::new(glyph).small().frame(false))).inner;
+                if eye.on_hover_text(crate::i18n::tr1(hint, "name", &name)).clicked() {
                     pick.seen = Some(if hidden { qymcad_shell::Seen::Shown } else { qymcad_shell::Seen::Hidden });
                 }
             }
             Switch::Over => {
                 let on = place.over == qymcad_shell::Over::Over;
                 let hint = if on { "settings-layout-beside" } else { "settings-layout-over" };
-                if ui.put(at, egui::Button::new(ph::STACK_SIMPLE).small().frame(false).selected(on)).on_hover_text(crate::i18n::tr1(hint, "name", &name)).clicked() {
+                let button = egui::Button::new(ph::STACK_SIMPLE).small().frame(false).selected(on);
+                let over = ui.scope_builder(egui::UiBuilder::new().max_rect(at).id_salt(("tile-over", key)), |ui| ui.add_sized(at.size(), button)).inner;
+                if over.on_hover_text(crate::i18n::tr1(hint, "name", &name)).clicked() {
                     pick.over = Some(if on { qymcad_shell::Over::Beside } else { qymcad_shell::Over::Over });
                 }
             }
@@ -351,11 +367,16 @@ fn align_word(align: qymcad_shell::BarAlign) -> &'static str {
 /// THE BUTTONS OF THE BAR OF `bench`: in their order, each on the bar or in "More". A row is dragged to change the
 /// order; the standard set comes back with one button.
 pub(crate) fn bar_buttons(set: &mut qymcad_ui_state::Settings, ui: &mut egui::Ui, bench: &str) {
+    // UNDER A FOLD OF ITS OWN, as the colours of a scheme are: the section of a workbench holds more than its bar
+    egui::CollapsingHeader::new(crate::i18n::tr("settings-bar-buttons")).id_salt(("buttons of the bar", bench)).default_open(false).show(ui, |ui| bar_buttons_list(set, ui, bench));
+}
+
+/// The list of the buttons of the bar of `bench`, inside its fold.
+fn bar_buttons_list(set: &mut qymcad_ui_state::Settings, ui: &mut egui::Ui, bench: &str) {
     let rows = crate::command_catalog::of_bench(bench);
     let kept = set.bar_sets.get(bench).cloned();
     let order = qymcad_ui_state::catalogue::ordered(&rows, kept.as_ref());
     let mut in_more: Vec<String> = kept.map(|k| k.in_more).unwrap_or_default();
-    ui.label(crate::i18n::tr("settings-bar-buttons"));
     ui.label(egui::RichText::new(crate::i18n::tr("settings-bar-drag-hint")).weak().small());
     let mut moved: Option<Move> = None;
     let mut changed = false;

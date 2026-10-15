@@ -323,42 +323,50 @@ pub(crate) fn status_bar(sc: &mut qymcad_ui_state::StatusCtx, ui: &mut egui::Ui)
     // A frame is where it belongs: nothing else in the program knows that a start happened, and this
     // costs one comparison of two numbers when there is nothing to do. It never waits for the network.
     crate::gui::update_ui::ask_if_due(set);
-    // WRAPPED, so that the line put at a side lays its words in lines rather than running out of its strip
-    ui.horizontal_wrapped(|ui| {
+    ui.horizontal(|ui| {
         // a warning yellow with its icon, an error red with its: the line is where a person looks after an action
         let faults = qymcad_ui_state::document_faults(cache, project);
-        let said = qymcad_ui_state::notice_text(&scheme.pal, status, qymcad_ui_state::NoticeSize::Line);
-        let fault_said = matches!(status.tone, qymcad_ui_state::Tone::Warning | qymcad_ui_state::Tone::Error) && !faults.is_empty();
-        // the words of a fault lead where the badges lead: it is the line a person reads first
-        let words_clicked = if fault_said {
-            ui.add(egui::Label::new(said).sense(egui::Sense::click())).on_hover_cursor(egui::CursorIcon::PointingHand).clicked()
-        } else {
-            ui.label(said);
-            false
-        };
-        let badge_clicked = fault_badges(ui, &scheme.pal, &faults);
-        let lead = words_clicked || badge_clicked;
-        if lead {
-            if let Some(said) = qymcad_ui_state::lead_to_faults(&faults, project, win, par_search, ask) {
-                *line.rebuild = said.clone();
-                *status = said;
-            }
-        }
-        update_note(scheme, win, ui);
-        if let Some(sid) = sketch_ses.editing {
-            if let Some(si) = project.sketches.iter().position(|s| s.id == sid) {
-                let (line, col) = crate::gui::sketching::sketch_dof_line(cache, project, scheme, si);
-                ui.separator();
-                ui.label(egui::RichText::new(line).color(col));
-            }
-        }
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            ui.label(crate::i18n::tr("bar-units-mm"));
-            ui.separator();
-            match cursor {
-                Some(c) => ui.monospace(format!("X {:.2}  Y {:.2}", c.x, c.y)),
-                None => ui.monospace("X —  Y —"),
+        // WHAT COMES AND GOES ON THE LINE, each part in a scope of its own that is there whether it shows anything or not:
+        // egui numbers what follows by what came before, and the readout of the pointer, renumbered on entering a sketch,
+        // was marked with egui's red frame of a widget that changed its id
+        ui.push_id("status said", |ui| {
+            let said = qymcad_ui_state::notice_text(&scheme.pal, status, qymcad_ui_state::NoticeSize::Line);
+            let fault_said = matches!(status.tone, qymcad_ui_state::Tone::Warning | qymcad_ui_state::Tone::Error) && !faults.is_empty();
+            // the words of a fault lead where the badges lead: it is the line a person reads first
+            let words_clicked = if fault_said {
+                ui.add(egui::Label::new(said).sense(egui::Sense::click())).on_hover_cursor(egui::CursorIcon::PointingHand).clicked()
+            } else {
+                ui.label(said);
+                false
             };
+            let badge_clicked = fault_badges(ui, &scheme.pal, &faults);
+            let lead = words_clicked || badge_clicked;
+            if lead {
+                if let Some(said) = qymcad_ui_state::lead_to_faults(&faults, project, win, par_search, ask) {
+                    *line.rebuild = said.clone();
+                    *status = said;
+                }
+            }
+        });
+        ui.push_id("status update", |ui| update_note(scheme, win, ui));
+        ui.push_id("status sketch", |ui| {
+            if let Some(sid) = sketch_ses.editing {
+                if let Some(si) = project.sketches.iter().position(|s| s.id == sid) {
+                    let (line, col) = crate::gui::sketching::sketch_dof_line(cache, project, scheme, si);
+                    ui.separator();
+                    ui.label(egui::RichText::new(line).color(col));
+                }
+            }
+        });
+        ui.push_id("status readout", |ui| {
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.label(crate::i18n::tr("bar-units-mm"));
+                ui.separator();
+                match cursor {
+                    Some(c) => ui.monospace(format!("X {:.2}  Y {:.2}", c.x, c.y)),
+                    None => ui.monospace("X —  Y —"),
+                };
+            });
         });
     });
 }

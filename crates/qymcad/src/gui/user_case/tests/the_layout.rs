@@ -42,6 +42,7 @@ pub(super) fn set_by_hand(app: &mut App, problems: &mut Vec<String>) {
     hand.press_word(&word("bar-align-centre"), corner);
     // the pencil of a new sketch into "More", in the section of the part
     hand.press_word(&word("settings-sec-part"), egui::pos2(700.0, 200.0));
+    hand.press_word(&word("settings-bar-buttons"), egui::pos2(700.0, 400.0));
     let pencil = word("cmdname-new-sketch");
     match hand.written_at(&pencil) {
         Some(row) => {

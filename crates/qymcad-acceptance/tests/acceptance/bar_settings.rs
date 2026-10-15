@@ -160,7 +160,7 @@ fn close_settings(s: &mut Session) {
 }
 
 probe! {
-    /// THE PROPERTIES CARRIED UNDER THE TREE on the diagram of the settings, the status line hidden by its eye and
+    /// THE PROPERTIES CARRIED UNDER THE TREE on the diagram of the settings, the bar of the path hidden by its eye and
     /// the tree from the menu "View" - each seen in the window at once, and the layout there after a restart.
     fn the_panels_are_carried_and_hidden_by_hand() {
         let mut s = Session::start();
@@ -173,14 +173,14 @@ probe! {
         let from = s.find(&props, corner).expect("the properties stand on the diagram").center();
         let to = s.find(&tree, corner).expect("the tree stands on the diagram").center() + vec2(0.0, 40.0);
         s.drag(from, to, PointerButton::Primary, Modifiers::NONE);
-        let status = s.word("panel-status");
-        let eye = s.word_with("settings-layout-hide", Arg { name: "name", value: &status });
+        let path = s.word("panel-toolbar");
+        let eye = s.word_with("settings-layout-hide", Arg { name: "name", value: &path });
         s.press_hint(&eye);
         close_settings(&mut s);
         let t = s.panel("tree").expect("the tree is drawn");
         let p = s.panel("props").expect("the properties are drawn");
         assert!(p.min.y >= t.max.y - 1.0 && (p.min.x - t.min.x).abs() < 1.0, "the properties do not stand under the tree: {t:?} and {p:?}");
-        assert!(s.panel("status").is_none(), "the status line hidden by its eye is still drawn");
+        assert!(s.panel("toolbar").is_none(), "the bar of the path hidden by its eye is still drawn");
         let view = s.word("menu-view");
         let panels = s.word("menu-panels");
         s.menu(&[&view, &panels, &tree]);
@@ -190,7 +190,7 @@ probe! {
         let mut s = Session::start_on(Machine { kept, ..Machine::default() });
         s.key(Key::Escape);
         build::into_the_first_part(&mut s);
-        assert!(s.panel("tree").is_none() && s.panel("status").is_none(), "after a restart the hidden panels came back");
+        assert!(s.panel("tree").is_none() && s.panel("toolbar").is_none(), "after a restart the hidden panels came back");
         let p = s.panel("props").expect("the properties are drawn");
         assert!(p.min.x < 200.0, "after a restart the properties left the left edge: {p:?}");
     }
@@ -203,6 +203,11 @@ probe! {
     fn the_buttons_of_the_sketch_are_put_in_order_and_into_more() {
         let mut s = build::empty_sketch();
         settings_at(&mut s, "settings-sec-sketch");
+        // the list lies folded under its heading, as the colours of a scheme do
+        let heading = s.word("settings-bar-buttons");
+        let line_name = s.command_name("sketch.line");
+        assert!(s.find(&line_name, pos2(700.0, 300.0)).is_none(), "the list of the buttons is open before its heading is pressed");
+        s.press_word_near(&heading, pos2(700.0, 400.0));
         let circle_hint = s.word("tb-circle-hint");
         let line_hint = s.word("tb-line-hint");
         let spline_hint = s.word("tb-spline-hint");

@@ -2,7 +2,7 @@
 //! seen through to the model, its buttons with an even margin, the captions of its groups when asked for, and the
 //! status line standing at the bottom whatever is dragged. Pictures of what was looked at are left in
 //! `target/shots`.
-use qymcad::{pos2, vec2, Key, Machine, Picture, Rect, Session};
+use qymcad::{pos2, vec2, Arg, Key, Machine, Picture, Rect, Session};
 use qymcad_acceptance::{build, probe};
 
 /// Leave a picture of the window in `target/shots/<name>.png`, to be looked at.
@@ -201,8 +201,9 @@ probe! {
 }
 
 probe! {
-    /// THE STATUS LINE STAYS AT THE BOTTOM: on the diagram it stands locked as the menu does, dragged to the top it does not
-    /// go, and the eye still hides it.
+    /// THE STATUS LINE STAYS AT THE BOTTOM AND IN SIGHT, as the menu does at the top: on the diagram it is a band with a
+    /// lock in the colour of the menu, with no eye; dragged to the top it does not go; "View -> Panels" does not offer
+    /// it. Reported behaviour: the status line under a lock in another colour than the menu, and with an eye.
     fn the_status_line_stays_at_the_bottom() {
         let mut s = Session::start();
         s.key(Key::Escape);
@@ -213,7 +214,72 @@ probe! {
         // onto the bar of the path at the top: into its strip
         let toolbar = s.find(&s.word("panel-toolbar"), corner).expect("the bar of the path stands on the diagram").center();
         s.drag(from, toolbar, qymcad::PointerButton::Primary, qymcad::Modifiers::NONE);
+        let eye = s.word_with("settings-layout-hide", Arg { name: "name", value: &status });
+        assert!(s.find_hint(&eye).is_none(), "the status line has an eye on the diagram");
+        // the colour a little past the end of the word on each band, where only the band is painted
+        let picture = s.snapshot();
+        let menu = s.word("settings-layout-menu");
+        let mut band = |word: &str| {
+            let at = s.find(word, corner).unwrap_or_else(|| panic!("{word:?} is not on the diagram"));
+            picture.colour_at(pos2(at.max.x + 12.0, at.center().y))
+        };
+        let (menu_colour, status_colour) = (band(&menu), band(&status));
+        assert!(Picture::apart(menu_colour, status_colour) <= 2, "the band of the status line {status_colour:?} is not in the colour of the menu {menu_colour:?}");
+        let title = s.word("win-settings");
+        s.close_window(&title);
         let at = s.panel("status").expect("the status line is drawn");
         assert!(at.max.y >= s.screen().y - 1.0, "the status line was dragged away from the bottom: {at:?}");
+        let view = s.word("menu-view");
+        let panels = s.word("menu-panels");
+        s.menu(&[&view, &panels]);
+        let offered = s.find(&status, pos2(0.0, 0.0)).is_some_and(|r| r.min.y < at.min.y - 1.0);
+        s.key(Key::Escape);
+        assert!(!offered, "View -> Panels offers to hide the status line");
+    }
+}
+
+/// The words egui paints over the interface when two widgets of one frame take one id.
+fn clashes(s: &mut Session, step: &str, out: &mut Vec<String>) {
+    for w in s.id_clashes() {
+        out.push(format!("{step}: {w}"));
+    }
+}
+
+probe! {
+    /// NO TWO WIDGETS TAKE ONE ID while the layout changes: the bar at the top, a part entered, a sketch opened and
+    /// finished, the assembly again, and in the settings a panel carried on the diagram and dropped. Reported behaviour:
+    /// red frames of egui's complaint at every change of workbench and on letting a panel go on the diagram.
+    fn no_two_widgets_take_one_id_while_the_layout_changes() {
+        let mut out = Vec::new();
+        // the layout as it comes, and the bar of tools at the top seen through
+        for machine in [Machine::default(), machine_with(Record { bar: "size:34.0,lines:Two,align:Centre,opacity:60", place: "\"wbtools\":(edge:Top,strip:100)" })] {
+            chain_of_changes(Session::start_on(machine), &mut out);
+        }
+        assert!(out.is_empty(), "egui complains of one id taken twice:\n{}", out.join("\n"));
+    }
+}
+
+/// THE CHANGES OF A LAYOUT a person goes through, the complaints of egui gathered after each.
+fn chain_of_changes(mut s: Session, out: &mut Vec<String>) {
+    {
+        s.key(Key::Escape);
+        clashes(&mut s, "the start", out);
+        build::into_the_first_part(&mut s);
+        clashes(&mut s, "the part", out);
+        let xy = s.word("plane-xy-table");
+        s.press_word(&xy);
+        clashes(&mut s, "the sketch", out);
+        let finish = s.word("wb-finish");
+        s.press_word_near(&finish, pos2(0.0, 0.0));
+        clashes(&mut s, "the sketch finished", out);
+        s.press_word_near(&finish, pos2(0.0, 0.0));
+        clashes(&mut s, "the assembly", out);
+        settings_at(&mut s, "settings-sec-layout");
+        clashes(&mut s, "the settings", out);
+        let corner = s.find(&s.word("settings-layout-menu"), pos2(640.0, 300.0)).expect("the diagram is drawn").center();
+        let props = s.find(&s.word("panel-props"), corner).expect("the properties stand on the diagram").center();
+        let tree = s.find(&s.word("panel-tree"), corner).expect("the tree stands on the diagram").center();
+        s.drag(props, tree + vec2(0.0, 30.0), qymcad::PointerButton::Primary, qymcad::Modifiers::NONE);
+        clashes(&mut s, "a panel dropped on the diagram", out);
     }
 }

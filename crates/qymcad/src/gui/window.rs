@@ -28,6 +28,9 @@ pub(crate) struct Window {
     pub(crate) plates: Vec<egui::Pos2>,
     /// The "More" buttons of the bars the last frame drew.
     pub(crate) mores: Vec<egui::Pos2>,
+    /// EGUI'S COMPLAINTS OF ONE ID TAKEN TWICE, from every frame since they were last read: they flash in the frames of a
+    /// change and are gone once the screen is at rest.
+    pub(crate) clashes: Vec<String>,
     /// What the frames put on the clipboard, oldest first.
     pub(crate) copied: Vec<String>,
     /// The pages the frames asked the system to open, oldest first.
@@ -101,6 +104,7 @@ impl Window {
             textures: std::collections::HashMap::new(),
             plates: Vec::new(),
             mores: Vec::new(),
+            clashes: Vec::new(),
             copied: Vec::new(),
             urls: Vec::new(),
             title: None,
@@ -144,6 +148,23 @@ impl Window {
         }
         self.plates = qymcad_shell::noted_buttons(&self.ctx).into_iter().map(|r| r.center()).collect();
         self.mores = qymcad_shell::noted_more(&self.ctx).into_iter().map(|r| r.center()).collect();
+        for (t, _) in &self.drawn {
+            if (t.starts_with("First use of") || t.starts_with("Second use of") || t.starts_with("Double use of")) && !self.clashes.contains(t) {
+                self.clashes.push(t.clone());
+            }
+        }
+        // AND THE RED FRAME WITH NO WORDS: egui's mark of a widget whose rectangle took another id under the same parent
+        // between two frames - a red stroke of 2 points over everything
+        for shape in &out.shapes {
+            if let egui::epaint::Shape::Rect(r) = &shape.shape {
+                if shape.clip_rect == egui::Rect::EVERYTHING && r.stroke.color == egui::Color32::RED && r.fill == egui::Color32::TRANSPARENT {
+                    let said = format!("a widget took another id at {:?}", r.rect);
+                    if !self.clashes.contains(&said) {
+                        self.clashes.push(said);
+                    }
+                }
+            }
+        }
         // NOT ONE KEY OF THE CATALOGUE ON THE SCREEN INSTEAD OF A WORD, in any frame any check draws: a key the
         // catalogue lacks is drawn as it is, and nothing else would notice it
         let leaked: Vec<String> = self.drawn.iter().flat_map(|(t, _)| super::key_leak::leaks(t).into_iter().map(move |k| format!("{k:?} in {t:?}"))).collect();

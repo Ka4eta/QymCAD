@@ -2,7 +2,8 @@
 
 The tree, the properties, the bar of tools, the path at the top and the bar of the command in hand can stand at any edge
 of the window, one beside another or one under another, and any of them but the bar of the command can be hidden. The
-menu always stays at the top, the view in the middle and the status line at the bottom; the status line can be hidden.
+menu always stays at the top, the view in the middle and the status line at the bottom; neither the menu nor the status
+line moves or hides.
 
 ## Moving a panel
 
@@ -41,8 +42,8 @@ What does not fit on the bar goes into **More** at its end; press it and pick th
 
 ## The buttons of a workbench
 
-In **Settings -> Sketch**, **Part** or **Assembly**, under **Buttons of the bar**, every button of that workbench is
-listed in its order.
+In **Settings -> Sketch**, **Part** or **Assembly**, press the heading **Buttons of the bar**: every button of that
+workbench opens under it, in its order.
 
 * **Drag a row** up or down to move the button on the bar.
 * **In "More"** takes the button off the bar into the list of **More**; **On the bar** puts it back. A command in "More"

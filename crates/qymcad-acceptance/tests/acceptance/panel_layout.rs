@@ -100,8 +100,8 @@ fn partner(panel: Panel) -> Panel {
     }
 }
 
-/// THE STATUS LINE IS PINNED to the bottom, as in every program: a record that puts it elsewhere is not followed, and
-/// it stands alone in its strip; it may still be hidden.
+/// THE STATUS LINE IS PINNED to the bottom and in sight, as the menu is at the top: a record that puts it elsewhere or
+/// hides it is not followed, and it stands alone in its strip.
 fn pinned(panel: Panel) -> bool {
     panel == Panel::Status
 }
@@ -201,8 +201,9 @@ fn faults(cell: Cell) -> Vec<String> {
     let all = [Panel::Tree, Panel::Properties, Panel::Toolbar, Panel::CommandBar, Panel::Status, Panel::WorkbenchTools];
     let drawn: Vec<Laid> = all.iter().filter_map(|p| s.panel(key(*p)).map(|rect| Laid { panel: *p, rect })).collect();
     let mine = drawn.iter().find(|l| l.panel == cell.panel).map(|l| l.rect);
-    // the bar of the command in hand is never hidden: a tool with its bar hidden asks for what nobody can see
-    let seen = if cell.panel == Panel::CommandBar { Seen::Shown } else { cell.seen };
+    // the bar of the command in hand is never hidden: a tool with its bar hidden asks for what nobody can see; nor is
+    // the status line, where the program says what it waits for
+    let seen = if cell.panel == Panel::CommandBar || pinned(cell.panel) { Seen::Shown } else { cell.seen };
     match (seen, mine) {
         (Seen::Hidden, Some(r)) => out.push(format!("hidden, it is drawn at {r:?}")),
         (Seen::Shown, None) => out.push("shown, it is not drawn".to_string()),

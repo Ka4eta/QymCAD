@@ -72,6 +72,12 @@ impl Session {
         out
     }
 
+    /// EGUI'S COMPLAINTS OF ONE ID TAKEN BY TWO WIDGETS, painted in any frame since they were last asked for: they flash
+    /// in the frames of a change, so the screen at rest does not show them.
+    pub fn id_clashes(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.win.clashes)
+    }
+
     /// THE BUTTONS OF THE BARS OF TOOLS the last frame drew, and the rows of an open "More" list: where each stands.
     pub fn bar_buttons(&mut self) -> Vec<Rect> {
         self.settle();

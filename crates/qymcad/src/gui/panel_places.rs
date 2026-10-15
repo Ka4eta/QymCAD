@@ -16,8 +16,9 @@ pub(crate) fn shell(set: &Settings) -> qymcad_shell::Shell {
     s.put(Place::new("menubar", Slot::Menu));
     s.put(Place::new("toolbar", Slot::Top));
     s.put(Place::new("command_bar", Slot::Top).framed().never_hidden());
-    // THE STATUS LINE STAYS AT THE BOTTOM, as in every program: a person looks for it there; it may be hidden
-    s.put(Place::new("status", Slot::Bottom).pinned());
+    // THE STATUS LINE STAYS AT THE BOTTOM AND IN SIGHT, as the menu stays at the top: a person looks for it there, and
+    // it is where the program says what it waits for
+    s.put(Place::new("status", Slot::Bottom).pinned().never_hidden());
     // the bar of tools is as thick as its lines of buttons, and its captions where they stand across it, with an even
     // margin of BAR_MARGIN round them
     let look = set.bar.look();
@@ -79,7 +80,8 @@ impl qymcad_shell::Fills for App {
         match key {
             "command_bar" => {
                 if let Some(k) = COMMAND_BARS.into_iter().find(|k| self.live(k)) {
-                    self.fill(k, ui, edge);
+                    // each bar under its own key: one bar giving way to another is new widgets, not old ones renamed
+                    ui.push_id(k, |ui| self.fill(k, ui, edge));
                 }
             }
             "menubar" => crate::gui::panels_bars::menu_bar(&mut self.bar_ctx(&mut bar_asks), ui),

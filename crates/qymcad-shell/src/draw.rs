@@ -74,12 +74,23 @@ pub(crate) fn run_slot(shell: &Shell, slot: Slot, ui: &mut egui::Ui, host: &mut 
         }
         _ => {
             let Some(edge) = slot.edge() else { return };
+            // EVERY STRIP TAKES ITS NUMBER, drawn or not, and every edge the same count of them: egui numbers a panel by
+            // the panels opened before it, and a bar of a command coming up at the top, or the tree giving way in a
+            // sketch, renumbered every panel after it. egui then marks each with a red frame - "the widget changed its
+            // id" - in the frames of the change. Measured on the status line on entering a sketch: 17 frames with
+            // another id. egui does the same for a panel it hides (`skip_ahead_auto_ids`).
+            let mut taken = 0;
             for strip in shell.strips(edge) {
                 let members: Vec<&'static str> = strip.into_iter().filter(|k| drawn_beside(shell, k, host)).collect();
-                if !members.is_empty() {
+                if members.is_empty() {
+                    ui.skip_ahead_auto_ids(1);
+                } else {
                     one_strip(shell, edge, &members, ui, host);
                 }
+                taken += 1;
             }
+            let all = shell.places.iter().filter(|p| p.slot.edge().is_some()).count();
+            ui.skip_ahead_auto_ids(all.saturating_sub(taken));
         }
     }
 }
@@ -143,7 +154,9 @@ fn one_strip(shell: &Shell, edge: Edge, members: &[&'static str], ui: &mut egui:
     }
     let r = panel.show(ui, |ui| {
         if let [only] = members {
-            host.fill(only, ui, Some(edge));
+            // under the key of the panel, as in a stack: a panel taken into a stack or out of one keeps the ids of what
+            // it draws, and egui sees no widget change its id where it stands
+            ui.push_id(("shell-member", *only), |ui| host.fill(only, ui, Some(edge)));
             Vec::new()
         } else {
             stack(shell, edge, members, ui, host)
