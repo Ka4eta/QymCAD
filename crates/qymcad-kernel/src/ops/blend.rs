@@ -46,15 +46,20 @@ impl BlendNumbers {
 }
 
 /// THE ROLES OF A BLEND. The surface of a fillet or a chamfer is named after the edge it rounds, the patch closing a
-/// corner after the edge too, there being no other source in the recipe. The surface continues across tangent
-/// neighbours, which the recipe also names after their edges (measured: otherwise 2 to 4 nameless faces an operation)
-/// - but only an edge that can be told apart: while two edges of a body share one number, naming their surfaces alike
-///   makes a reference lead to two faces (measured: a mirror gave 7 such pairs of 20 edges).
+/// corner after the edge too, there being no other source in the recipe. An edge the node picked by hand is named by
+/// its place in the pick (`PickedEdge::place`): the name of the edge changes when a face of its pair does - a wall above
+/// merged into another - and the surface, which did not move, went with it (measured: eight faces of a chamfer on the
+/// case of the examples renamed by a dimension +10% above). An edge a description gave (every edge of a face) is named
+/// after its own name. The surface continues across tangent neighbours, which the recipe also names after their edges
+/// (measured: otherwise 2 to 4 nameless faces an operation) - but only an edge that can be told apart: while two edges of
+/// a body share one number, naming their surfaces alike makes a reference lead to two faces (measured: a mirror gave 7
+/// such pairs of 20 edges).
 fn blend_roles(roles: BlendRoles, edges: &[u32], body_edges: &[u32], given: &mut Roles) -> BlendNumbers {
-    let BlendRoles::Named { feature } = roles else { return BlendNumbers { surfaces: Vec::new(), corners: Vec::new(), all: Vec::new() } };
-    let surfaces = edges.iter().map(|e| given.give(GeoName::new(feature, Role::Blend, *e as Id))).collect();
-    let corners = edges.iter().map(|e| given.give(GeoName::new(feature, Role::Corner, *e as Id))).collect();
-    let once = |e: &u32| NameTable::is_named(*e) && body_edges.iter().filter(|x| *x == e).count() == 1;
+    let BlendRoles::Named { feature, picked } = roles else { return BlendNumbers { surfaces: Vec::new(), corners: Vec::new(), all: Vec::new() } };
+    let source = |e: u32| picked.iter().find(|p| p.live == e).map_or(e as Id, |p| p.place as Id);
+    let surfaces = edges.iter().map(|e| given.give(GeoName::new(feature, Role::Blend, source(*e)))).collect();
+    let corners = edges.iter().map(|e| given.give(GeoName::new(feature, Role::Corner, source(*e)))).collect();
+    let once = |e: &u32| NameTable::is_named(*e) && body_edges.iter().filter(|x| *x == e).count() == 1 && !picked.iter().any(|p| p.live == *e);
     let mut all = Vec::new();
     for e in body_edges.iter().filter(|e| once(e)) {
         all.push(*e);

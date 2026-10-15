@@ -40,9 +40,12 @@ does not get a place on the list.
 A structure in the name table, written to the file; outwards it travels as a descriptor, an index into the table with
 a tag in the high bits.
 
-* **A face** (`GeoName`): the node that made it, its role (a cap, a wall, a blend, a seam, ...), its source (the
-  sketch entity a wall was swept from, the edge a blend runs along) and the piece number when one source gave several
-  faces.
+* **A face** (`GeoName`): the node that made it, its role (a cap, a wall, a blend, a seam, ...), its source and the
+  piece number when one source gave several faces. The source is what the person gave the node: the sketch entity a
+  wall was swept from, the contour picked for a region (its caps), the place in the pick of the edge a blend rounds -
+  never the name of an element above, which changes when its own neighbours do (`ops::profile::name_sides`,
+  `ops::blend::blend_roles`, `a_blend_is_named_after_the_edge_it_was_picked_on`). An edge a description gave (every
+  edge of a face) has no place in a pick, and its blend is named after the edge.
 * **An edge** (`EdgeName`): the pair of faces it runs between and its number within the pair. An edge has no recipe of
   its own; it is where two surfaces meet.
 * **A vertex** (`VertexName`): the three smallest descriptors of the edges meeting at it.

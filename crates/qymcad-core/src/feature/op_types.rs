@@ -193,12 +193,21 @@ pub struct RevolveAbout {
     pub line: Option<AxisLine>,
 }
 
-/// WHETHER THE FACES A BLEND MAKES ARE NAMED, and after which node: the rule of the names - a surface after its edge, a
-/// corner patch after the edge too - is the bridge's; the model says only which node the blend is.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// WHETHER THE FACES A BLEND MAKES ARE NAMED, after which node, and how the node picked its edges. The rule of the names
+/// (a surface after its edge, a corner patch after the edge too) is the bridge's; the model says which node the blend is
+/// and which place in its pick each edge holds.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum BlendRoles {
-    Named { feature: Id },
+    Named { feature: Id, picked: Vec<PickedEdge> },
     Unnamed,
+}
+
+/// AN EDGE AS THE NODE PICKED IT: the edge of the body the blend rounds now, and its place in the pick of the node, from
+/// 1. The place is what the person gave; the name of the edge changes when a face of its pair does.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PickedEdge {
+    pub live: u32,
+    pub place: u16,
 }
 
 /// A BODY BROUGHT IN, AS THE DOOR LANDED IT: its mesh and faces, and why it was kept as it came when the door could not
