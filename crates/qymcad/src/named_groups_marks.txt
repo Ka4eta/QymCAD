@@ -665,7 +665,8 @@ crates/qymcad/src/gui/hand.rs 14 11 1
 crates/qymcad/src/gui/hand/sketch_text.rs 0 1 0
 crates/qymcad/src/gui/help_flow.rs 0 2 0
 crates/qymcad/src/gui/help_general.rs 1 0 0
-crates/qymcad/src/gui/help_images.rs 7 12 0
+crates/qymcad/src/gui/help_images.rs 6 11 0
+crates/qymcad/src/gui/help_images/tests/sketch_shots.rs 1 1 0
 crates/qymcad/src/gui/help_map_flow.rs 0 3 0
 crates/qymcad/src/gui/help_raster.rs 1 1 0
 crates/qymcad/src/gui/help_window.rs 0 0 1
