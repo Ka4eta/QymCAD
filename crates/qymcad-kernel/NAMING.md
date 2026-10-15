@@ -65,9 +65,9 @@ In `qym_result`, in this order:
    by where it lies (`naming::placed`); the edges, after their pair of faces (`naming::edges`); the vertices after
    their edges (`naming::name_edge_ends`).
 
-The caps of a profile operation of several regions: each wall offers a cap named after itself, and a face takes the
-one of the lowest wall it still has, the walls numbered in the order of their recipe
-(`caps_of_merged_regions_are_named_by_their_walls`).
+The caps of a profile operation of several regions are named after the profile they are drawn from - the contour the
+person picked; a face merged from several profiles takes the caps of the lowest of them (`ops::profile::name_sides`,
+`caps_of_merged_regions_are_named_by_their_profiles`).
 
 **Where an algorithm gives no history**, the bridge reads it from something else, each named with its reason: the turn
 of the seam of a round face (`QymSamePlaceHistory`: the turn moves nothing), the simple offset of a sheet

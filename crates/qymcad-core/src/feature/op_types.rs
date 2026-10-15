@@ -413,6 +413,9 @@ pub struct SideSource {
 pub struct Sides<'a> {
     pub feature: Id,
     pub sources: &'a [SideSource],
+    /// The sketch contour each profile is drawn from, in the order of the profiles: what the caps of a region are
+    /// named after. Empty where the profiles come from no sketch.
+    pub regions: &'a [Id],
 }
 
 /// PROFILES WITH THE SOURCES OF THEIR SIDES, as the model encodes them for a profile operation.
@@ -420,6 +423,8 @@ pub struct Sides<'a> {
 pub struct SourcedProfiles {
     pub profiles: Vec<Vec<f64>>,
     pub sources: Vec<SideSource>,
+    /// The sketch contour each profile is drawn from - the one the person picked - in the order of `profiles`.
+    pub regions: Vec<Id>,
 }
 
 /// WHERE A FACE LIES: the point of its surface at the middle of its parametric bounds and the normal there. What a face

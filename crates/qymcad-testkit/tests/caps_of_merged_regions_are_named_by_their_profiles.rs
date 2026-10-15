@@ -1,8 +1,9 @@
-//! THE CAPS OF REGIONS MERGED IN ONE EXTRUSION ARE NAMED BY THE WALLS THEY STAND ON. Contours picked together that share
-//! a side merge into one face before the extrusion, and the shared side is gone from it. The caps of that face are named
-//! after a wall it still has, by the recipe (the sketch entity and its piece), not after a wall the merge took away and
-//! not after the order the table met the names in. Reported behaviour: three of the four corner pads of a sample took
-//! their caps as seams of a neighbour, and a parameter that moved none of them renamed the caps of the fourth.
+//! THE CAPS OF REGIONS MERGED IN ONE EXTRUSION ARE NAMED BY THE PROFILES THEY ARE DRAWN FROM. Contours picked together
+//! that share a side merge into one face before the extrusion, and the shared side is gone from it. The caps of that
+//! face are named after the lowest of the contours the person picked for it - the recipe - not after a wall the merge
+//! took away, not after the order the table met the names in, and not after a side of the sketch an edit cut into more
+//! pieces. Reported behaviour: three of the four corner pads of a sample took their caps as seams of a neighbour, and a
+//! parameter that moved none of them renamed the caps of the fourth.
 use qymcad_core::feature::{Purpose, Reach};
 use qymcad_core::model::{Id, Project};
 use qymcad_core::names::Role;
@@ -136,4 +137,24 @@ fn sample(name: &str) -> Option<String> {
         eprintln!("PASSED OVER: the private sample {name} is not in this tree - the check on it runs only where the samples are");
         None
     }
+}
+
+/// THE CAP OF THE CUT OF THE PRIVATE SAMPLE vacuumCleaner (node 176) keeps its name when the side of the rectangle its
+/// lowest wall lies on is cut in more pieces: the dimension [80, 81] of sketch 3 from 49 to 53.9 brings the corner pads
+/// across that side, which then runs in three pieces, and moves no cap of the cut.
+#[test]
+fn a_cap_keeps_its_name_when_the_side_it_is_named_after_is_cut_in_more_pieces() {
+    use qymcad_core::model::DimTarget;
+    let Some(path) = sample("vacuumCleaner.qcad") else { return };
+    let mut p = qymcad_io::load_project(&path).expect("the sample opens");
+    let shapes = qymcad_testkit::restore_import_shapes(&p);
+    let (_, shapes) = qymcad_testkit::regenerate_with_shapes(&mut p, shapes);
+    let before = caps(&p, 176);
+    p.set_dim_target_value(&DimTarget::Sketch { sketch: 3, refs: vec![80, 81] }, 53.9);
+    let si = p.sketch_index(3).expect("sketch 3");
+    p.solve_sketch(si);
+    p.mark_sketch_dirty(3);
+    let _ = qymcad_testkit::regenerate_dirty_with_shapes(&mut p, shapes);
+    let after = caps(&p, 176);
+    assert_eq!(after, before, "the caps of the cut were renamed though none of them moved");
 }

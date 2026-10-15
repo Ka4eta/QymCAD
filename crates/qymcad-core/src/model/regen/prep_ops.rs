@@ -427,7 +427,7 @@ impl Project {
                 &profiles,
                 crate::feature::ToolSpan { start: 0.0, length: height, ends: crate::feature::ToolEnds::Kept },
                 crate::feature::PLACE_IDENTITY,
-                crate::feature::Sides { feature, sources: &sources },
+                crate::feature::Sides { feature, sources: &sources, regions: &[] },
             )
         })
     }
@@ -516,11 +516,17 @@ impl Project {
             Some(enc) if src == 0 => crate::feature::KernelJob::new(Vec::new(), move |k| {
                 let body_kind = if surface { crate::feature::LoftBody::Sheet } else { crate::feature::LoftBody::Solid };
                 let s = &enc.sections;
-                k.loft(body, crate::feature::LoftSections { data: &s.data, offsets: &s.offsets, places: &s.places }, walls(ruled), body_kind, crate::feature::Sides { feature, sources: &enc.sources })
+                k.loft(
+                    body,
+                    crate::feature::LoftSections { data: &s.data, offsets: &s.offsets, places: &s.places },
+                    walls(ruled),
+                    body_kind,
+                    crate::feature::Sides { feature, sources: &enc.sources, regions: &[] },
+                )
             }),
             Some(enc) => crate::feature::KernelJob::new(vec![src], move |k| {
                 let s = &enc.sections;
-                k.loft_combine(BodyOp { src, op, body }, &s.data, &s.offsets, &s.places, walls(ruled), crate::feature::Sides { feature, sources: &enc.sources })
+                k.loft_combine(BodyOp { src, op, body }, &s.data, &s.offsets, &s.places, walls(ruled), crate::feature::Sides { feature, sources: &enc.sources, regions: &[] })
             }),
             None => crate::feature::KernelJob::refused(crate::errors::CoreError::LoftNeedsTwoSections),
         }
