@@ -1,0 +1,147 @@
+//! THE LIMITING CASES OF CHAMFERS AND FILLETS: a size that eats a face whole - a chamfer leg as high as the side it
+//! lies on, a radius as high as the step it rounds, two roundings meeting across a face. A person drawing to a
+//! dimension lands there on purpose. Each case is built and its volume measured against the one the drawing gives; no
+//! face or edge a hair wide may stand where the eaten face was, and two rebuilds in a row give the same names. The
+//! faults of all the cases are told together.
+use qymcad_core::feature::ChamferMode;
+use qymcad_core::model::{ChamferShape, Id, Project};
+use std::f64::consts::PI;
+
+/// The id of the edge of `body` whose middle stands nearest `at`, within 0.2 mm.
+fn edge_near(p: &Project, body: Id, at: [f64; 3]) -> Option<u32> {
+    let d = |m: [f64; 3]| (0..3).map(|i| (m[i] - at[i]).powi(2)).sum::<f64>().sqrt();
+    p.regen_edges.get(&body)?.iter().filter(|e| d(e.mid) < 0.2).min_by(|a, b| d(a.mid).total_cmp(&d(b.mid))).map(|e| e.id)
+}
+
+/// A BLOCK AND WHAT IS LAID ON IT: the block (centred on the axis, standing on XY), the middles of the edges taken, the
+/// blend, and the volume it leaves.
+struct Case {
+    what: &'static str,
+    block: [f64; 3],
+    edges: &'static [[f64; 3]],
+    blend: Blend,
+    volume: f64,
+}
+
+/// A ROUNDING OF A RADIUS, OR A CHAMFER OF TWO LEGS laid one way or the other.
+#[derive(Clone, Copy)]
+enum Blend {
+    Fillet(f64),
+    Chamfer(Legs),
+}
+
+/// THE LEGS OF A CHAMFER and which face the first lies on.
+#[derive(Clone, Copy)]
+struct Legs {
+    first: f64,
+    second: f64,
+    flip: bool,
+}
+
+/// What a rounding of `r` takes off the section of an edge between two faces at a right angle.
+fn rounded_off(r: f64) -> f64 {
+    (1.0 - PI / 4.0) * r * r
+}
+
+fn cases() -> Vec<Case> {
+    let block = 40.0 * 30.0 * 10.0;
+    let thin = 40.0 * 10.0 * 10.0;
+    let legs = |first: f64, second: f64, flip: bool| Blend::Chamfer(Legs { first, second, flip });
+    vec![
+        Case {
+            what: "a chamfer 10 x 10 down the whole side of a block 10 high",
+            block: [40.0, 30.0, 10.0],
+            edges: &[[0.0, -15.0, 10.0]],
+            blend: legs(10.0, 10.0, false),
+            volume: block - 0.5 * 100.0 * 40.0,
+        },
+        Case {
+            what: "a chamfer 10 x 5, its leg of 10 down the side 10 high",
+            block: [40.0, 30.0, 10.0],
+            edges: &[[0.0, -15.0, 10.0]],
+            blend: legs(10.0, 5.0, false),
+            volume: block - 0.5 * 50.0 * 40.0,
+        },
+        Case { what: "a chamfer 10 x 5 laid the other way", block: [40.0, 30.0, 10.0], edges: &[[0.0, -15.0, 10.0]], blend: legs(10.0, 5.0, true), volume: block - 0.5 * 50.0 * 40.0 },
+        Case {
+            what: "a rounding R10 down the whole side of a block 10 high",
+            block: [40.0, 30.0, 10.0],
+            edges: &[[0.0, -15.0, 10.0]],
+            blend: Blend::Fillet(10.0),
+            volume: block - rounded_off(10.0) * 40.0,
+        },
+        Case {
+            what: "two roundings R5 meeting across a top 10 wide",
+            block: [40.0, 10.0, 10.0],
+            edges: &[[0.0, -5.0, 10.0], [0.0, 5.0, 10.0]],
+            blend: Blend::Fillet(5.0),
+            volume: thin - 2.0 * rounded_off(5.0) * 40.0,
+        },
+        Case {
+            what: "two chamfers 5 meeting across a top 10 wide",
+            block: [40.0, 10.0, 10.0],
+            edges: &[[0.0, -5.0, 10.0], [0.0, 5.0, 10.0]],
+            blend: legs(5.0, 5.0, false),
+            volume: thin - 2.0 * 0.5 * 25.0 * 40.0,
+        },
+    ]
+}
+
+/// The node of `case` laid on its block, built; the faults it shows.
+fn check(case: &Case) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut p = Project::default();
+    p.new_document();
+    let [dx, dy, dz] = case.block;
+    let block = p.add_box(dx, dy, dz);
+    let _ = qymcad_testkit::regenerate(&mut p);
+    let Some(edges) = case.edges.iter().map(|at| edge_near(&p, block, *at)).collect::<Option<Vec<u32>>>() else {
+        return vec![format!("{}: setup - no edge stands where the case lays it", case.what)];
+    };
+    let node = match case.blend {
+        Blend::Fillet(r) => p.add_fillet(block, r, edges),
+        Blend::Chamfer(Legs { first, second, flip }) => p.add_chamfer_ex(block, first, ChamferShape { mode: ChamferMode::TwoDist, d2: second, flip, ref_face: 0 }, edges),
+    };
+    let (report, shapes) = qymcad_testkit::regenerate(&mut p);
+    if let Some(e) = p.regen_errors.get(&node) {
+        return vec![format!("{}: refused - {e:?}", case.what)];
+    }
+    if let Some(w) = p.regen_warnings.get(&node) {
+        out.push(format!("{}: yellow - {w:?}", case.what));
+    }
+    let volume = shapes.get(&node).map(|s| s.volume()).unwrap_or(0.0);
+    // a build exact to the drawing is off by 1e-12 of its volume; one stepped back a hair short of the size and its strip
+    // taken out, by 2e-9 (measured on the chamfer 10 x 10)
+    if (volume - case.volume).abs() > 1e-10 * case.volume {
+        out.push(format!("{}: a volume of {volume:.9}, the drawing gives {:.9} ({:+.2e})", case.what, case.volume, volume - case.volume));
+    }
+    let faces = p.regen_faces.get(&node).cloned().unwrap_or_default();
+    if let Some(f) = faces.iter().find(|f| f.area < 1e-3) {
+        out.push(format!("{}: a face of {:.2e} mm^2 stands where the eaten face was ({})", case.what, f.area, p.names.describe(f.id)));
+    }
+    let edges_now = p.regen_edges.get(&node).cloned().unwrap_or_default();
+    if let Some(e) = edges_now.iter().find(|e| (0..3).map(|k| (e.a[k] - e.b[k]).powi(2)).sum::<f64>().sqrt() < 1e-4 && e.radius == 0.0) {
+        out.push(format!("{}: an edge a hair long ({})", case.what, p.names.describe(e.id)));
+    }
+    let names = |p: &Project| -> Vec<u32> {
+        let mut v: Vec<u32> = p.regen_faces.get(&node).map(|fs| fs.iter().map(|f| f.id).collect()).unwrap_or_default();
+        v.sort_unstable();
+        v
+    };
+    let first = names(&p);
+    for n in p.timeline.iter_mut() {
+        n.dirty = true;
+    }
+    let _ = qymcad_testkit::regenerate(&mut p);
+    if names(&p) != first {
+        out.push(format!("{}: a second rebuild renamed its faces", case.what));
+    }
+    let _ = report;
+    out
+}
+
+#[test]
+fn every_limiting_blend_is_built_as_drawn() {
+    let fails: Vec<String> = cases().iter().flat_map(check).collect();
+    assert!(fails.is_empty(), "{} faults:\n  {}", fails.len(), fails.join("\n  "));
+}

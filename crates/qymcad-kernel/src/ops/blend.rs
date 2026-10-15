@@ -2,6 +2,7 @@
 //! called - and nothing of what the door does for every operation.
 
 use crate::door::{Bodies, Operation, Retreat, Roles, Sizing, StepBack};
+use crate::{BlendLimit, NamedEdges};
 use crate::kernel::{refused, OcctKernel};
 use qymcad_core::errors::{CoreError, FilletEdgeIssue, Op};
 use qymcad_core::feature::{BlendRoles, DroppedEdges};
@@ -126,7 +127,11 @@ impl OcctKernel {
             };
             r.ok_or(CoreError::OpFailed(Op::Fillet))
         };
-        let first = self.run(Operation { kind: Op::Fillet, body, sizing: Sizing::Sized(StepBack { retreat: Retreat::Blend, size: radius }), roles: given.clone(), work: whole });
+        let surfaces = numbers.surfaces_of(&asked, edges);
+        let exact = |b: &Bodies| {
+            (!edges.is_empty()).then(|| b.get(src).ok()?.blend_limit(BlendLimit { kind: 0, a: radius, b: 0.0, flip: 0, ref_face: 0 }, NamedEdges { edges, surfaces: &surfaces })).flatten()
+        };
+        let first = self.run(Operation { kind: Op::Fillet, body, sizing: Sizing::Sized(StepBack { retreat: Retreat::Blend, size: radius }), roles: given.clone(), work: whole, limit: Some(&exact) });
         if first.is_ok() && sharp.unknown > 0 {
             self.dropped.borrow_mut().insert(body, sharp.left_out(sharp.edges.len()));
         }
@@ -134,7 +139,7 @@ impl OcctKernel {
             Err(CoreError::OpFailed(Op::Fillet)) if edges.is_empty() => Err(refused(Op::Fillet)),
             Err(CoreError::OpFailed(Op::Fillet)) => {
                 let part = |b: &Bodies, _: f64| self.fillet_what_takes(b, FilletPart { body, src, radius, sharp: &sharp, numbers: &numbers, asked: &asked });
-                self.run(Operation { kind: Op::Fillet, body, sizing: Sizing::Unsized, roles: given, work: part })
+                self.run(Operation { kind: Op::Fillet, body, sizing: Sizing::Unsized, roles: given, work: part, limit: None })
             }
             other => other,
         }
@@ -201,7 +206,7 @@ impl OcctKernel {
             b.get(src)?.fillet_at_vertices(radius * f, edges, &scaled, names).ok_or(CoreError::OpFailed(Op::FilletVar))
         };
         let largest = verts.iter().map(|v| v.radius).fold(radius, f64::max);
-        let done = self.run(Operation { kind: Op::FilletVar, body, sizing: Sizing::Sized(StepBack { retreat: Retreat::Blend, size: largest }), roles: given, work });
+        let done = self.run(Operation { kind: Op::FilletVar, body, sizing: Sizing::Sized(StepBack { retreat: Retreat::Blend, size: largest }), roles: given, work, limit: None });
         if done.is_ok() && sharp.unknown > 0 {
             self.dropped.borrow_mut().insert(body, sharp.left_out(sharp.edges.len()));
         }
@@ -219,7 +224,10 @@ impl OcctKernel {
             let r = if edges.is_empty() { s.chamfer_all(dist * f) } else { s.chamfer_edges(dist * f, edges, &numbers.surfaces_of(&asked, edges), &numbers.corners, &numbers.all) };
             r.ok_or(CoreError::ChamferTooBig { dist })
         };
-        let done = self.run(Operation { kind: Op::Chamfer, body, sizing: Sizing::Sized(StepBack { retreat: Retreat::Blend, size: dist }), roles: given, work });
+        let surfaces = numbers.surfaces_of(&asked, edges);
+        let exact =
+            |b: &Bodies| (!edges.is_empty()).then(|| b.get(src).ok()?.blend_limit(BlendLimit { kind: 1, a: dist, b: dist, flip: 0, ref_face: 0 }, NamedEdges { edges, surfaces: &surfaces })).flatten();
+        let done = self.run(Operation { kind: Op::Chamfer, body, sizing: Sizing::Sized(StepBack { retreat: Retreat::Blend, size: dist }), roles: given, work, limit: Some(&exact) });
         if done.is_ok() && sharp.unknown > 0 {
             self.dropped.borrow_mut().insert(body, sharp.left_out(sharp.edges.len()));
         }
@@ -248,7 +256,10 @@ impl OcctKernel {
             b.get(src)?.chamfer_edges_asym(crate::AsymChamfer { a: d1 * f, b: second(f), mode, flip, ref_face }, edges, names).ok_or(CoreError::OpFailed(Op::ChamferAsym))
         };
         let largest = if mode == 2 { d1.max(d1 * d2.to_radians().tan().abs()) } else { d1.max(d2) };
-        let done = self.run(Operation { kind: Op::ChamferAsym, body, sizing: Sizing::Sized(StepBack { retreat: Retreat::Blend, size: largest }), roles: given, work });
+        // two legs only: a leg and an angle make the second leg of the angle between the faces, which the prism does not
+        let exact =
+            |b: &Bodies| (mode == 1).then(|| b.get(src).ok()?.blend_limit(BlendLimit { kind: 1, a: d1, b: d2, flip: flip as i32, ref_face }, NamedEdges { edges, surfaces: &surfaces })).flatten();
+        let done = self.run(Operation { kind: Op::ChamferAsym, body, sizing: Sizing::Sized(StepBack { retreat: Retreat::Blend, size: largest }), roles: given, work, limit: Some(&exact) });
         if done.is_ok() && sharp.unknown > 0 {
             self.dropped.borrow_mut().insert(body, sharp.left_out(sharp.edges.len()));
         }

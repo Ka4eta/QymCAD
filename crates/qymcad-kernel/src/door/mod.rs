@@ -96,8 +96,12 @@ pub struct Piece {
     pub shape: crate::Shape,
 }
 
+/// THE EXACT CONSTRUCTION OF A LIMITING CASE an operation may bring: the body as the drawing has it where the work is
+/// refused at its size, or nothing where the case is not one the construction knows.
+pub type Limit<'a> = &'a dyn Fn(&Bodies) -> Option<crate::Shape>;
+
 /// AN OPERATION AS THE DOOR TAKES IT.
-pub struct Operation<W: Fn(&Bodies, f64) -> Result<crate::Shape, CoreError>> {
+pub struct Operation<'a, W: Fn(&Bodies, f64) -> Result<crate::Shape, CoreError>> {
     /// What it is: the name a refusal is told under.
     pub kind: Op,
     /// The body its result becomes.
@@ -109,6 +113,9 @@ pub struct Operation<W: Fn(&Bodies, f64) -> Result<crate::Shape, CoreError>> {
     /// scales every length of the operation by the factor and nothing else - an angle stays an angle; an unsized
     /// operation is called at 1.0 only.
     pub work: W,
+    /// The exact construction of the limiting case, where the operation has one: asked only after the work is refused at
+    /// its size and builds stepped back, and taken only when it agrees with that body (`agrees`).
+    pub limit: Option<Limit<'a>>,
 }
 
 /// THE BODIES OF THE CACHE, LENT TO THE WORK of an operation for its attempt and taken back before the result lands: a
@@ -127,7 +134,7 @@ impl Bodies<'_> {
 impl crate::kernel::OcctKernel {
     /// RUN AN OPERATION AND LAND ITS RESULT as the body `op.body`: the work at its size, stepped back on a refusal
     /// where it has one, the result cleaned and checked, tessellated and cached.
-    pub fn run<W: Fn(&Bodies, f64) -> Result<crate::Shape, CoreError>>(&self, op: Operation<W>) -> Result<Built, CoreError> {
+    pub fn run<W: Fn(&Bodies, f64) -> Result<crate::Shape, CoreError>>(&self, op: Operation<'_, W>) -> Result<Built, CoreError> {
         // the words of a refusal are those of this operation or none: an old refusal turned into an error some other way
         // left its words behind, and a refusal here without words of its own read them as its reason
         crate::clear_kernel_refusal();
@@ -140,12 +147,12 @@ impl crate::kernel::OcctKernel {
 
     /// AN OPERATION WITH NO SIZE AND NO ROLES OF ITS OWN: its work on the bodies lent, the rest as for every operation.
     pub fn plain<W: Fn(&Bodies) -> Result<crate::Shape, CoreError>>(&self, kind: Op, body: Id, work: W) -> Result<Built, CoreError> {
-        self.run(Operation { kind, body, sizing: Sizing::Unsized, roles: Roles::default(), work: |b: &Bodies, _: f64| work(b) })
+        self.run(Operation { kind, body, sizing: Sizing::Unsized, roles: Roles::default(), work: |b: &Bodies, _: f64| work(b), limit: None })
     }
 
     /// The same, for an operation whose faces carry the roles `roles` gave.
     pub fn plain_named<W: Fn(&Bodies) -> Result<crate::Shape, CoreError>>(&self, kind: Op, body: Id, roles: Roles, work: W) -> Result<Built, CoreError> {
-        self.run(Operation { kind, body, sizing: Sizing::Unsized, roles, work: |b: &Bodies, _: f64| work(b) })
+        self.run(Operation { kind, body, sizing: Sizing::Unsized, roles, work: |b: &Bodies, _: f64| work(b), limit: None })
     }
 
     /// ONE PIECE OF AN OPERATION THAT MAKES SEVERAL BODIES (a split): its work done once for all its pieces, each landed
@@ -178,7 +185,7 @@ impl crate::kernel::OcctKernel {
 
     /// A TRIAL OF AN OPERATION: the same work, the same steps back, the same cleaning and checks - and nothing landed.
     /// What a tool asks before it lays its node, so the answer it gets is the one the node will get.
-    pub fn trial<W: Fn(&Bodies, f64) -> Result<crate::Shape, CoreError>>(&self, op: Operation<W>) -> Result<crate::Shape, CoreError> {
+    pub fn trial<W: Fn(&Bodies, f64) -> Result<crate::Shape, CoreError>>(&self, op: Operation<'_, W>) -> Result<crate::Shape, CoreError> {
         let shape = self.attempt(&op)?;
         self.clean(shape)
     }
@@ -186,25 +193,46 @@ impl crate::kernel::OcctKernel {
     /// The work at the asked size; on a refusal of a sized operation, at each step back in turn - on the bodies of the
     /// cache, lent for the attempt only. The refusal told is the one at the asked size: a step back is the door's
     /// business, the person asked for the size.
-    fn attempt<W: Fn(&Bodies, f64) -> Result<crate::Shape, CoreError>>(&self, op: &Operation<W>) -> Result<crate::Shape, CoreError> {
+    ///
+    /// A limiting case the operation builds exactly is built so (`Operation::limit`), checked against the body stepped
+    /// back: the step back stays the reference and the last resort.
+    fn attempt<W: Fn(&Bodies, f64) -> Result<crate::Shape, CoreError>>(&self, op: &Operation<'_, W>) -> Result<crate::Shape, CoreError> {
         let cache = self.shapes.borrow();
         let bodies = Bodies { cache: &cache };
         let asked = (op.work)(&bodies, 1.0);
         match (asked, op.sizing) {
             (Ok(shape), _) => Ok(shape),
             (Err(e), Sizing::Unsized) => Err(e),
-            (Err(e), Sizing::Sized(back)) => back
-                .retreat
-                .steps()
-                .iter()
-                .find_map(|f| {
-                    let shape = (op.work)(&bodies, *f).ok()?;
-                    shape.drop_slivers_under(back.strip(*f));
-                    Some(shape)
-                })
-                .ok_or(e),
+            (Err(e), Sizing::Sized(back)) => {
+                let near = back
+                    .retreat
+                    .steps()
+                    .iter()
+                    .find_map(|f| {
+                        let shape = (op.work)(&bodies, *f).ok()?;
+                        shape.drop_slivers_under(back.strip(*f));
+                        Some(Near { shape, factor: *f })
+                    })
+                    .ok_or(e)?;
+                Ok(op.limit.and_then(|exact| exact(&bodies)).filter(|x| agrees(x, &near)).unwrap_or(near.shape))
+            }
         }
     }
+}
+
+/// A BODY BUILT STEPPED BACK and the factor on the size it was built at.
+struct Near {
+    shape: crate::Shape,
+    factor: f64,
+}
+
+/// WHETHER AN EXACT LIMITING CASE IS THE BODY STEPPED BACK, BUT EXACT: the same volume to ten times its step, and never
+/// closer than 1e-6. A step back is off the drawing by about its step: 2e-9 of the volume at 1 - 2e-8 on a chamfer of
+/// 10 x 10, 4e-6 at 1 - 1e-5 on two chamfers of 5 meeting across a top 10 wide (measured). A construction that took more
+/// or less than the blend - a prism carried past the end of an edge into a wall - is off by the volume it cut wrongly.
+fn agrees(exact: &crate::Shape, near: &Near) -> bool {
+    let (x, n) = (exact.volume(), near.shape.volume());
+    (x - n).abs() <= (10.0 * (1.0 - near.factor)).max(1e-6) * n.abs().max(1.0)
 }
 
 #[cfg(test)]
@@ -227,10 +255,36 @@ mod tests {
             sizing: Sizing::Sized(StepBack { retreat: Retreat::Blend, size: 10.0 }),
             roles: Roles::default(),
             work: |_: &Bodies, f: f64| if f < 1.0 { block(f) } else { Err(CoreError::OpFailed(Op::Fillet)) },
+            limit: None,
         };
         let built = k.run(op).expect("landed stepped back");
         assert!(!built.faces.is_empty(), "the result landed with no faces");
         assert!(k.shapes.borrow().get(&7).is_some_and(|s| (s.volume() - 1000.0).abs() < 1e-3), "the body is not in the cache at the step back");
+    }
+
+    /// A LIMITING CASE BUILT EXACTLY IS TAKEN WHEN IT IS THE BODY STEPPED BACK, BUT EXACT. Refused at its size, a work
+    /// builds a hair smaller; an exact construction of the same body lands instead, and one of another body - a prism
+    /// carried past the end of an edge into a wall - does not.
+    #[test]
+    fn an_exact_limiting_case_lands_only_where_it_agrees_with_the_step_back() {
+        let landed = |exact: f64| -> f64 {
+            let k = crate::OcctKernel::default();
+            let limit = |_: &Bodies| block(exact).ok();
+            let op = Operation {
+                kind: Op::Fillet,
+                body: 7,
+                sizing: Sizing::Sized(StepBack { retreat: Retreat::Blend, size: 10.0 }),
+                roles: Roles::default(),
+                work: |_: &Bodies, f: f64| if f < 1.0 { block(f) } else { Err(CoreError::OpFailed(Op::Fillet)) },
+                limit: Some(&limit),
+            };
+            k.run(op).expect("landed");
+            let volume = k.shapes.borrow().get(&7).map(|s| s.volume()).unwrap_or(0.0);
+            volume
+        };
+        assert!((landed(1.0) - 1000.0).abs() < 1e-9, "the exact body did not land: {}", landed(1.0));
+        let wrong = landed(1.1);
+        assert!(wrong < 1000.0 && (wrong - 1000.0).abs() < 1e-3, "a body other than the one stepped back landed: {wrong}");
     }
 
     /// THE WORDS OF AN OLD REFUSAL DO NOT OUTLIVE THE START OF A NEW OPERATION. A refusal that turned into an error
@@ -240,7 +294,7 @@ mod tests {
     fn an_operation_starts_with_no_words_of_an_old_refusal() {
         let k = crate::OcctKernel::default();
         let _ = crate::refuse("remove face/result", "nothing was removed");
-        let op = Operation { kind: Op::Extrude, body: 9, sizing: Sizing::Unsized, roles: Roles::default(), work: |_: &Bodies, _: f64| block(1.0) };
+        let op = Operation { kind: Op::Extrude, body: 9, sizing: Sizing::Unsized, roles: Roles::default(), work: |_: &Bodies, _: f64| block(1.0), limit: None };
         k.run(op).expect("the block landed");
         assert_eq!(crate::last_kernel_refusal(), None, "the words of the old refusal are still there for the next one to take");
     }
@@ -280,6 +334,7 @@ mod tests {
                     Err(CoreError::CutRemovedNothing)
                 }
             },
+            limit: None,
         };
         assert_eq!(k.run(op).err(), Some(CoreError::CutRemovedNothing), "the refusal is not the operation's own");
         assert_eq!(asked.get(), 1, "an unsized operation was asked again");
@@ -290,7 +345,7 @@ mod tests {
     #[test]
     fn a_trial_lands_nothing() {
         let k = crate::OcctKernel::default();
-        let op = Operation { kind: Op::Extrude, body: 7, sizing: Sizing::Unsized, roles: Roles::default(), work: |_: &Bodies, f: f64| block(f) };
+        let op = Operation { kind: Op::Extrude, body: 7, sizing: Sizing::Unsized, roles: Roles::default(), work: |_: &Bodies, f: f64| block(f), limit: None };
         let shape = k.trial(op).expect("the trial builds");
         assert!((shape.volume() - 1000.0).abs() < 1e-3, "the trial did not give the block");
         assert!(k.shapes.borrow().is_empty(), "a trial landed a body in the cache");
