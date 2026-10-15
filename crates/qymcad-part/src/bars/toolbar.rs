@@ -38,7 +38,8 @@ pub fn create_panel_sketch_button(bc: &mut qymcad_ui_state::BarCtx, ui: &mut egu
 }
 
 pub fn toolbar(bc: &mut qymcad_ui_state::BarCtx, ui: &mut egui::Ui) {
-    ui.horizontal(|ui| {
+    // WRAPPED, so that the bar put at a side lays its words in lines rather than running out of its strip
+    ui.horizontal_wrapped(|ui| {
         // CONTEXT BREADCRUMBS instead of tabs (drilling in and out): Assembly > Part > ... (> Sketch)
         qymcad_ui_state::ensure_active_path(&mut *bc.active_path, &mut *bc.project);
         let path = bc.active_path.clone();

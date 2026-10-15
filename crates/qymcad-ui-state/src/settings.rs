@@ -378,13 +378,33 @@ impl MouseNav {
     }
 }
 
+/// THE LAYOUT OF THE PANELS AS KEPT, or the standard one when the record holds a shape this version does not read.
+fn layout_or_standard<'de, D: serde::Deserializer<'de>>(d: D) -> Result<std::collections::BTreeMap<String, qymcad_shell::PanelPlace>, D::Error> {
+    /// Either a layout of today, or anything at all - taken whole, so the record after it is read as usual.
+    #[derive(serde::Deserialize)]
+    #[serde(untagged)]
+    enum Kept {
+        Now(std::collections::BTreeMap<String, qymcad_shell::PanelPlace>),
+        Other(serde::de::IgnoredAny),
+    }
+    Ok(match <Kept as serde::Deserialize>::deserialize(d)? {
+        Kept::Now(m) => m,
+        Kept::Other(_) => Default::default(),
+    })
+}
+
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 pub struct Settings {
-    /// WHERE THE PANELS STAND, but only what the person MOVED. The defaults come from the code: writing them
-    /// into the file would freeze them, and a panel added later would never appear for anyone who had ever
-    /// saved. An empty list therefore means "as the workbenches registered them", not "no panels".
-    pub layout: Vec<(String, qymcad_shell::Slot)>,
+    /// WHERE THE PANELS STAND, by the key of the panel, but only what the person MOVED, hid or resized. The defaults
+    /// come from the code: writing them into the file would freeze them, and a panel added later would never appear
+    /// for anyone who had ever saved. An empty map therefore means "as the workbenches registered them", not "no
+    /// panels".
+    ///
+    /// A record in a shape this one does not read is taken as the standard layout rather than refusing the whole
+    /// file: a setting nobody can read would otherwise cost the person every other setting with it.
+    #[serde(deserialize_with = "layout_or_standard")]
+    pub layout: std::collections::BTreeMap<String, qymcad_shell::PanelPlace>,
     /// THE INTERFACE LANGUAGE (a code from the `i18n/` catalogue). Empty means nothing has been chosen yet, so it
     /// follows the system locale, and an undetermined locale gives English. An explicit choice overrides both.
     pub language: String,

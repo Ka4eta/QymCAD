@@ -65,7 +65,11 @@ mod tests {
         Settings {
             // MOVED AWAY FROM WHERE IT WAS REGISTERED. An empty list is the factory value, so leaving it
             // empty would compare the default with itself and pass whatever the reset did.
-            layout: vec![("tree".to_string(), qymcad_shell::Slot::Right)],
+            layout: {
+                let mut moved = std::collections::BTreeMap::new();
+                moved.insert("tree".to_string(), qymcad_shell::PanelPlace { edge: qymcad_shell::Edge::Right, ..Default::default() });
+                moved
+            },
             language: "en".into(),
             scheme: "light".into(),
             viewcube_size: 2,

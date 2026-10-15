@@ -202,16 +202,9 @@ impl Session {
     /// WHAT IS IN HAND, as the bars of options across the top say it: the words written in every bar a tool or a
     /// command has put up. Empty when nothing is.
     pub fn in_hand(&mut self) -> Vec<String> {
-        use qymcad_shell::Fills;
         self.settle();
-        let shell = super::super::shell(&self.app.set);
-        let bars: Vec<Rect> = shell
-            .keys()
-            .into_iter()
-            .filter(|k| shell.slot_of(k) == Some(qymcad_shell::Slot::Top) && *k != "toolbar" && self.app.live(k))
-            .filter_map(|k| egui::containers::panel::PanelState::load(&self.win.ctx, egui::Id::new(k)).map(|s| s.outer_rect))
-            .collect();
-        self.win.drawn.iter().filter(|(t, r)| !t.is_empty() && bars.iter().any(|b| b.contains(r.center()))).map(|(t, _)| t.clone()).collect()
+        let Some(bar) = qymcad_shell::laid_out(&self.win.ctx, "command_bar") else { return Vec::new() };
+        self.win.drawn.iter().filter(|(t, r)| !t.is_empty() && bar.contains(r.center())).map(|(t, _)| t.clone()).collect()
     }
 
     /// EVERY WORD ON SCREEN AND WHERE IT STANDS, once the screen is at rest.

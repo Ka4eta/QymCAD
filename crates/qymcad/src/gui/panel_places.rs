@@ -15,13 +15,7 @@ pub(crate) fn shell(set: &Settings) -> qymcad_shell::Shell {
     let mut s = qymcad_shell::Shell::default();
     s.put(Place::new("menubar", Slot::Menu));
     s.put(Place::new("toolbar", Slot::Top));
-    s.put(Place::new("section_bar", Slot::Top).framed());
-    s.put(Place::new("comp_array_bar", Slot::Top).framed());
-    s.put(Place::new("feat_cmd_bar", Slot::Top).framed());
-    s.put(Place::new("sk_tool_opts", Slot::Top).framed());
-    s.put(Place::new("bool_tool_bar", Slot::Top).framed());
-    s.put(Place::new("joint_tool_bar", Slot::Top).framed());
-    s.put(Place::new("joint_edit_bar", Slot::Top).framed());
+    s.put(Place::new("command_bar", Slot::Top).framed().never_hidden());
     s.put(Place::new("status", Slot::Bottom));
     s.put(Place::new("wbtools", Slot::Left).sized(108.0, false).bare());
     s.put(Place::new("tree", Slot::Left).sized(260.0, true));
@@ -31,12 +25,25 @@ pub(crate) fn shell(set: &Settings) -> qymcad_shell::Shell {
     s
 }
 
+/// KEEP A SIZE the person dragged a panel to, in the layout of the settings.
+pub(crate) fn keep_panel_size(set: &mut Settings, key: &str, size: qymcad_shell::Resize) {
+    let mut sh = shell(set);
+    sh.resize(key, size);
+    set.layout = sh.saved();
+}
+
+/// THE BARS OF WHAT IS IN HAND, the first live one shown in the one place of the command bar. A command taken puts
+/// down the one held before, so two of them are not in hand at once; the bar of the view's section is the last, as
+/// the section stays on under any command.
+const COMMAND_BARS: [&str; 7] = ["feat_cmd_bar", "bool_tool_bar", "comp_array_bar", "joint_edit_bar", "joint_tool_bar", "sk_tool_opts", "section_bar"];
+
 impl qymcad_shell::Fills for App {
     /// IS THE PLACE WANTED THIS FRAME. Each of these used to be a `return` at the top of the panel - which
     /// worked only while the panel opened its own container. Now the container is opened first, and an empty
     /// one still eats a strip of the window, so the question is asked before opening rather than inside.
     fn live(&self, key: &'static str) -> bool {
         match key {
+            "command_bar" => COMMAND_BARS.iter().any(|k| self.live(k)),
             "section_bar" => {
                 self.side.section.plane.is_some()
                     || self.side.section.pick
@@ -60,11 +67,16 @@ impl qymcad_shell::Fills for App {
         }
     }
 
-    fn fill(&mut self, key: &'static str, ui: &mut egui::Ui) {
+    fn fill(&mut self, key: &'static str, ui: &mut egui::Ui, _edge: Option<qymcad_shell::Edge>) {
         // WHAT THE BARS ASKED FOR IS DONE AFTER THE DRAWING. A button that acted mid-frame would start a
         // command while the bar of that command was still being laid out.
         let (mut bar_asks, mut win_asks) = (Vec::new(), Vec::new());
         match key {
+            "command_bar" => {
+                if let Some(k) = COMMAND_BARS.into_iter().find(|k| self.live(k)) {
+                    self.fill(k, ui, _edge);
+                }
+            }
             "menubar" => crate::gui::panels_bars::menu_bar(&mut self.bar_ctx(&mut bar_asks), ui),
             "toolbar" => crate::gui::panels_bars::toolbar(&mut self.bar_ctx(&mut bar_asks), ui),
             "section_bar" => crate::gui::panels_bars::section_bar(
@@ -114,5 +126,13 @@ impl qymcad_shell::Fills for App {
 
     fn bar_frame(&self) -> egui::Frame {
         qymcad_ui_state::tool_bar_frame(&self.scheme)
+    }
+
+    fn opacity(&self, _key: &'static str) -> f32 {
+        1.0
+    }
+
+    fn resized(&mut self, key: &'static str, size: qymcad_shell::Resize) {
+        keep_panel_size(&mut self.set, key, size);
     }
 }

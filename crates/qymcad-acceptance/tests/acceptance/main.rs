@@ -22,6 +22,7 @@ mod inputs;
 mod menu_bar;
 mod observations;
 mod parallel;
+mod panel_layout;
 mod parts_library;
 mod project_checks;
 mod language_and_keys;

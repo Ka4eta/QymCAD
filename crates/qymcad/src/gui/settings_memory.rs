@@ -19,7 +19,13 @@ mod tests {
     fn all_changed() -> Settings {
         let d = Settings::default();
         Settings {
-            layout: Vec::new(),
+            layout: {
+                let mut moved = std::collections::BTreeMap::new();
+                let under_the_tree = qymcad_shell::PanelPlace { edge: qymcad_shell::Edge::Left, strip: 1, order: 1, along: Some(300.0), seen: qymcad_shell::Seen::Shown, ..Default::default() };
+                moved.insert("props".to_string(), under_the_tree);
+                moved.insert("status".to_string(), qymcad_shell::PanelPlace { edge: qymcad_shell::Edge::Bottom, seen: qymcad_shell::Seen::Hidden, ..Default::default() });
+                moved
+            },
             language: "en".into(),
             scheme: "custom-light".into(),
             viewcube_size: 2,
@@ -70,6 +76,7 @@ mod tests {
     /// A comparison field by field: `Settings` deliberately has no `PartialEq` — the comparison is made
     /// meaningfully and with a clear message about which field failed to arrive.
     fn assert_same(a: &Settings, b: &Settings) {
+        assert_eq!(a.layout, b.layout, "the layout of the panels");
         assert_eq!(a.language, b.language, "the language of the interface");
         assert_eq!(a.import_ask_always, b.import_ask_always, "asking for units on every import");
         assert_eq!(a.import_units, b.import_units, "the unit last chosen for a format without units");
@@ -217,6 +224,21 @@ mod tests {
         let d = Settings::default();
         assert_eq!(got.snap.rot_deg, d.snap.rot_deg, "a missing field takes the default rather than zero");
         assert_eq!(got.auto_constrain, d.auto_constrain, "and whole missing branches too");
+    }
+
+    /// A LAYOUT KEPT IN A SHAPE THIS VERSION DOES NOT READ costs the layout and nothing else. The panels were once
+    /// kept as a list of pairs, `layout:[("tree",Right)]`; read as a whole record, the old shape refused the file, and
+    /// the start took the person for a newcomer - every setting at its factory value.
+    #[test]
+    fn an_old_shape_of_the_layout_costs_only_the_layout() {
+        let mine = all_changed();
+        let text = ron::ser::to_string(&mine).expect("it serialises");
+        let (head, tail) = text.split_once("layout:{").expect("the layout is written first");
+        let rest = &tail[tail.find("},").expect("the layout ends") + 2..];
+        let old = format!("{head}layout:[(\"tree\",Right),(\"props\",Left)],{rest}");
+        let got: Settings = ron::from_str(&old).unwrap_or_else(|e| panic!("a record with the old layout is refused whole: {e}"));
+        assert!(got.layout.is_empty(), "the old layout is read as the standard one: {:?}", got.layout);
+        assert_same(&Settings { layout: Default::default(), ..mine }, &got);
     }
 
     /// DERIVED STATE DOES NOT GET INTO THE SETTINGS.

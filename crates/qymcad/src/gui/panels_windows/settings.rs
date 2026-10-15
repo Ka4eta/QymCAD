@@ -574,23 +574,19 @@ pub(crate) fn settings_section_body(wc: &mut qymcad_ui_state::WinCtx, ui: &mut e
             let shell = crate::gui::shell(&*wc.set);
             if show("settings-layout-place") {
                 ui.label(crate::i18n::tr("settings-layout-place"));
-                let mut moves: Vec<(String, qymcad_shell::Slot)> = Vec::new();
-                for key in shell.keys() {
-                    let now = shell.slot_of(key).unwrap_or(qymcad_shell::Slot::Centre);
+                let mut sh = crate::gui::shell(&*wc.set);
+                for key in shell.movable() {
+                    let Some(now) = shell.place_of(key) else { continue };
                     ui.horizontal(|ui| {
                         ui.label(crate::i18n::tr(&format!("panel-{key}")));
-                        for slot in qymcad_shell::Slot::ORDER {
-                            if ui.selectable_label(now == slot, crate::i18n::tr(slot.key())).clicked() && now != slot {
-                                moves.push((key.to_string(), slot));
+                        for edge in qymcad_shell::Edge::ALL {
+                            if ui.selectable_label(now.edge == edge, crate::i18n::tr(edge.key())).clicked() && now.edge != edge {
+                                sh.move_to(key, qymcad_shell::Target::NewStrip { edge, before: usize::MAX });
                             }
                         }
                     });
                 }
-                for (k, slot) in moves {
-                    let mut sh = crate::gui::shell(&*wc.set);
-                    sh.move_to(&k, slot);
-                    wc.set.layout = sh.saved();
-                }
+                wc.set.layout = sh.saved();
             }
             if show("settings-layout-reset") && ui.button(crate::i18n::tr("settings-layout-reset")).clicked() {
                 let mut sh = crate::gui::shell(&*wc.set);

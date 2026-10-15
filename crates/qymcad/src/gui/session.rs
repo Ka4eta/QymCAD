@@ -59,6 +59,18 @@ impl Machine {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Kept(BTreeMap<String, String>);
 
+impl Kept {
+    /// THE TEXT KEPT UNDER `key`, as it stands in the file the framework writes.
+    pub fn record(&self, key: &str) -> Option<&str> {
+        self.0.get(key).map(String::as_str)
+    }
+
+    /// WRITE THE TEXT UNDER `key` - the file edited between two runs, as a person may edit it.
+    pub fn set_record(&mut self, key: &str, text: String) {
+        self.0.insert(key.to_string(), text);
+    }
+}
+
 impl eframe::Storage for Kept {
     fn get_string(&self, key: &str) -> Option<String> {
         self.0.get(key).cloned()

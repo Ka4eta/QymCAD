@@ -482,6 +482,7 @@ mod tests {
                 "the shell: it opens the CONTAINERS and hands each to whoever fills it, so it draws places rather than content. \
                  Being absent from every panel list is the rule it exists to hold, not an oversight",
             ),
+            ("qymcad-shell/src/draw.rs", "the shell drawn: the strips of each edge and the borders between their panels, containers again and no content"),
             ("qymcad-ui-state/src/icons/runtime.rs", "widgets for rendering icons into panels, reached through the panels that place them"),
             ("qymcad-ui-state/src/icons/manager.rs", "icon resolution and loader registration into egui::Context, not a panel"),
             ("qymcad-ui-state/src/icons/watcher.rs", "background directory watcher and polling thread, not a panel"),

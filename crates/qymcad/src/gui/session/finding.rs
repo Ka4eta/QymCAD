@@ -46,11 +46,11 @@ impl Session {
         }
     }
 
-    /// WHERE THE SIDE PANEL `id` STANDS, as the last frame laid it out: its outer rectangle, the divider at its edge.
-    /// `None` when no such panel was drawn.
+    /// WHERE THE PANEL `id` STANDS, as the last frame laid it out: a panel of the window by its key, or a side panel of
+    /// a window by its id - its outer rectangle, the divider at its edge. `None` when no such panel was drawn.
     pub fn panel(&mut self, id: &str) -> Option<Rect> {
         self.settle();
-        egui::PanelState::load(&self.win.ctx, egui::Id::new(id)).map(|p| p.outer_rect)
+        qymcad_shell::laid_out(&self.win.ctx, id).or_else(|| egui::PanelState::load(&self.win.ctx, egui::Id::new(id)).map(|p| p.outer_rect))
     }
 
     /// WHAT THE LAST FRAME PAINTED that a person reads as content: every run of words, and every filled background of

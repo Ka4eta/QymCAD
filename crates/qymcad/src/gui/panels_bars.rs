@@ -317,7 +317,8 @@ pub(crate) fn status_bar(sc: &mut qymcad_ui_state::StatusCtx, ui: &mut egui::Ui)
     // A frame is where it belongs: nothing else in the program knows that a start happened, and this
     // costs one comparison of two numbers when there is nothing to do. It never waits for the network.
     crate::gui::update_ui::ask_if_due(set);
-    ui.horizontal(|ui| {
+    // WRAPPED, so that the line put at a side lays its words in lines rather than running out of its strip
+    ui.horizontal_wrapped(|ui| {
         // a warning yellow with its icon, an error red with its: the line is where a person looks after an action
         let faults = qymcad_ui_state::document_faults(cache, project);
         let said = qymcad_ui_state::notice_text(&scheme.pal, status, qymcad_ui_state::NoticeSize::Line);
