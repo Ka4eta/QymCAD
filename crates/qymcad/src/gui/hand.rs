@@ -40,6 +40,27 @@ pub(super) struct PaintedWords {
     pub colour: egui::Color32,
 }
 
+/// THE RUNS OF WORDS `shapes` PAINT, with their place and colour - for a frame the hand did not run itself as well.
+#[cfg(test)]
+pub(super) fn painted_in(shapes: &[egui::epaint::ClippedShape]) -> Vec<PaintedWords> {
+    fn collect(s: &egui::Shape, out: &mut Vec<PaintedWords>) {
+        match s {
+            egui::Shape::Text(t) => {
+                let section = t.galley.job.sections.first().map(|s| s.format.color).filter(|c| *c != egui::Color32::PLACEHOLDER);
+                let colour = t.override_text_color.or(section).unwrap_or(t.fallback_color);
+                out.push(PaintedWords { text: t.galley.text().to_string(), rect: egui::Rect::from_min_size(t.pos, t.galley.size()), colour });
+            }
+            egui::Shape::Vec(v) => v.iter().for_each(|x| collect(x, out)),
+            _ => {}
+        }
+    }
+    let mut out = Vec::new();
+    for cs in shapes {
+        collect(&cs.shape, &mut out);
+    }
+    out
+}
+
 #[cfg(test)]
 pub(super) struct Hand<'a> {
     pub app: &'a mut super::App,
@@ -208,15 +229,27 @@ impl<'a> Hand<'a> {
     /// leaves it, and egui opens no second hint while one is open; a hint that opens is laid out unseen in its
     /// first frame and drawn in the next.
     fn hint_comes_up(&mut self, at: egui::Pos2, hint: &str) -> bool {
-        let already = self.win.drawn.iter().any(|(t, _)| t == hint);
+        self.hint_at(at).iter().any(|t| t == hint)
+    }
+
+    /// THE HINT THAT COMES UP with the pointer resting over `at`: the words a frame of the rest draws more times than the
+    /// frame before it did - a hint that repeats a line on screen is drawn a second time.
+    pub fn hint_at(&mut self, at: egui::Pos2) -> Vec<String> {
+        let before: Vec<String> = self.win.drawn.iter().map(|(t, _)| t.clone()).collect();
         self.frame(vec![egui::Event::PointerMoved(at)]);
         self.win.clock += 1.0;
-        let mut came = false;
+        let mut came: Vec<String> = Vec::new();
         for _ in 0..3 {
             self.frame(Vec::new());
-            came |= self.win.drawn.iter().any(|(t, _)| t == hint);
+            let now: Vec<&String> = self.win.drawn.iter().map(|(t, _)| t).collect();
+            for t in &now {
+                let more = now.iter().filter(|d| **d == *t).count() > before.iter().filter(|b| *b == *t).count();
+                if !t.is_empty() && more && !came.contains(*t) {
+                    came.push(t.to_string());
+                }
+            }
         }
-        !already && came
+        came
     }
 
     /// A press and a release of the left button at a point of the screen, each in a frame of its own.
@@ -326,23 +359,8 @@ impl<'a> Hand<'a> {
     /// EVERY RUN OF WORDS THE NEXT FRAME PAINTS, with its place and its colour: a warning is told from information by
     /// the colour on screen, which is what a person sees, not by the field behind it.
     pub fn painted_words(&mut self) -> Vec<PaintedWords> {
-        fn collect(s: &egui::Shape, out: &mut Vec<PaintedWords>) {
-            match s {
-                egui::Shape::Text(t) => {
-                    let section = t.galley.job.sections.first().map(|s| s.format.color).filter(|c| *c != egui::Color32::PLACEHOLDER);
-                    let colour = t.override_text_color.or(section).unwrap_or(t.fallback_color);
-                    out.push(PaintedWords { text: t.galley.text().to_string(), rect: egui::Rect::from_min_size(t.pos, t.galley.size()), colour });
-                }
-                egui::Shape::Vec(v) => v.iter().for_each(|x| collect(x, out)),
-                _ => {}
-            }
-        }
         self.frame(Vec::new());
-        let mut out = Vec::new();
-        for cs in &self.win.shapes {
-            collect(&cs.shape, &mut out);
-        }
-        out
+        painted_in(&self.win.shapes)
     }
 
     /// THE STATUS LINE AS THE NEXT FRAME PAINTS IT: the runs of words along the bottom of the window.

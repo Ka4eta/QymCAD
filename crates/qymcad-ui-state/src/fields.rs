@@ -111,11 +111,14 @@ pub fn dim_expr_field_in(rc: &mut RebuildCtx, ui: &mut egui::Ui, id: Id, key: &s
         }
         if !nm.is_empty() && !name_ok {
             let who = rc.project.name_owner(&nm).map(|o| if o.path.is_empty() { qymcad_i18n::tr("par-owner-project") } else { o.path });
+            // THE HINT GIVES THE SAME REASON AS THE LINE: "taken" only when somebody holds the name. Reported
+            // behaviour: over `pi`, which nobody holds, the hint said another dimension already used the name.
+            let hint = if who.is_some() { qymcad_i18n::tr("sk-driver-name-taken-hint") } else { qymcad_i18n::error_words::ident_refusal_text(&nm) };
             let msg = match who {
                 Some(w) => qymcad_i18n::tr2("par-name-taken", "name", &nm, "where", &w),
                 None => qymcad_i18n::error_words::ident_refusal_text(&nm),
             };
-            crate::say(ui, &rc.scheme.pal, &crate::Notice::warning(msg), crate::NoticeSize::Small).on_hover_text(qymcad_i18n::tr("sk-driver-name-taken-hint"));
+            crate::say(ui, &rc.scheme.pal, &crate::Notice::warning(msg), crate::NoticeSize::Small).on_hover_text(hint);
         }
         let shown = o.text;
         if !shown.trim().is_empty() {

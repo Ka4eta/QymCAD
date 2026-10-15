@@ -920,6 +920,8 @@ pub fn dim_editor(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Context, rect
     // lent to the field (which reads the project), and there is no reason to change the model mid-frame.
     let mut name_commit: Option<String> = None;
     let mut name_refusal: Option<String> = None;
+    // the hint over the refusal, with the same reason as the line
+    let mut name_hint = String::new();
     egui::Area::new(egui::Id::new(("dimedit", si, ci))).fixed_pos(qymcad_ui_state::clamp_popup(at, rect) + egui::vec2(8.0, -10.0)).order(egui::Order::Foreground).show(ctx, |ui| {
         egui::Frame::popup(ui.style()).show(ui, |ui| {
             ui.horizontal(|ui| {
@@ -985,15 +987,17 @@ pub fn dim_editor(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Context, rect
                     if name_taken {
                         // WHOSE NAME IT IS, not merely "taken": otherwise the namesake has to be hunted for
                         // across the whole project by hand. A name with no owner is unusable in itself, and
-                        // the line says why.
-                        name_refusal = Some(match sk.project.name_owner(&nm) {
+                        // the line and its hint say why - the hint said "taken" over `tau`, which nobody holds.
+                        let owner = sk.project.name_owner(&nm);
+                        name_hint = if owner.is_some() { qymcad_i18n::tr("sk-driver-name-taken-hint") } else { qymcad_i18n::error_words::ident_refusal_text(&nm) };
+                        name_refusal = Some(match owner {
                             Some(o) => qymcad_i18n::tr2("par-name-taken", "name", "", "where", &if o.path.is_empty() { qymcad_i18n::tr("par-owner-project") } else { o.path }),
                             None => qymcad_i18n::error_words::ident_refusal_text(&nm),
                         });
                     }
                 });
                 if let Some(msg) = name_refusal.take() {
-                    qymcad_ui_state::say(ui, &sk.scheme.pal, &qymcad_ui_state::Notice::warning(msg), qymcad_ui_state::NoticeSize::Small).on_hover_text(qymcad_i18n::tr("sk-driver-name-taken-hint"));
+                    qymcad_ui_state::say(ui, &sk.scheme.pal, &qymcad_ui_state::Notice::warning(msg), qymcad_ui_state::NoticeSize::Small).on_hover_text(&name_hint);
                 }
             }
         });
