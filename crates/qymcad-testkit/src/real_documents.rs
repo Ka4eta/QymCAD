@@ -237,7 +237,7 @@ pub fn determinism(doc: &Doc) -> Vec<String> {
     renamed(Change { was: &first, now: &second }, &o.project).into_iter().map(|r| format!("{}: a second rebuild renamed: {r}", doc.name)).collect()
 }
 
-/// WHAT IS EDITED: one number a person types.
+/// WHAT IS EDITED: one number a person types, or a line of a sketch broken in two.
 #[derive(Clone)]
 pub enum Edit {
     /// A dimension of a node (`height`, `down`).
@@ -246,6 +246,9 @@ pub enum Edit {
     Param { index: usize, value: f64 },
     /// A dimension of a sketch, by the entities it is laid on.
     Sketch { sketch: Id, refs: Vec<Id>, value: f64 },
+    /// A line of a sketch broken at its middle - a segment added to its contour; undone, the segment is taken away. The
+    /// contour draws the same outline, so nothing built from it moves and no name changes.
+    Break { sketch: Id, line: Id },
 }
 
 impl Edit {
@@ -254,6 +257,7 @@ impl Edit {
             Edit::Feature { node, key, value, .. } => format!("{key} of node {node} = {value}"),
             Edit::Param { index, value } => format!("parameter {} = {value}", p.parameters[*index].name),
             Edit::Sketch { sketch, refs, value } => format!("dimension {refs:?} of sketch {sketch} = {value}"),
+            Edit::Break { sketch, line } => format!("line {line} of sketch {sketch} broken in two"),
         }
     }
 }
@@ -294,6 +298,21 @@ pub fn edits(p: &Project) -> Vec<Edit> {
             out.push(Edit::Sketch { sketch: s.id, refs, value });
         }
     }
+    // the topology of a sketch: the first line of each sketch a node builds from, broken in two
+    let built_from: Vec<Id> = p
+        .timeline
+        .iter()
+        .filter_map(|n| match n.kind {
+            FeatureKind::Extrude { sketch, .. } | FeatureKind::Combine { sketch, .. } => Some(sketch),
+            _ => None,
+        })
+        .collect();
+    for s in p.sketches.iter().filter(|s| built_from.contains(&s.id)) {
+        let line = s.entities.iter().find(|e| !e.construction && matches!(e.kind, qymcad_core::model::EntityKind::Line { .. }));
+        if let Some(e) = line {
+            out.push(Edit::Break { sketch: s.id, line: e.id });
+        }
+    }
     out
 }
 
@@ -307,6 +326,16 @@ fn apply(p: &mut Project, e: &Edit, value: f64) {
             let name = p.parameters[*index].name.clone();
             p.parameters[*index].expr = qymcad_core::expr::fmt_num(value);
             settle_params(p, &name);
+        }
+        Edit::Break { sketch, line } => {
+            let index = p.sketch_index(*sketch).expect("the sketch of the line");
+            let ends = match p.sketches[index].entities.iter().find(|e| e.id == *line).map(|e| e.kind) {
+                Some(qymcad_core::model::EntityKind::Line { a, b }) => [a, b].map(|k| p.point_xy(index, k)),
+                _ => [None, None],
+            };
+            let [Some(a), Some(b)] = ends else { return };
+            p.break_line(index, *line, (a.0 + b.0) / 2.0, (a.1 + b.1) / 2.0);
+            p.mark_sketch_dirty(*sketch);
         }
         Edit::Sketch { sketch, refs, .. } => {
             let index = p.sketch_index(*sketch).expect("the sketch of the dimension");
@@ -525,6 +554,7 @@ fn rebuild(o: &mut Opened, was: Option<&Marks>) -> Vec<String> {
 pub fn edit_and_back(o: &mut Opened, e: &Edit, factor: f64) -> Vec<String> {
     let value = match e {
         Edit::Feature { value, .. } | Edit::Param { value, .. } | Edit::Sketch { value, .. } => *value * factor,
+        Edit::Break { .. } => 0.0,
     };
     let says = format!("{} -> {}", e.says(&o.project), qymcad_core::expr::fmt_num(value));
     let base = o.marks.clone();
