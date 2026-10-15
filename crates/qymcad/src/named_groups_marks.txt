@@ -661,7 +661,8 @@ crates/qymcad/src/gui/ghost_highlight.rs 1 0 2
 crates/qymcad/src/gui/gizmo_math.rs 2 3 1
 crates/qymcad/src/gui/gizmo_mouse.rs 0 1 1
 crates/qymcad/src/gui/grab_tests.rs 0 1 0
-crates/qymcad/src/gui/hand.rs 14 12 1
+crates/qymcad/src/gui/hand.rs 14 11 1
+crates/qymcad/src/gui/hand/sketch_text.rs 0 1 0
 crates/qymcad/src/gui/help_flow.rs 0 2 0
 crates/qymcad/src/gui/help_general.rs 1 0 0
 crates/qymcad/src/gui/help_images.rs 7 12 0
