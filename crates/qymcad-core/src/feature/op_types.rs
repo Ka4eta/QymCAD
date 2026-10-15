@@ -202,12 +202,23 @@ pub enum BlendRoles {
     Unnamed,
 }
 
-/// AN EDGE AS THE NODE PICKED IT: the edge of the body the blend rounds now, and its place in the pick of the node, from
-/// 1. The place is what the person gave; the name of the edge changes when a face of its pair does.
+/// AN EDGE AS THE NODE PICKED IT: the edge of the body the blend rounds now, its place in the pick of the node, from 1,
+/// and how the pick found it. The place is what the person gave; the name of the edge changes when a face of its pair
+/// does.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PickedEdge {
     pub live: u32,
     pub place: u16,
+    pub by: PickedBy,
+}
+
+/// HOW A PICK FOUND ITS EDGE: by the name it holds, or through a translation - the record of a merge, the structure of
+/// the name, the place. Two picks finding one edge - two edges merged into one by an edit above - give its surface the
+/// name of the pick that holds the edge by its name.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PickedBy {
+    Name,
+    Translation,
 }
 
 /// A BODY BROUGHT IN, AS THE DOOR LANDED IT: its mesh and faces, and why it was kept as it came when the door could not

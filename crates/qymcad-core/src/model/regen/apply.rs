@@ -56,7 +56,8 @@ impl Project {
         for (k, d) in translated.iter().enumerate() {
             let one = if cur.is_empty() { self.resolve_edge_ids(node_id, src, &[*d]) } else { self.resolve_edge_ids_in(&cur, node_id, &[*d]) };
             if let Some(live) = one.first() {
-                out.push(crate::feature::PickedEdge { live: *live, place: (k + 1).min(u16::MAX as usize) as u16 });
+                let by = if *live == *d { crate::feature::PickedBy::Name } else { crate::feature::PickedBy::Translation };
+                out.push(crate::feature::PickedEdge { live: *live, place: (k + 1).min(u16::MAX as usize) as u16, by });
             }
         }
         self.snap_rebinds.store(keep, std::sync::atomic::Ordering::Relaxed);

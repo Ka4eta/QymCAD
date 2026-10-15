@@ -49,14 +49,18 @@ impl BlendNumbers {
 /// corner after the edge too, there being no other source in the recipe. An edge the node picked by hand is named by
 /// its place in the pick (`PickedEdge::place`): the name of the edge changes when a face of its pair does - a wall above
 /// merged into another - and the surface, which did not move, went with it (measured: eight faces of a chamfer on the
-/// case of the examples renamed by a dimension +10% above). An edge a description gave (every edge of a face) is named
-/// after its own name. The surface continues across tangent neighbours, which the recipe also names after their edges
+/// case of the examples renamed by a dimension +10% above). Two picks finding one edge - two edges an edit above merged
+/// into one - name its surface after the pick holding the edge by its name (measured on the filter of the examples: a
+/// dimension -10% merged a wall into another, the pick of the edge it bounded was translated onto the edge of pick 30, and
+/// the surface of pick 30, which did not move, took the name of pick 1). An edge a description gave (every edge of a
+/// face) is named after its own name. The surface continues across tangent neighbours, which the recipe also names after their edges
 /// (measured: otherwise 2 to 4 nameless faces an operation) - but only an edge that can be told apart: while two edges of
 /// a body share one number, naming their surfaces alike makes a reference lead to two faces (measured: a mirror gave 7
 /// such pairs of 20 edges).
 fn blend_roles(roles: BlendRoles, edges: &[u32], body_edges: &[u32], given: &mut Roles) -> BlendNumbers {
     let BlendRoles::Named { feature, picked } = roles else { return BlendNumbers { surfaces: Vec::new(), corners: Vec::new(), all: Vec::new() } };
-    let source = |e: u32| picked.iter().find(|p| p.live == e).map_or(e as Id, |p| p.place as Id);
+    // the pick holding the edge by its name before one translated onto it, then the lower place
+    let source = |e: u32| picked.iter().filter(|p| p.live == e).min_by_key(|p| (p.by, p.place)).map_or(e as Id, |p| p.place as Id);
     let surfaces = edges.iter().map(|e| given.give(GeoName::new(feature, Role::Blend, source(*e)))).collect();
     let corners = edges.iter().map(|e| given.give(GeoName::new(feature, Role::Corner, source(*e)))).collect();
     let once = |e: &u32| NameTable::is_named(*e) && body_edges.iter().filter(|x| *x == e).count() == 1 && !picked.iter().any(|p| p.live == *e);
@@ -264,7 +268,16 @@ impl OcctKernel {
     fn prepare(&self, src: Id, edges: &[u32], roles: BlendRoles) -> Result<Prepared, CoreError> {
         let shapes = self.shapes.borrow();
         let s = shapes.get(&src).ok_or(CoreError::SourceBodyNotBuilt)?;
-        let sharp = sharp(s, edges)?;
+        let mut sharp = sharp(s, edges)?;
+        // THE EDGES IN THE ORDER OF THEIR PICKS: a patch at a corner where blended edges meet is claimed by the first of
+        // them, so the pick holding its edge by its name goes before one translated onto an edge, and the lower place
+        // before the higher. In the order they came, a translation that put the first pick onto another edge gave a
+        // corner that did not move to another pick (measured on the filter of the examples: "corner after pick 4" became
+        // "corner after pick 30"). An edge no pick holds keeps its place after them.
+        if let BlendRoles::Named { picked, .. } = &roles {
+            let rank = |e: &u32| picked.iter().filter(|p| p.live == *e).map(|p| (p.by, p.place)).min();
+            sharp.edges.sort_by_key(|e| (rank(e).is_none(), rank(e)));
+        }
         let mut given = Roles::default();
         let numbers = blend_roles(roles, &sharp.edges, &s.edges_with_ids().1, &mut given);
         Ok(Prepared { sharp, numbers, given })
