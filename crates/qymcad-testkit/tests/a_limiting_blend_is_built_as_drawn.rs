@@ -13,15 +13,34 @@ fn edge_near(p: &Project, body: Id, at: [f64; 3]) -> Option<u32> {
     p.regen_edges.get(&body)?.iter().filter(|e| d(e.mid) < 0.2).min_by(|a, b| d(a.mid).total_cmp(&d(b.mid))).map(|e| e.id)
 }
 
-/// A BLOCK AND WHAT IS LAID ON IT: the block (centred on the axis, standing on XY), the middles of the edges taken, the
-/// blend, and the volume it leaves.
+/// A BODY AND WHAT IS LAID ON IT: the body, the middles of the edges taken, the blend, and the volume it leaves.
 struct Case {
     what: &'static str,
-    block: [f64; 3],
+    body: Body,
     edges: &'static [[f64; 3]],
     blend: Blend,
     volume: f64,
 }
+
+/// A BLOCK (centred on the axis, standing on XY), OR A SECTION drawn on XY and extruded along Z.
+#[derive(Clone, Copy)]
+enum Body {
+    Block([f64; 3]),
+    Section(Section),
+}
+
+/// THE CORNERS OF A SECTION and how far it is extruded.
+#[derive(Clone, Copy)]
+struct Section {
+    corners: &'static [[f64; 2]],
+    length: f64,
+}
+
+/// A trapezoid 40 wide, 10 high, its left side leaning at 60 deg from the base: 10 / tan 60 in from the left at the top.
+const LEAN: f64 = 5.773502691896258;
+const TRAPEZOID: &[[f64; 2]] = &[[0.0, 0.0], [40.0, 0.0], [40.0, 10.0], [LEAN, 10.0]];
+/// The length of the leaning side, 10 / sin 60.
+const SIDE: f64 = 11.547005383792516;
 
 /// A ROUNDING OF A RADIUS, OR A CHAMFER OF TWO LEGS laid one way or the other.
 #[derive(Clone, Copy)]
@@ -46,45 +65,85 @@ fn rounded_off(r: f64) -> f64 {
 fn cases() -> Vec<Case> {
     let block = 40.0 * 30.0 * 10.0;
     let thin = 40.0 * 10.0 * 10.0;
+    let trapezoid = (40.0 + 40.0 - LEAN) / 2.0 * 10.0 * 20.0;
     let legs = |first: f64, second: f64, flip: bool| Blend::Chamfer(Legs { first, second, flip });
     vec![
         Case {
             what: "a chamfer 10 x 10 down the whole side of a block 10 high",
-            block: [40.0, 30.0, 10.0],
+            body: Body::Block([40.0, 30.0, 10.0]),
             edges: &[[0.0, -15.0, 10.0]],
             blend: legs(10.0, 10.0, false),
             volume: block - 0.5 * 100.0 * 40.0,
         },
         Case {
             what: "a chamfer 10 x 5, its leg of 10 down the side 10 high",
-            block: [40.0, 30.0, 10.0],
+            body: Body::Block([40.0, 30.0, 10.0]),
             edges: &[[0.0, -15.0, 10.0]],
             blend: legs(10.0, 5.0, false),
             volume: block - 0.5 * 50.0 * 40.0,
         },
-        Case { what: "a chamfer 10 x 5 laid the other way", block: [40.0, 30.0, 10.0], edges: &[[0.0, -15.0, 10.0]], blend: legs(10.0, 5.0, true), volume: block - 0.5 * 50.0 * 40.0 },
+        Case { what: "a chamfer 10 x 5 laid the other way", body: Body::Block([40.0, 30.0, 10.0]), edges: &[[0.0, -15.0, 10.0]], blend: legs(10.0, 5.0, true), volume: block - 0.5 * 50.0 * 40.0 },
         Case {
             what: "a rounding R10 down the whole side of a block 10 high",
-            block: [40.0, 30.0, 10.0],
+            body: Body::Block([40.0, 30.0, 10.0]),
             edges: &[[0.0, -15.0, 10.0]],
             blend: Blend::Fillet(10.0),
             volume: block - rounded_off(10.0) * 40.0,
         },
         Case {
             what: "two roundings R5 meeting across a top 10 wide",
-            block: [40.0, 10.0, 10.0],
+            body: Body::Block([40.0, 10.0, 10.0]),
             edges: &[[0.0, -5.0, 10.0], [0.0, 5.0, 10.0]],
             blend: Blend::Fillet(5.0),
             volume: thin - 2.0 * rounded_off(5.0) * 40.0,
         },
         Case {
             what: "two chamfers 5 meeting across a top 10 wide",
-            block: [40.0, 10.0, 10.0],
+            body: Body::Block([40.0, 10.0, 10.0]),
             edges: &[[0.0, -5.0, 10.0], [0.0, 5.0, 10.0]],
             blend: legs(5.0, 5.0, false),
             volume: thin - 2.0 * 0.5 * 25.0 * 40.0,
         },
+        // the corner of 120 deg at the top of the leaning side: legs of SIDE on it and 5 on the top take off a triangle
+        // of 0.5 x SIDE x 5 x sin 120 = 25; the leaning side eaten whole
+        Case {
+            what: "a chamfer eating a side leaning at 60 deg, its corner 120 deg",
+            body: Body::Section(Section { corners: TRAPEZOID, length: 20.0 }),
+            edges: &[[LEAN, 10.0, 10.0]],
+            blend: legs(SIDE, 5.0, false),
+            volume: trapezoid - 25.0 * 20.0,
+        },
+        Case {
+            what: "the same chamfer laid the other way",
+            body: Body::Section(Section { corners: TRAPEZOID, length: 20.0 }),
+            edges: &[[LEAN, 10.0, 10.0]],
+            blend: legs(SIDE, 5.0, true),
+            volume: trapezoid - 25.0 * 20.0,
+        },
+        // the corner of 60 deg at the foot of the leaning side: a radius touching it SIDE up, at its top
+        Case {
+            what: "a rounding of a corner of 60 deg touching the leaning side at its top",
+            body: Body::Section(Section { corners: TRAPEZOID, length: 20.0 }),
+            edges: &[[0.0, 0.0, 10.0]],
+            blend: Blend::Fillet(SIDE * (PI / 6.0).tan()),
+            volume: trapezoid - Rounding { radius: SIDE * (PI / 6.0).tan(), angle: PI / 3.0 }.off() * 20.0,
+        },
     ]
+}
+
+/// A ROUNDING OF A CORNER: its radius and the angle between its faces.
+struct Rounding {
+    radius: f64,
+    angle: f64,
+}
+
+impl Rounding {
+    /// What it takes off the section of its edge: the two right triangles from the edge to the centre less the sector
+    /// between the touching points.
+    fn off(&self) -> f64 {
+        let touch = self.radius / (self.angle / 2.0).tan();
+        touch * self.radius - 0.5 * self.radius * self.radius * (PI - self.angle)
+    }
 }
 
 /// The node of `case` laid on its block, built; the faults it shows.
@@ -92,8 +151,17 @@ fn check(case: &Case) -> Vec<String> {
     let mut out = Vec::new();
     let mut p = Project::default();
     p.new_document();
-    let [dx, dy, dz] = case.block;
-    let block = p.add_box(dx, dy, dz);
+    let block = match case.body {
+        Body::Block([dx, dy, dz]) => p.add_box(dx, dy, dz),
+        Body::Section(Section { corners, length }) => {
+            let sketch = p.add_line_sketch("Section", corners.iter().map(|c| qymcad_core::geom::Point2::new(c[0], c[1])).collect(), true);
+            let Some(si) = p.sketch_index(sketch) else { return vec![format!("{}: setup - no sketch", case.what)] };
+            p.regen_sketch(si);
+            p.add_sketch_node(sketch, "Section");
+            let closed: Vec<Id> = p.sketches[si].contour_ids.iter().copied().filter(|c| p.contour_profile_xy(*c).is_some()).collect();
+            p.add_extrude_multi(sketch, closed, length, qymcad_core::feature::Reach::Forward, 0.0, vec![])
+        }
+    };
     let _ = qymcad_testkit::regenerate(&mut p);
     let Some(edges) = case.edges.iter().map(|at| edge_near(&p, block, *at)).collect::<Option<Vec<u32>>>() else {
         return vec![format!("{}: setup - no edge stands where the case lays it", case.what)];
