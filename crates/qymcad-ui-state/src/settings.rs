@@ -405,6 +405,13 @@ pub struct Settings {
     /// file: a setting nobody can read would otherwise cost the person every other setting with it.
     #[serde(deserialize_with = "layout_or_standard")]
     pub layout: std::collections::BTreeMap<String, qymcad_shell::PanelPlace>,
+    /// THE LOOK OF THE BARS OF TOOLS: the side of a button, the lines across the edge, where the buttons stand along
+    /// it and how opaque the ground of the bar is. One look for every bar: a person sets the size of a button once.
+    pub bar: BarSetting,
+    /// THE BUTTONS OF THE BAR OF EACH WORKBENCH as the person set them, by the code of the workbench: their order,
+    /// and which stand in "More" rather than on the bar. Only a workbench the person changed has a record, so a
+    /// command added later comes onto its bar by itself.
+    pub bar_sets: std::collections::BTreeMap<String, BarSet>,
     /// THE INTERFACE LANGUAGE (a code from the `i18n/` catalogue). Empty means nothing has been chosen yet, so it
     /// follows the system locale, and an undetermined locale gives English. An explicit choice overrides both.
     pub language: String,
@@ -592,6 +599,49 @@ pub(crate) fn default_mouse_nav() -> MouseNav {
 /// A `serde(default)` for a flag whose factory value is "on".
 pub(crate) fn default_true() -> bool {
     true
+}
+
+/// THE LOOK OF THE BARS OF TOOLS.
+#[derive(Clone, Copy, PartialEq, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct BarSetting {
+    /// The side of a button in points, `BAR_SIZES` apart. The icon is drawn for it, sharp at any size.
+    pub size: f32,
+    pub lines: qymcad_shell::BarLines,
+    pub align: qymcad_shell::BarAlign,
+    /// How opaque the ground of the bar is, in percent, `BAR_OPACITY` apart.
+    pub opacity: u8,
+}
+
+/// THE SIDES A BUTTON OF A BAR MAY HAVE: from a dense bar on a small screen to a large one under a finger.
+pub const BAR_SIZES: std::ops::RangeInclusive<f32> = 20.0..=48.0;
+
+/// HOW TRANSPARENT A BAR MAY BE: below 30 percent its buttons are lost against the model.
+pub const BAR_OPACITY: std::ops::RangeInclusive<u8> = 30..=100;
+
+impl Default for BarSetting {
+    fn default() -> Self {
+        // 34 points: the height the buttons had when they were fixed, 40 x 34
+        Self { size: 34.0, lines: qymcad_shell::BarLines::Two, align: qymcad_shell::BarAlign::Start, opacity: 100 }
+    }
+}
+
+impl BarSetting {
+    /// The look the shell lays a bar by.
+    pub fn look(&self) -> qymcad_shell::BarLook {
+        qymcad_shell::BarLook { size: self.size.clamp(*BAR_SIZES.start(), *BAR_SIZES.end()), lines: self.lines, align: self.align }
+    }
+}
+
+/// THE BUTTONS OF THE BAR OF ONE WORKBENCH as the person set them, by the codes of the commands.
+#[derive(Clone, PartialEq, Debug, Default, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct BarSet {
+    /// The commands in the order the person put them; a command not named here stands after the one the catalogue
+    /// puts before it.
+    pub order: Vec<String>,
+    /// The commands put into "More": not on the bar, in its list, and in the search and the keys as ever.
+    pub in_more: Vec<String>,
 }
 
 /// DEFAULT VALUES — not the state of a command but SETTINGS: a command opens with them, and they

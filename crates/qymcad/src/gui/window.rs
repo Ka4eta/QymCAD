@@ -22,9 +22,12 @@ pub(crate) struct Window {
     pub(crate) shapes: Vec<egui::epaint::ClippedShape>,
     /// Every texture the frames loaded and have not freed, as pictures.
     pub(crate) textures: std::collections::HashMap<egui::TextureId, super::help_raster::Tex>,
-    /// THE PLATES OF THE TOOL BUTTONS the last frame drew and did not clip away: an icon button and a symbol
-    /// button are both a 40x34 plate, and neither carries a word - what it does is in its hint.
+    /// THE PLATES OF THE TOOL BUTTONS the last frame drew: the buttons of the bars and the rows of an open "More"
+    /// list, as the bars wrote them down. None of them carries a word a person could press it by - what it does is in
+    /// its hint.
     pub(crate) plates: Vec<egui::Pos2>,
+    /// The "More" buttons of the bars the last frame drew.
+    pub(crate) mores: Vec<egui::Pos2>,
     /// What the frames put on the clipboard, oldest first.
     pub(crate) copied: Vec<String>,
     /// The pages the frames asked the system to open, oldest first.
@@ -97,6 +100,7 @@ impl Window {
             shapes: Vec::new(),
             textures: std::collections::HashMap::new(),
             plates: Vec::new(),
+            mores: Vec::new(),
             copied: Vec::new(),
             urls: Vec::new(),
             title: None,
@@ -135,11 +139,11 @@ impl Window {
         self.worst_frame = self.worst_frame.max(began.elapsed());
         self.worst_step_frame = self.worst_step_frame.max(began.elapsed());
         self.drawn.clear();
-        self.plates.clear();
         for shape in &out.shapes {
             words(&shape.shape, &mut self.drawn);
-            plates(&shape.shape, shape.clip_rect, &mut self.plates);
         }
+        self.plates = qymcad_shell::noted_buttons(&self.ctx).into_iter().map(|r| r.center()).collect();
+        self.mores = qymcad_shell::noted_more(&self.ctx).into_iter().map(|r| r.center()).collect();
         // NOT ONE KEY OF THE CATALOGUE ON THE SCREEN INSTEAD OF A WORD, in any frame any check draws: a key the
         // catalogue lacks is drawn as it is, and nothing else would notice it
         let leaked: Vec<String> = self.drawn.iter().flat_map(|(t, _)| super::key_leak::leaks(t).into_iter().map(move |k| format!("{k:?} in {t:?}"))).collect();
@@ -234,15 +238,6 @@ fn words(s: &egui::epaint::Shape, out: &mut Vec<(String, egui::Rect)>) {
             out.push((text.trim().to_string(), egui::Rect::from_points(&corners)));
         }
         egui::epaint::Shape::Vec(v) => v.iter().for_each(|s| words(s, out)),
-        _ => {}
-    }
-}
-
-/// The centres of the 40x34 tool plates of a shape that its clip leaves visible.
-fn plates(s: &egui::epaint::Shape, clip: egui::Rect, out: &mut Vec<egui::Pos2>) {
-    match s {
-        egui::epaint::Shape::Rect(r) if (r.rect.width() - 40.0).abs() < 0.5 && (r.rect.height() - 34.0).abs() < 0.5 && clip.contains(r.rect.center()) => out.push(r.rect.center()),
-        egui::epaint::Shape::Vec(v) => v.iter().for_each(|s| plates(s, clip, out)),
         _ => {}
     }
 }

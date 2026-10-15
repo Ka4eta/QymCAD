@@ -620,7 +620,6 @@ crates/qymcad/src/gui/audit.rs 1 12 0
 crates/qymcad/src/gui/bar_menu.rs 0 2 0
 crates/qymcad/src/gui/blend_preview_on_sample.rs 1 0 0
 crates/qymcad/src/gui/card_matches_raster.rs 0 2 0
-crates/qymcad/src/gui/catalog_flow.rs 0 6 0
 crates/qymcad/src/gui/changing_an_anchor_does_not_spin_the_part.rs 1 1 0
 crates/qymcad/src/gui/clipped_text_sweep.rs 0 3 0
 crates/qymcad/src/gui/command_search.rs 0 2 0
@@ -666,7 +665,7 @@ crates/qymcad/src/gui/hand.rs 14 12 1
 crates/qymcad/src/gui/help_flow.rs 0 2 0
 crates/qymcad/src/gui/help_general.rs 1 0 0
 crates/qymcad/src/gui/help_images.rs 7 12 0
-crates/qymcad/src/gui/help_map_flow.rs 0 4 0
+crates/qymcad/src/gui/help_map_flow.rs 0 3 0
 crates/qymcad/src/gui/help_raster.rs 1 1 0
 crates/qymcad/src/gui/help_window.rs 0 0 1
 crates/qymcad/src/gui/hidden_is_not_pickable.rs 0 2 0

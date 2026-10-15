@@ -29,6 +29,12 @@ pub fn laid_out(ctx: &egui::Context, key: &str) -> Option<egui::Rect> {
     laid.iter().find(|l| l.key == key && l.pass == last).map(|l| l.rect)
 }
 
+/// The last pass that laid out any panel.
+pub(crate) fn last_pass(ctx: &egui::Context) -> Option<u64> {
+    let laid: Vec<Laid> = ctx.data(|d| d.get_temp(laid_id())).unwrap_or_default();
+    laid.iter().map(|l| l.pass).max()
+}
+
 fn laid_id() -> egui::Id {
     egui::Id::new("shell-laid-out")
 }
@@ -101,14 +107,17 @@ fn one_strip(shell: &Shell, edge: Edge, members: &[&'static str], ui: &mut egui:
         Edge::Top => egui::Panel::top(id),
         Edge::Bottom => egui::Panel::bottom(id),
     };
+    let framed = regs.iter().all(|p| p.framed);
+    let frame = if framed { host.bar_frame() } else { egui::Frame::side_top_panel(ui.style()) };
+    let margin = frame.total_margin().sum();
+    let content = regs.iter().filter_map(|p| p.content).map(|c| if edge.upright() { c.side + margin.x } else { c.flat + margin.y }).reduce(f32::max);
+    let registered = registered.or(content);
     let side_default = registered.is_none() && edge.upright();
     let resizable = resizable || side_default;
     let size = kept.or(registered).or(side_default.then_some(SIDE));
     if let Some(w) = size {
         panel = if resizable { panel.default_size(w).resizable(true) } else { panel.exact_size(w).resizable(false) };
     }
-    let framed = regs.iter().all(|p| p.framed);
-    let frame = if framed { host.bar_frame() } else { egui::Frame::side_top_panel(ui.style()) };
     panel = panel.frame(ground(frame, host.opacity(first)));
     if regs.iter().all(|p| !p.separator) {
         panel = panel.show_separator_line(false);

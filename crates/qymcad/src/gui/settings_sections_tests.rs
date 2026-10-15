@@ -70,6 +70,14 @@ mod tests {
                 moved.insert("tree".to_string(), qymcad_shell::PanelPlace { edge: qymcad_shell::Edge::Right, ..Default::default() });
                 moved
             },
+            bar: qymcad_ui_state::BarSetting { size: 26.0, lines: qymcad_shell::BarLines::One, align: qymcad_shell::BarAlign::Centre, opacity: 60 },
+            bar_sets: {
+                let mut sets = std::collections::BTreeMap::new();
+                sets.insert("sketch".to_string(), qymcad_ui_state::BarSet { order: vec!["sketch.circle".into(), "sketch.line".into()], in_more: vec!["sketch.spline".into()] });
+                sets.insert("part".to_string(), qymcad_ui_state::BarSet { order: Vec::new(), in_more: vec!["part.thread".into()] });
+                sets.insert("assembly".to_string(), qymcad_ui_state::BarSet { order: vec!["assembly.joint".into()], in_more: Vec::new() });
+                sets
+            },
             language: "en".into(),
             scheme: "light".into(),
             viewcube_size: 2,

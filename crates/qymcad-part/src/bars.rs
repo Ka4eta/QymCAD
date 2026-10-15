@@ -535,5 +535,7 @@ mod feat_bar;
 pub use feat_bar::*;
 mod toolbar;
 pub use toolbar::*;
+mod commands;
+pub use commands::*;
 mod options;
 pub use options::*;

@@ -31,6 +31,8 @@ pub(crate) const PANELS: &str = concat!(
             "\n",
             include_str!("../../../qymcad-part/src/bars/toolbar.rs"),
             "\n",
+            include_str!("../../../qymcad-part/src/bars/commands.rs"),
+            "\n",
             include_str!("../../../qymcad-part/src/bars.rs")
         ),
         "\n",
@@ -79,6 +81,8 @@ pub(crate) const PANELS: &str = concat!(
     "\n",
     concat!(
         include_str!("../../../qymcad-assembly/src/bars.rs"),
+        "\n",
+        include_str!("../../../qymcad-assembly/src/commands.rs"),
         "\n",
         include_str!("../../../qymcad-assembly/src/gizmo.rs"),
         "\n",
@@ -129,6 +133,8 @@ pub(crate) const PANELS: &str = concat!(
         include_str!("panels_windows/schemes.rs"),
         "\n",
         include_str!("panels_windows/settings.rs"),
+        "\n",
+        include_str!("panels_windows/layout_settings.rs"),
         "\n",
         include_str!("panels_windows.rs")
     ),
@@ -199,6 +205,8 @@ const WINDOW_OPENERS: &str = concat!(
             "\n",
             include_str!("../../../qymcad-part/src/bars/toolbar.rs"),
             "\n",
+            include_str!("../../../qymcad-part/src/bars/commands.rs"),
+            "\n",
             include_str!("../../../qymcad-part/src/bars.rs")
         ),
         "\n",
@@ -235,6 +243,8 @@ const WINDOW_OPENERS: &str = concat!(
         "\n",
         include_str!("panels_windows/settings.rs"),
         "\n",
+        include_str!("panels_windows/layout_settings.rs"),
+        "\n",
         include_str!("panels_windows.rs")
     ),
     "\n",
@@ -261,7 +271,9 @@ const WINDOW_OPENERS: &str = concat!(
         "\n",
         include_str!("../gui.rs"),
         "\n",
-        include_str!("panel_places.rs")
+        include_str!("panel_places.rs"),
+        "\n",
+        include_str!("panels_bars/tool_bar.rs")
     ),
 );
 
@@ -288,6 +300,8 @@ const CTX_USERS: &str = concat!(
             include_str!("../../../qymcad-part/src/bars/options.rs"),
             "\n",
             include_str!("../../../qymcad-part/src/bars/toolbar.rs"),
+            "\n",
+            include_str!("../../../qymcad-part/src/bars/commands.rs"),
             "\n",
             include_str!("../../../qymcad-part/src/bars.rs")
         ),
@@ -338,6 +352,8 @@ const CTX_USERS: &str = concat!(
     concat!(
         include_str!("../../../qymcad-assembly/src/bars.rs"),
         "\n",
+        include_str!("../../../qymcad-assembly/src/commands.rs"),
+        "\n",
         include_str!("../../../qymcad-assembly/src/gizmo.rs"),
         "\n",
         include_str!("../../../qymcad-assembly/src/picks.rs"),
@@ -375,6 +391,8 @@ const CTX_USERS: &str = concat!(
         include_str!("panels_windows/schemes.rs"),
         "\n",
         include_str!("panels_windows/settings.rs"),
+        "\n",
+        include_str!("panels_windows/layout_settings.rs"),
         "\n",
         include_str!("panels_windows.rs")
     ),
@@ -470,7 +488,7 @@ mod tests {
         // KEYED BY PATH, not by file name. Every workbench crate is a single `lib.rs`, so an exception
         // written as "lib.rs" would have quietly excused the Part, the sketcher and the assembly along with
         // the one file it was meant for.
-        const NOT_A_PANEL: [(&str, &str); 10] = [
+        const NOT_A_PANEL: [(&str, &str); 12] = [
             ("qymcad/src/gui/input.rs", "keyboard handling: it draws nothing, it only takes a frame's context to read keys from"),
             ("qymcad/src/gui/orbit_about.rs", "the centre of a turn of the view: it draws nothing, it only keeps the point of a turn in a frame's context memory"),
             ("qymcad-part/src/trial.rs", "the trial build of a command: it draws nothing, it only keeps its verdict in a frame's context memory"),
@@ -483,6 +501,7 @@ mod tests {
                  Being absent from every panel list is the rule it exists to hold, not an oversight",
             ),
             ("qymcad-shell/src/draw.rs", "the shell drawn: the strips of each edge and the borders between their panels, containers again and no content"),
+            ("qymcad-shell/src/bar.rs", "the plan of a bar of buttons: where each button lands, worked out from the room and the groups; it draws nothing"),
             ("qymcad-ui-state/src/icons/runtime.rs", "widgets for rendering icons into panels, reached through the panels that place them"),
             ("qymcad-ui-state/src/icons/manager.rs", "icon resolution and loader registration into egui::Context, not a panel"),
             ("qymcad-ui-state/src/icons/watcher.rs", "background directory watcher and polling thread, not a panel"),

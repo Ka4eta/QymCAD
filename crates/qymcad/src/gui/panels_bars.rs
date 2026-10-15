@@ -6,6 +6,10 @@
 pub(crate) use qymcad_part::*;
 use super::*;
 
+// the bar of the tools of a workbench, drawn from the catalogue
+mod tool_bar;
+pub(crate) use tool_bar::wb_toolbar;
+
 impl App {
     /// The command bar of the Part workbench, through its own doorway.
     pub(crate) fn feat_command_bar(&mut self, ui: &mut egui::Ui) {
@@ -168,6 +172,8 @@ pub(crate) fn menu_bar(bc: &mut qymcad_ui_state::BarCtx, ui: &mut egui::Ui) {
                 bc.cam.init = false;
                 ui.close();
             }
+            // THE PANELS: a tick for each one a person may hide; hidden, it takes no room
+            ui.menu_button(format!("{}  {}", ph::SIDEBAR, qymcad_i18n::tr("menu-panels")), |ui| crate::gui::panels_windows::panels_menu(&mut *bc.set, ui));
             ui.separator();
             ui.label(qymcad_i18n::tr("settings-scheme"));
             // THE SCHEMES COME FROM THE LIVE LIST (the built-in ones and the user's), and the label from

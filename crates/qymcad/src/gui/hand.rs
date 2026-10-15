@@ -166,7 +166,35 @@ impl<'a> Hand<'a> {
             return Some(at);
         }
         self.panel_to_its_top();
-        self.hint_down_the_panel(hint)
+        if let Some(at) = self.hint_down_the_panel(hint) {
+            return Some(at);
+        }
+        self.hint_in_more(hint)
+    }
+
+    /// THE ROW OF A "MORE" LIST WITH THE HINT `hint`: each "More" of the bars opened in turn and its rows rested over; a
+    /// list without the row is closed again by its button, the one with it left open for the press that follows.
+    fn hint_in_more(&mut self, hint: &str) -> Option<egui::Pos2> {
+        for more in self.win.mores.clone() {
+            let bar = self.win.plates.clone();
+            self.press_screen(more);
+            // A LIST LAID OUT IN ITS FIRST FRAME STANDS ELSEWHERE IN THE NEXT: it is placed before its size is known,
+            // then set against its button. Measured: the rows of the first frame stood 300 points above the list. And the
+            // pointer is taken off "More" to rest where nothing is, or the hint of "More" stays up over the first row and
+            // egui opens no second one.
+            let aside = egui::pos2(self.win.screen.x - 8.0, 10.0);
+            self.frame(vec![egui::Event::PointerMoved(aside)]);
+            self.win.clock += 1.0;
+            for _ in 0..3 {
+                self.frame(Vec::new());
+            }
+            let rows: Vec<egui::Pos2> = self.win.plates.iter().copied().filter(|p| !bar.contains(p)).collect();
+            if let Some(at) = rows.into_iter().find(|&at| self.hint_comes_up(at, hint)) {
+                return Some(at);
+            }
+            self.press_screen(more);
+        }
+        None
     }
 
     /// A REBUILD UNDER WAY REFUSES INPUT: its card lies over the window, nothing under it is pressed and no hint comes up.

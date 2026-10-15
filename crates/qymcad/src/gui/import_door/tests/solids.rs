@@ -213,7 +213,7 @@ fn a_mesh_is_recognised_by_its_tool() {
     let at = spot(&texts, "bytool").unwrap_or_else(|| panic!("no row of the part: {:?}", names(&texts)));
     double_click_at(&mut app, &ctx, at); // into the part, as a person goes in
     (0..40).for_each(|_| drop(frame(&mut app, &ctx, Vec::new())));
-    assert!(crate::gui::panels_source::PANELS.contains("BarAsk::FeatCmd(35)"), "without a button in the bar the tool does not exist for a person");
+    assert!(crate::command_catalog::has_button(crate::command_catalog::Launch::Feat(35), "part"), "without a button in the bar the tool does not exist for a person");
     let steps = app.disk.edits.undo.len();
     app.start_feat_cmd(35);
     let _ = frame(&mut app, &ctx, Vec::new());

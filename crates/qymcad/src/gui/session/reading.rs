@@ -372,6 +372,20 @@ impl Session {
         crate::i18n::tr(key)
     }
 
+    /// THE NAME OF THE COMMAND `code` as the program shows it: in the search, in "More", in the list of a bar's
+    /// buttons. Empty for a code the catalogue does not have.
+    pub fn command_name(&self, code: &str) -> String {
+        use crate::command_catalog::Named;
+        self.speak();
+        crate::command_catalog::by_code(code).map(|c| c.name()).unwrap_or_default()
+    }
+
+    /// The words for the catalogue entry `key` with its one argument filled, as the program writes them.
+    pub fn word_with(&self, key: &str, arg: Arg) -> String {
+        self.speak();
+        crate::i18n::tr1(key, arg.name, arg.value)
+    }
+
     /// THE CODE OF THE LANGUAGE the program speaks (`en`, `ru`).
     pub fn language(&self) -> String {
         self.speak();

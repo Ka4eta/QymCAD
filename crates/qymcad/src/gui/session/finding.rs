@@ -53,6 +53,18 @@ impl Session {
         qymcad_shell::laid_out(&self.win.ctx, id).or_else(|| egui::PanelState::load(&self.win.ctx, egui::Id::new(id)).map(|p| p.outer_rect))
     }
 
+    /// THE BUTTONS OF THE BARS OF TOOLS the last frame drew, and the rows of an open "More" list: where each stands.
+    pub fn bar_buttons(&mut self) -> Vec<Rect> {
+        self.settle();
+        qymcad_shell::noted_buttons(&self.win.ctx)
+    }
+
+    /// THE "MORE" BUTTONS OF THE BARS the last frame drew.
+    pub fn more_buttons(&mut self) -> Vec<Rect> {
+        self.settle();
+        qymcad_shell::noted_more(&self.win.ctx)
+    }
+
     /// WHAT THE LAST FRAME PAINTED that a person reads as content: every run of words, and every filled background of
     /// one row's height - a highlight, a button - named "a filled background". The ground of a whole area is left out.
     pub fn painted(&mut self) -> Vec<(Rect, String)> {
@@ -131,10 +143,47 @@ impl Session {
         if let Some(at) = self.look_for_hint(hint) {
             return Some(at);
         }
+        // A COMMAND IN "MORE": a person opens the list at the end of the bar and looks there; the list is left open
+        // on the row found, for the press that follows
+        if let Some(at) = self.hint_in_more(hint) {
+            return Some(at);
+        }
         // AN ICON BUTTON OUTSIDE THE TOOL PLATES - the cross beside a line of the properties: a person rests the
         // pointer over the small buttons in turn, as over the plates
         let small = self.small_buttons();
         small.into_iter().find(|&at| self.hint_comes_up(at, hint))
+    }
+
+    /// THE ROW OF A "MORE" LIST WITH THE HINT `hint`: each "More" of the bars opened in turn and its rows rested over;
+    /// a list without the row is closed again by its button.
+    fn hint_in_more(&mut self, hint: &str) -> Option<Pos2> {
+        for more in self.win.mores.clone() {
+            let bar: Vec<Pos2> = self.win.plates.clone();
+            self.click(more);
+            let rows: Vec<Pos2> = self.win.plates.iter().copied().filter(|p| !bar.contains(p)).collect();
+            self.pointer_off_the_plates();
+            if let Some(at) = rows.into_iter().find(|&at| self.hint_comes_up(at, hint)) {
+                return Some(at);
+            }
+            self.click(more);
+        }
+        None
+    }
+
+    /// THE HINTS OF THE ROWS OF EVERY "MORE" LIST, each list opened by its button and closed again.
+    fn hints_in_more(&mut self) -> Vec<String> {
+        let mut hints = Vec::new();
+        for more in self.win.mores.clone() {
+            let bar: Vec<Pos2> = self.win.plates.clone();
+            self.click(more);
+            let rows: Vec<Pos2> = self.win.plates.iter().copied().filter(|p| !bar.contains(p)).collect();
+            self.pointer_off_the_plates();
+            for at in rows {
+                hints.push(self.hint_at(at).join(" "));
+            }
+            self.click(more);
+        }
+        hints
     }
 
     /// Look for the button with the hint `hint` from where the panel stands now, scrolling downwards.
@@ -187,7 +236,8 @@ impl Session {
     }
 
     /// THE HINT OF EVERY TOOL BUTTON OF THE WINDOW, read as a person reads them: the pointer rests over each button in
-    /// turn, and a panel longer than the window is scrolled with the wheel. A button without a hint is given as empty.
+    /// turn, a panel longer than the window is scrolled with the wheel, and a "More" list is opened and read. A button
+    /// without a hint is given as empty.
     pub fn button_hints(&mut self) -> Vec<String> {
         self.settle();
         // a panel left scrolled down by what was done before hides its first buttons: back to the top first, as
@@ -214,15 +264,21 @@ impl Session {
                     hints.push(words);
                 }
             }
-            let Some(over) = self.win.plates.first().copied() else { return hints };
+            let Some(over) = self.win.plates.first().copied() else { break };
             let before = self.win.plates.clone();
             self.wheel(over, vec2(0.0, -200.0), Modifiers::default());
             self.settle();
             scrolled += 1;
             if self.win.plates == before || scrolled > 10 {
-                return hints;
+                break;
             }
         }
+        for words in self.hints_in_more() {
+            if !hints.contains(&words) {
+                hints.push(words);
+            }
+        }
+        hints
     }
 
     /// THE HINT OF WHAT IS UNDER `at`, read as it comes up after the pointer rests there; `None` when nothing

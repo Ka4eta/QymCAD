@@ -985,7 +985,7 @@ mod tests {
                     };
                     {
                         let mut asks = Vec::new();
-                        crate::gui::panels_bars::wb_toolbar(&mut a.bar_ctx(&mut asks), ui);
+                        crate::gui::panels_bars::wb_toolbar(&mut a.bar_ctx(&mut asks), ui, None);
                         let c = ui.ctx().clone();
                         a.do_bar_asks(asks, &c);
                     };
@@ -1187,7 +1187,7 @@ mod tests {
                     };
                     {
                         let mut asks = Vec::new();
-                        crate::gui::panels_bars::wb_toolbar(&mut a.bar_ctx(&mut asks), ui);
+                        crate::gui::panels_bars::wb_toolbar(&mut a.bar_ctx(&mut asks), ui, None);
                         let c = ui.ctx().clone();
                         a.do_bar_asks(asks, &c);
                     };

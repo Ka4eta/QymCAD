@@ -23,8 +23,10 @@
 //! middle are not in the layout: the menu is always above everything, the middle is what is left.
 use std::collections::BTreeMap;
 
+mod bar;
 mod draw;
 
+pub use bar::{note_button, noted_buttons, noted_more, plan_bar, BarAlign, BarItem, BarLines, BarLook, BarPlace, BarPlan, Button, MoreSlot};
 pub use draw::laid_out;
 
 /// The kinds of place an interface has. Not a list of panels: a KIND, of which there may be many.
@@ -156,6 +158,15 @@ pub struct Place {
     pub separator: bool,
     /// May the person hide it?
     pub hiding: Hiding,
+    /// What its content takes across the strip, without the frame, when that is known ahead - a bar of buttons.
+    pub content: Option<ContentSize>,
+}
+
+/// WHAT THE CONTENT OF A PLACE TAKES ACROSS ITS STRIP: at a side, and at the top or the bottom.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct ContentSize {
+    pub side: f32,
+    pub flat: f32,
 }
 
 /// MAY A PLACE BE HIDDEN? One that answers for what the person is doing right now - the bar of the command in hand -
@@ -168,7 +179,12 @@ pub enum Hiding {
 
 impl Place {
     pub fn new(key: &'static str, slot: Slot) -> Self {
-        Self { key, slot, size: None, resizable: false, framed: false, separator: true, hiding: Hiding::Allowed }
+        Self { key, slot, size: None, resizable: false, framed: false, separator: true, hiding: Hiding::Allowed, content: None }
+    }
+    /// The strip is as thick as the content says, plus its frame: neither resized by hand nor started at a guess.
+    pub fn content(mut self, size: ContentSize) -> Self {
+        self.content = Some(size);
+        self
     }
     pub fn never_hidden(mut self) -> Self {
         self.hiding = Hiding::Refused;

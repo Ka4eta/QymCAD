@@ -17,7 +17,9 @@ pub(crate) fn shell(set: &Settings) -> qymcad_shell::Shell {
     s.put(Place::new("toolbar", Slot::Top));
     s.put(Place::new("command_bar", Slot::Top).framed().never_hidden());
     s.put(Place::new("status", Slot::Bottom));
-    s.put(Place::new("wbtools", Slot::Left).sized(108.0, false).bare());
+    // the bar of tools is as thick as its lines of buttons, whatever edge it stands at
+    let across = set.bar.look().across();
+    s.put(Place::new("wbtools", Slot::Left).content(qymcad_shell::ContentSize { side: across, flat: across }).bare());
     s.put(Place::new("tree", Slot::Left).sized(260.0, true));
     s.put(Place::new("props", Slot::Right).sized(290.0, true));
     s.put(Place::new("viewport", Slot::Centre));
@@ -67,14 +69,14 @@ impl qymcad_shell::Fills for App {
         }
     }
 
-    fn fill(&mut self, key: &'static str, ui: &mut egui::Ui, _edge: Option<qymcad_shell::Edge>) {
+    fn fill(&mut self, key: &'static str, ui: &mut egui::Ui, edge: Option<qymcad_shell::Edge>) {
         // WHAT THE BARS ASKED FOR IS DONE AFTER THE DRAWING. A button that acted mid-frame would start a
         // command while the bar of that command was still being laid out.
         let (mut bar_asks, mut win_asks) = (Vec::new(), Vec::new());
         match key {
             "command_bar" => {
                 if let Some(k) = COMMAND_BARS.into_iter().find(|k| self.live(k)) {
-                    self.fill(k, ui, _edge);
+                    self.fill(k, ui, edge);
                 }
             }
             "menubar" => crate::gui::panels_bars::menu_bar(&mut self.bar_ctx(&mut bar_asks), ui),
@@ -114,7 +116,7 @@ impl qymcad_shell::Fills for App {
                 },
                 ui,
             ),
-            "wbtools" => crate::gui::panels_bars::wb_toolbar(&mut self.bar_ctx(&mut bar_asks), ui),
+            "wbtools" => crate::gui::panels_bars::wb_toolbar(&mut self.bar_ctx(&mut bar_asks), ui, edge),
             "tree" => self.tree_panel(ui),
             "props" => self.properties_panel(ui),
             "viewport" => self.viewport(ui),
@@ -128,8 +130,12 @@ impl qymcad_shell::Fills for App {
         qymcad_ui_state::tool_bar_frame(&self.scheme)
     }
 
-    fn opacity(&self, _key: &'static str) -> f32 {
-        1.0
+    /// THE BAR OF TOOLS SHOWS THE MODEL THROUGH as much as the person set; every other place is solid.
+    fn opacity(&self, key: &'static str) -> f32 {
+        match key {
+            "wbtools" => f32::from(self.set.bar.opacity) / 100.0,
+            _ => 1.0,
+        }
     }
 
     fn resized(&mut self, key: &'static str, size: qymcad_shell::Resize) {

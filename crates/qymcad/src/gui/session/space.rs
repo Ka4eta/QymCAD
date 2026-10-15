@@ -308,6 +308,11 @@ impl Session {
         self.app.tools.armed.click_op()
     }
 
+    /// WHICH DRAWING TOOL OF A SKETCH IS IN HAND, by its own number: 1 the line, 3 the circle, 9 the spline, 0 none.
+    pub fn drawing_tool(&self) -> u8 {
+        self.app.tools.armed.draw_kind()
+    }
+
     /// Is a text field taking the keys - a person in the middle of typing, where Ctrl+Z is the field's own?
     pub fn typing(&self) -> bool {
         self.win.ctx.egui_wants_keyboard_input()

@@ -12,7 +12,11 @@ fn the_shell_names_no_workbench() {
         file: &'static str,
         text: &'static str,
     }
-    for Source { file, text: src } in [Source { file: "lib.rs", text: include_str!("lib.rs") }, Source { file: "draw.rs", text: include_str!("draw.rs") }] {
+    for Source { file, text: src } in [
+        Source { file: "lib.rs", text: include_str!("lib.rs") },
+        Source { file: "draw.rs", text: include_str!("draw.rs") },
+        Source { file: "bar.rs", text: include_str!("bar.rs") },
+    ] {
         // THE CODE, WITHOUT THE PROSE. The doc comments name a tree and a toolbar on purpose - as examples
         // of what MIGHT stand in a place - and forbidding that would forbid explaining the file.
         let code: String =
@@ -201,4 +205,108 @@ fn a_place_never_hidden_stays_shown() {
     let p = s.place_of("delta").expect("delta has a place");
     assert_eq!(p.edge, Edge::Bottom, "the file moves it");
     assert_eq!(p.seen, Seen::Shown, "and cannot hide it");
+}
+
+/// The look of the bars in these checks: buttons of 30 points.
+fn look(lines: BarLines, align: BarAlign) -> BarLook {
+    BarLook { size: 30.0, lines, align }
+}
+
+/// `n` items of one group.
+fn one_group(n: usize) -> Vec<BarItem> {
+    vec![BarItem { group: 0 }; n]
+}
+
+/// A rectangle and the room it should lie in.
+struct Within {
+    rect: egui::Rect,
+    room: egui::Rect,
+}
+
+/// Does the rectangle lie inside its room, within a hair?
+fn inside(w: Within) -> bool {
+    w.room.expand(0.01).contains_rect(w.rect)
+}
+
+/// An edge and the room a bar has at it.
+struct Room {
+    edge: Edge,
+    room: egui::Rect,
+}
+
+/// AT A SIDE IN TWO COLUMNS: two buttons a row, top to bottom, every one whole in the room.
+#[test]
+fn a_bar_at_a_side_lays_two_columns() {
+    let room = egui::Rect::from_min_size(egui::pos2(10.0, 20.0), egui::vec2(63.0, 600.0));
+    let plan = plan_bar(Edge::Left, &look(BarLines::Two, BarAlign::Start), room, &one_group(9), MoreSlot::WhenFull);
+    assert_eq!(plan.on_bar.len(), 9);
+    assert!(plan.more.is_none() && plan.in_more.is_empty(), "everything fits: no More");
+    let xs: Vec<f32> = plan.on_bar.iter().map(|p| p.rect.min.x).collect();
+    assert_eq!(xs[..4], [10.0, 43.0, 10.0, 43.0], "two columns, the first at the edge of the room");
+    assert_eq!(plan.on_bar[2].rect.min.y, 20.0 + 33.0, "the third button starts the second row");
+    assert!(plan.on_bar.iter().all(|p| inside(Within { rect: p.rect, room })));
+    assert_eq!(plan.used.width(), 63.0, "the bar is two buttons and a gap wide");
+}
+
+/// AT THE TOP IN TWO ROWS: buttons stand in pairs one over the other, left to right; a group starts a pair of its
+/// own after a line.
+#[test]
+fn a_bar_at_the_top_lays_two_rows_with_its_groups_apart() {
+    let room = egui::Rect::from_min_size(egui::pos2(0.0, 30.0), egui::vec2(1000.0, 63.0));
+    let items = [BarItem { group: 0 }, BarItem { group: 0 }, BarItem { group: 0 }, BarItem { group: 1 }, BarItem { group: 1 }];
+    let plan = plan_bar(Edge::Top, &look(BarLines::Two, BarAlign::Start), room, &items, MoreSlot::WhenFull);
+    let r: Vec<egui::Rect> = plan.on_bar.iter().map(|p| p.rect).collect();
+    assert_eq!(r[1].min, egui::pos2(0.0, 63.0), "the second button stands under the first");
+    assert_eq!(r[2].min, egui::pos2(33.0, 30.0), "the third starts the next pair");
+    assert_eq!(r[3].min.x, r[2].max.x + bar::GROUP_GAP, "the second group starts a pair of its own after the gap of a group");
+    assert_eq!(plan.lines.len(), 1, "one line between two groups");
+    let line = plan.lines[0];
+    assert!(line.min.x > r[2].max.x && line.min.x < r[3].min.x, "the line stands in the gap between the groups");
+    assert_eq!(plan.used.height(), 63.0);
+}
+
+/// WHAT DOES NOT FIT GOES INTO "MORE" at the end of the bar, and nothing is cut: every button and "More" are whole
+/// in the room, and every item is either on the bar or in "More", in its order.
+#[test]
+fn what_does_not_fit_goes_into_more() {
+    for Room { edge, room } in [
+        Room { edge: Edge::Top, room: egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(200.0, 63.0)) },
+        Room { edge: Edge::Bottom, room: egui::Rect::from_min_size(egui::pos2(0.0, 700.0), egui::vec2(170.0, 30.0)) },
+        Room { edge: Edge::Left, room: egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(63.0, 150.0)) },
+        Room { edge: Edge::Right, room: egui::Rect::from_min_size(egui::pos2(900.0, 0.0), egui::vec2(30.0, 100.0)) },
+    ] {
+        let lines = if room.width().min(room.height()) > 40.0 { BarLines::Two } else { BarLines::One };
+        let items: Vec<BarItem> = (0..30).map(|i| BarItem { group: i / 7 }).collect();
+        let plan = plan_bar(edge, &look(lines, BarAlign::Start), room, &items, MoreSlot::WhenFull);
+        let more = plan.more.unwrap_or_else(|| panic!("{edge:?}: thirty buttons do not fit {room:?} and there is no More"));
+        assert!(inside(Within { rect: more, room }), "{edge:?}: More {more:?} is cut by the room {room:?}");
+        assert!(plan.on_bar.iter().all(|p| inside(Within { rect: p.rect, room })), "{edge:?}: a button is cut by the room");
+        assert!(plan.on_bar.iter().all(|p| !p.rect.intersects(more.shrink(0.5))), "{edge:?}: More lies over a button");
+        let mut all: Vec<usize> = plan.on_bar.iter().map(|p| p.item).chain(plan.in_more.iter().copied()).collect();
+        assert!(!plan.in_more.is_empty() && plan.on_bar.len() > 1, "{edge:?}: {} on the bar, {} in More", plan.on_bar.len(), plan.in_more.len());
+        all.dedup();
+        assert_eq!(all, (0..30).collect::<Vec<_>>(), "{edge:?}: every item is on the bar or in More, in its order");
+    }
+}
+
+/// THE BUTTONS STAND AT THE START, IN THE MIDDLE OR AT THE END of a bar they do not fill.
+#[test]
+fn a_bar_is_set_to_its_alignment() {
+    let room = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1000.0, 30.0));
+    let first = |align| plan_bar(Edge::Top, &look(BarLines::One, align), room, &one_group(4), MoreSlot::WhenFull).on_bar[0].rect.min.x;
+    let width = 4.0 * 30.0 + 3.0 * bar::GAP;
+    assert_eq!(first(BarAlign::Start), 0.0);
+    assert_eq!(first(BarAlign::Centre), (1000.0 - width) / 2.0);
+    assert_eq!(first(BarAlign::End), 1000.0 - width);
+}
+
+/// "MORE" STANDS ON A BAR THAT HAS ROOM when the person put commands into it: after the last button, in its free lane.
+#[test]
+fn more_stands_when_the_person_put_commands_into_it() {
+    let room = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(63.0, 600.0));
+    let plan = plan_bar(Edge::Left, &look(BarLines::Two, BarAlign::Start), room, &one_group(3), MoreSlot::Always);
+    assert_eq!(plan.on_bar.len(), 3, "everything fits and stays on the bar");
+    assert!(plan.in_more.is_empty());
+    let more = plan.more.expect("More stands although everything fits");
+    assert_eq!(more.min, egui::pos2(33.0, 33.0), "More takes the free lane after the third button");
 }

@@ -7,7 +7,7 @@
 //! What is looked at is what a person sees: where the panel was laid out, that the view takes what is left, that no
 //! panel lies over another and that every button of the workbench is seen whole on its bar or stands in its "More"
 //! list. Failures accumulate over the cells and are reported together.
-use qymcad::{Kind, Machine, Rect, Session};
+use qymcad::{Machine, Rect, Session};
 use qymcad_acceptance::{build, probe};
 
 /// The edges of the window a panel can stand at.
@@ -121,6 +121,15 @@ fn open(cell: Cell) -> Session {
     }
     let mut s = Session::start_on(machine_with(&puts));
     s.key(qymcad::Key::Escape);
+    // WITH THE BAR OF TOOLS HIDDEN a person goes by keys and by the table of planes: N makes a new part
+    if cell.panel == Panel::WorkbenchTools && cell.seen == Seen::Hidden {
+        s.key(qymcad::Key::N);
+        if cell.bench == Bench::Sketch {
+            let xy = s.word("plane-xy-table");
+            s.press_word(&xy);
+        }
+        return s;
+    }
     match cell.bench {
         Bench::Assembly => {
             if cell.panel == Panel::CommandBar {
@@ -256,19 +265,13 @@ struct Laid {
     rect: Rect,
 }
 
-/// THE BUTTONS OF THE WORKBENCH not seen whole on their bar `bar` at `edge`. A button of the bar is an icon with no
-/// caption standing in the band of the bar across its edge; a bar at the top or the bottom is one or two rows.
+/// THE BUTTONS OF THE WORKBENCH not seen whole on their bar `bar` at `edge`: every button and its "More" whole in the
+/// bar and in the window; a bar at the top or the bottom is one or two rows.
 fn buttons_cut(s: &mut Session, edge: Edge, bar: Rect) -> Vec<String> {
     let mut out = Vec::new();
-    let side = matches!(edge, Edge::Left | Edge::Right);
     let screen = Rect::from_min_size(qymcad::pos2(0.0, 0.0), s.screen());
-    let icons: Vec<Rect> = s
-        .widgets()
-        .into_iter()
-        .filter(|w| w.kind == Kind::Button && w.label.trim().is_empty() && w.rect.width() >= 18.0 && w.rect.height() >= 18.0 && w.rect.width() <= 72.0)
-        .map(|w| w.rect)
-        .filter(|r| if side { r.center().x >= bar.min.x && r.center().x <= bar.max.x } else { r.center().y >= bar.min.y && r.center().y <= bar.max.y })
-        .collect();
+    let mut icons = s.bar_buttons();
+    icons.extend(s.more_buttons());
     if icons.len() < 3 {
         out.push(format!("the bar shows {} buttons", icons.len()));
     }
@@ -276,10 +279,16 @@ fn buttons_cut(s: &mut Session, edge: Edge, bar: Rect) -> Vec<String> {
     if !cut.is_empty() {
         out.push(format!("{} of {} buttons are not seen whole, the first {:?} on the bar {bar:?}", cut.len(), icons.len(), cut[0]));
     }
-    if !side {
-        let tallest = icons.iter().map(|r| r.height()).fold(0.0, f32::max);
-        if bar.height() > 2.0 * tallest + 24.0 {
-            out.push(format!("the bar is {} tall, more than two rows of {tallest}", bar.height()));
+    if matches!(edge, Edge::Top | Edge::Bottom) {
+        // rows by the tops of the buttons: tops apart by less than half a button are one row
+        let mut rows: Vec<f32> = Vec::new();
+        for b in &icons {
+            if !rows.iter().any(|t| (t - b.min.y).abs() < b.height() / 2.0) {
+                rows.push(b.min.y);
+            }
+        }
+        if rows.len() > 2 {
+            out.push(format!("the buttons at the top or the bottom stand in {} rows", rows.len()));
         }
     }
     out
@@ -392,5 +401,13 @@ probe! {
         let (tree_again, props_again) = (s.panel("tree").expect("the tree is drawn"), s.panel("props").expect("the properties are drawn"));
         assert!((tree_again.height() - tree_after.height()).abs() < 2.0, "after a restart the tree is {} tall, it was left {}", tree_again.height(), tree_after.height());
         assert!((props_again.width() - wide.width()).abs() < 2.0, "after a restart the strip is {} wide, it was left {}", props_again.width(), wide.width());
+    }
+}
+
+probe! {
+    budget = 900;
+    /// THE TOOLS OF THE WORKBENCH at every edge, every button seen whole or in "More".
+    fn the_workbench_tools_stand_where_the_layout_puts_them() {
+        check_panel(Panel::WorkbenchTools);
     }
 }

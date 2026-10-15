@@ -26,6 +26,14 @@ mod tests {
                 moved.insert("status".to_string(), qymcad_shell::PanelPlace { edge: qymcad_shell::Edge::Bottom, seen: qymcad_shell::Seen::Hidden, ..Default::default() });
                 moved
             },
+            bar: qymcad_ui_state::BarSetting { size: 26.0, lines: qymcad_shell::BarLines::One, align: qymcad_shell::BarAlign::Centre, opacity: 60 },
+            bar_sets: {
+                let mut sets = std::collections::BTreeMap::new();
+                sets.insert("sketch".to_string(), qymcad_ui_state::BarSet { order: vec!["sketch.circle".into(), "sketch.line".into()], in_more: vec!["sketch.spline".into()] });
+                sets.insert("part".to_string(), qymcad_ui_state::BarSet { order: Vec::new(), in_more: vec!["part.thread".into()] });
+                sets.insert("assembly".to_string(), qymcad_ui_state::BarSet { order: vec!["assembly.joint".into()], in_more: Vec::new() });
+                sets
+            },
             language: "en".into(),
             scheme: "custom-light".into(),
             viewcube_size: 2,
@@ -77,6 +85,8 @@ mod tests {
     /// meaningfully and with a clear message about which field failed to arrive.
     fn assert_same(a: &Settings, b: &Settings) {
         assert_eq!(a.layout, b.layout, "the layout of the panels");
+        assert_eq!(a.bar, b.bar, "the look of the bars of tools");
+        assert_eq!(a.bar_sets, b.bar_sets, "the buttons of the bars of the workbenches");
         assert_eq!(a.language, b.language, "the language of the interface");
         assert_eq!(a.import_ask_always, b.import_ask_always, "asking for units on every import");
         assert_eq!(a.import_units, b.import_units, "the unit last chosen for a format without units");

@@ -334,6 +334,13 @@ pub struct JointInfo {
     pub violated: bool,
 }
 
+/// THE ONE ARGUMENT OF A LINE OF THE CATALOGUE: its name and what it is filled with.
+#[derive(Clone, Copy, Debug)]
+pub struct Arg<'a> {
+    pub name: &'a str,
+    pub value: &'a str,
+}
+
 /// A PICTURE OF THE WINDOW, a pixel to a point, as rows of RGBA bytes from the top left.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Picture {

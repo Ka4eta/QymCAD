@@ -4,6 +4,7 @@ mod assembly_copies;
 mod assembly_holding;
 mod assembly_joints;
 mod assembly_motion;
+mod bar_settings;
 mod chains;
 mod commands;
 mod completeness;
