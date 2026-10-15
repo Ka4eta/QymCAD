@@ -12,10 +12,12 @@
 mod tests {
     use super::super::{hand::Hand, App};
     mod check_all;
+    mod drawing;
     mod save_and_reopen;
     mod the_faults;
     mod the_view;
     use check_all::check_all;
+    use drawing::{drawing, Drawing};
     use save_and_reopen::save_and_reopen;
 
     /// APPLY A TOOL TO THE CURRENT BODY OF A PART - one recipe per tool, for any part.
@@ -456,17 +458,6 @@ mod tests {
         qymcad_ui_state::rebuild_if_dirty(&mut app.rebuild_ctx());
         check_all(app, &format!("{part}: tool {kind}"), problems);
         made
-    }
-
-    /// A sketch tool by its number, its name in a report, and the clicks it is used with.
-    struct Drawing {
-        tool: u8,
-        name: &'static str,
-        clicks: &'static [(f64, f64)],
-    }
-
-    fn drawing(tool: u8, name: &'static str, clicks: &'static [(f64, f64)]) -> Drawing {
-        Drawing { tool, name, clicks }
     }
 
     /// SOMEONE WITH A 3D PRINTER MAKES A BOX WITH A LID: the housing, a sketch on a face, holes, fillets, a
