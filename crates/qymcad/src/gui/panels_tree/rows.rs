@@ -422,6 +422,9 @@ pub(crate) fn tree_sketch_row(tc: &mut qymcad_ui_state::TreeCtx, ui: &mut egui::
         let nid = qymcad_ui_state::node_of_sel(&*tc.project, Sel::Sketch(si)).unwrap_or(sid);
         let lit = *tc.sel == Sel::Sketch(si) || qymcad_ui_state::in_tree_group(&*tc.tree_sel, nid);
         let resp = ui.selectable_label(lit, crate::gui::sel_title(&*tc.scheme, raw, lit)).on_hover_text(crate::i18n::tr("tree-sketch-hint"));
+        if *tc.sel == Sel::Sketch(si) {
+            show_in_view(&mut *tc.tree, ui, &resp, nid); // a sketch selected from elsewhere is shown in the tree
+        }
         if resp.double_clicked() {
             tc.ask.push(qymcad_ui_state::TreeAsk::EnterSketch(si));
         } else if resp.clicked() {
@@ -478,6 +481,21 @@ pub(crate) fn tree_sketch_row(tc: &mut qymcad_ui_state::TreeCtx, ui: &mut egui::
         Some(6) => tc.ask.push(qymcad_ui_state::TreeAsk::ExportSketch { si, flat: true }),
         Some(7) => tc.ask.push(qymcad_ui_state::TreeAsk::ReplaceSketchPlane(si)),
         _ => {}
+    }
+}
+
+/// THE ROW OF THE SELECTION SHOWS ITSELF IN THE TREE: selected from elsewhere - the viewport, the window of faults, a
+/// path in the window of parameters - it is scrolled into view: selected out of sight is not shown. It asks
+/// until it stands in the visible part of the tree, then stays where the person scrolls it: in the frame a section of
+/// the tree opens, its rows are still folded under the header, and one request scrolled 69 points of the 1200 needed.
+fn show_in_view(tree: &mut qymcad_ui_state::TreeUi, ui: &egui::Ui, row: &egui::Response, nid: Id) {
+    if tree.shown == Some(nid) {
+        return;
+    }
+    if ui.clip_rect().contains_rect(row.rect) {
+        tree.shown = Some(nid);
+    } else {
+        row.scroll_to_me(None);
     }
 }
 
@@ -542,7 +560,11 @@ pub(crate) fn tree_feature_row(tc: &mut qymcad_ui_state::TreeCtx, ui: &mut egui:
             _ => crate::i18n::tr("tree-feature-hint"),
         };
         let nid = tc.project.timeline.get(ti).map(|n| n.id).unwrap_or_default();
-        let resp = ui.selectable_label(*tc.sel == Sel::Feature(ti) || qymcad_ui_state::in_tree_group(&*tc.tree_sel, nid), txt).on_hover_text(hover);
+        let lit = *tc.sel == Sel::Feature(ti) || qymcad_ui_state::in_tree_group(&*tc.tree_sel, nid);
+        let resp = ui.selectable_label(lit, txt).on_hover_text(hover);
+        if *tc.sel == Sel::Feature(ti) {
+            show_in_view(&mut *tc.tree, ui, &resp, nid); // a node selected from elsewhere - a fault led to, a path followed
+        }
         if resp.clicked() {
             tree_pick_node(tc, ui, nid, Sel::Feature(ti));
         }

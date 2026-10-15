@@ -40,6 +40,9 @@ pub struct TreeUi {
     pub search: String,
     /// The tree row grabbed for a move. `None` means nothing is being dragged.
     pub drag: Option<Id>,
+    /// THE NODE WHOSE ROW WAS LAST BROUGHT INTO VIEW: the row of a selection made elsewhere - the viewport, the window
+    /// of faults, a path in the window of parameters - shows itself once, then stays where the person scrolls it.
+    pub shown: Option<Id>,
 }
 
 /// WHAT THE PERSON IS BEING MADE TO WAIT FOR, and since when - so that a wait shorter than an eye blink

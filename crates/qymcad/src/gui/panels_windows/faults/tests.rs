@@ -255,3 +255,34 @@ fn a_formula_without_a_value_is_said_in_red_on_the_line() {
     assert_eq!(line.colour, pal.error(), "the line about a formula without a value is not red: {:?}", line.text);
     assert_eq!(hand.status_badge(qymcad_ui_state::Tone::Error).map(|b| b.text), Some(format!("{} 1", ph::X_CIRCLE)), "the formula without a value is not counted");
 }
+
+/// A FAULT AT THE BOTTOM OF A LONG TREE IS SHOWN THERE: the click on the counter selects the node and its row comes
+/// into the view of the tree - selected out of sight is not "led to".
+#[test]
+fn a_fault_led_to_is_shown_in_the_tree() {
+    let mut app = crate::gui::screen_keys::tests::plate();
+    let block = app.project.timeline.iter().find_map(|n| n.kind.body()).expect("the plate");
+    let part = app.project.body_owner(block).expect("the part of the plate");
+    // fifty sketches in the part of the plate, then the rounding under them: the part's tree is longer than the window
+    for _ in 0..50 {
+        app.enter_component(part);
+        app.create_sketch_on(qymcad_core::feature::SketchPlane::default());
+        app.finish_sketch_edit();
+    }
+    app.enter_component(part);
+    app.project.add_fillet_ref(block, 1.0, qymcad_core::refs::Ref::picks(&[0x6000_7777]));
+    app.chosen.sel = Sel::None;
+    let mut hand = Hand::new(&mut app);
+    hand.settle();
+    // the row of the red node in the tree on the left: it starts with the error's sign; a row out of the view is not drawn
+    let row = |hand: &mut Hand| hand.painted_words().into_iter().find(|w| w.rect.min.x < 370.0 && w.rect.max.y < 860.0 && w.text.starts_with(ph::X_CIRCLE)).map(|w| w.rect);
+    assert_eq!(row(&mut hand), None, "setup: the row of the rounding is in view before the click");
+    let badge = hand.status_badge(qymcad_ui_state::Tone::Error).expect("the red badge of the rounding");
+    hand.click_screen(badge.rect.center());
+    // the tree scrolls there smoothly, in a third of a second at most: the hand looks once it has come to rest
+    for _ in 0..30 {
+        hand.frame(Vec::new());
+    }
+    let shown = row(&mut hand).expect("the rounding led to stays out of the view of the tree");
+    assert!(shown.min.y > 0.0, "the row of the rounding stands above the window, at {shown:?}");
+}

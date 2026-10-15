@@ -4,6 +4,9 @@ use qymcad_ui_state::Notice;
 use super::*;
 
 pub(crate) fn tree_panel(tc: &mut qymcad_ui_state::TreeCtx, ui: &mut egui::Ui) {
+    if *tc.sel == Sel::None {
+        tc.tree.shown = None; // nothing selected: the next selection shows its row again, even the same one
+    }
     // the upper section: the machine and the geometry (it scrolls)
     egui::ScrollArea::vertical().id_salt("geomscroll").show(ui, |ui| {
         ui.add_space(4.0);
