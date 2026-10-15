@@ -418,6 +418,17 @@ impl<'a> Hand<'a> {
         self.frame(Vec::new())
     }
 
+    /// WHERE THE PANEL `key` STANDS, the next frame drawn; `None` when that frame does not draw it.
+    pub fn laid_out(&mut self, key: &str) -> Option<egui::Rect> {
+        self.frame(Vec::new());
+        qymcad_shell::laid_out(&self.win.ctx, key)
+    }
+
+    /// THE BUTTONS OF THE BARS OF TOOLS the last frame drew.
+    pub fn bar_buttons(&self) -> Vec<egui::Rect> {
+        qymcad_shell::noted_buttons(&self.win.ctx)
+    }
+
     /// WHERE `word` IS WRITTEN, the next frame drawn - the place written first, when it is written in several.
     pub fn written_at(&mut self, word: &str) -> Option<egui::Rect> {
         self.frame(Vec::new());
