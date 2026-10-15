@@ -93,8 +93,6 @@ impl Session {
     pub(crate) fn hint_comes_up(&mut self, at: Pos2, hint: &str) -> bool {
         // COUNTED, not looked for: the name of a command in a "More" list may be the very words of its hint, and the
         // hint coming up then writes them a second time
-        // and from one frame: a rest before leaves the words of its three frames together
-        self.settle();
         let before = self.win.drawn.iter().filter(|(t, _)| t == hint).count();
         self.rest_over(at).most_of(hint) > before
     }
@@ -103,18 +101,15 @@ impl Session {
     ///
     /// THREE FRAMES AFTER A SECOND OF REST, measured: the hint of the button left behind closes a frame after the
     /// pointer leaves it, egui opens no second hint while one is open, and a hint that opens is laid out unseen in
-    /// its first frame and drawn in the next. The words of all three frames count.
+    /// its first frame and drawn in the next. The words of the three frames are given frame by frame.
     pub(crate) fn rest_over(&mut self, at: Pos2) -> Rested {
         self.go(at);
         self.win.clock += 1.0;
-        let mut seen: Vec<(String, Rect)> = Vec::new();
         let mut frames = Vec::new();
         for _ in 0..3 {
             self.frame(Vec::new());
-            seen.extend(self.win.drawn.iter().cloned());
             frames.push(self.win.drawn.iter().map(|(t, _)| t.clone()).collect());
         }
-        self.win.drawn = seen;
         Rested { frames }
     }
 

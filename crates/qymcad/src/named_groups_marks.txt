@@ -740,7 +740,7 @@ crates/qymcad/src/gui/scheme_flow.rs 0 1 0
 crates/qymcad/src/gui/screen_keys.rs 0 1 0
 crates/qymcad/src/gui/session.rs 2 1 0
 crates/qymcad/src/gui/session/finding.rs 4 2 0
-crates/qymcad/src/gui/session/frames.rs 1 1 2
+crates/qymcad/src/gui/session/frames.rs 1 0 2
 crates/qymcad/src/gui/session/keys.rs 0 1 0
 crates/qymcad/src/gui/session/pointer.rs 2 0 0
 crates/qymcad/src/gui/session/reading.rs 0 3 0

@@ -72,7 +72,9 @@ probe! {
         build::into_the_first_part(&mut s);
         let hint = s.word("tb-extrude-hint");
         let at = s.find_hint(&hint).expect("the part has an extrusion button");
-        s.move_to(pos2(640.0, 400.0)).move_to(at);
+        // AWAY LONG ENOUGH TO COME BACK FRESH: egui opens the hint of the next button at once when one closed less than
+        // 0.2 s before - a person sweeping along a bar reads hint after hint - so the pointer rests away first
+        s.move_to(pos2(640.0, 400.0)).pause(std::time::Duration::from_millis(500)).move_to(at);
         assert!(!s.shows(&hint), "the hint was up the moment the pointer arrived");
         assert!(s.hint_at(at).contains(&hint), "the hint did not come up after the pointer rested over its button");
     }

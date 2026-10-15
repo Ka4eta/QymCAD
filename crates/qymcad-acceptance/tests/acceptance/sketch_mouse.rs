@@ -144,7 +144,9 @@ probe! {
         let arrow = s.word("tb-select-hint");
         s.press_hint(&arrow);
         assert!(s.document().sketches[0].texts == 1, "the text was not written: {:?}", s.document().sketches[0].texts);
-        let at = s.on_sketch(10.0, 10.0);
+        // ON THE LETTERS, where a person aims, not on the corner the text is anchored by: the sheet is fitted to the
+        // text, and at that zoom the corner stands a few points outside the box of the glyphs a double click opens by
+        let at = s.on_sketch(11.0, 11.0);
         s.double_click(at);
         let field = s.widgets().into_iter().find(|w| w.kind == qymcad::Kind::TextField && w.value == "Alpha").unwrap_or_else(|| panic!("the double click opened no box holding the text; the fields are {:?}", s.widgets()));
         s.click(field.rect.center()).chord(Modifiers::COMMAND, Key::A).type_text("Beta").key(Key::Enter);
