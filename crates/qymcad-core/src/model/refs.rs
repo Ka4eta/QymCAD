@@ -2,6 +2,22 @@
 
 use super::*;
 
+/// A SKETCH ON A FACE WHOSE NAME IS GONE and the face it is to stand on now: found by the name (a merge, a piece's
+/// whole, the same recipe) or by place, which marks it for the person.
+pub(crate) struct SketchFaceFix {
+    pub sketch: Id,
+    pub body: Id,
+    pub face: u32,
+    pub by_place: bool,
+    pub what: String,
+}
+
+/// A FACE FOUND FOR A REFERENCE whose name is not on its body, and whether it was by place.
+pub(crate) struct FaceFind {
+    pub face: u32,
+    pub by_place: bool,
+}
+
 /// HOW CLOSE AN ELEMENT FOUND BY PLACE STANDS TO WHERE A REFERENCE SAW IT: a micrometre, the tolerance a node deleted
 /// below translates its references with. The place is the last step, after the name, its recorded merge and its
 /// structure, and only the element standing exactly there is taken: within 2% of the body (at least 0.5 mm) the
@@ -24,44 +40,55 @@ impl Project {
 
     pub(crate) fn rebind_lost_face_refs(&mut self, report: &mut crate::feature::RegenReport) {
         use crate::feature::{Rebind, SketchPlane};
-        // The one face standing where the sketch saw its face, to `PLACE_EXACT`, facing the same way: the nearest face
-        // facing roughly the same way (within 25 deg) was taken before, however far, and a sketch went onto a face an
-        // edit had moved into the place, saying nothing.
-        let candidate = |faces: &[crate::geom::MeshFace], key: &crate::feature::FaceKey| -> Option<u32> {
-            let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-            let off = |c: &crate::geom::Point3| ((c.x - key.centroid[0]).powi(2) + (c.y - key.centroid[1]).powi(2) + (c.z - key.centroid[2]).powi(2)).sqrt();
-            let there: Vec<u32> = faces.iter().filter(|f| f.id != 0 && dot(f.normal, key.normal) > 1.0 - PLACE_EXACT && off(&f.centroid) < PLACE_EXACT).map(|f| f.id).collect();
-            match there.as_slice() {
-                [one] => Some(*one),
-                _ => None,
-            }
-        };
-        let known = |me: &Self, body: Id, id: u32| -> bool { id != 0 && me.regen_faces.get(&body).is_some_and(|fs| fs.iter().any(|f| f.id == id)) };
         // Holes are deliberately not handled here: their reference became a query, which needs no matching
         // — it either finds the face by recipe or refuses with a named reason.
         //
-        // Sketches placed on a face of a body:
-        let mut sfixes: Vec<(Id, Id, u32, String)> = Vec::new();
+        // Sketches placed on a face of a body, whose face is not on it by its name: the name first - the record of a
+        // merge the face yielded in, a piece returned to its whole, the one face of the same recipe - and the place
+        // last, marked for the person. Asked by place alone, a sketch on a wall merged into its neighbour was taken
+        // over by place, though the record said where the wall went.
+        let mut fixes: Vec<SketchFaceFix> = Vec::new();
         for s in &self.sketches {
-            if let SketchPlane::Face(body, ref key) = s.plane {
-                if !known(self, body, key.id) {
-                    if let Some(fs) = self.regen_faces.get(&body) {
-                        if let Some(newid) = candidate(fs, key) {
-                            sfixes.push((s.id, body, newid, format!("rebind-sketch-face#{}: {} -> {newid}", s.name, key.id)));
-                        }
-                    }
+            let SketchPlane::Face(body, ref key) = s.plane else { continue };
+            let Some(fs) = self.regen_faces.get(&body) else { continue };
+            let live: Vec<u32> = fs.iter().map(|f| f.id).collect();
+            if key.id == 0 || live.contains(&key.id) {
+                continue;
+            }
+            let Some(found) = self.find_face(fs, key.id, Some(key)) else { continue };
+            let what = format!("rebind-sketch-face#{}: {} -> {}", s.name, key.id, found.face);
+            fixes.push(SketchFaceFix { sketch: s.id, body, face: found.face, by_place: found.by_place, what });
+        }
+        for fix in fixes {
+            if let Some(s) = self.sketches.iter_mut().find(|s| s.id == fix.sketch) {
+                if let SketchPlane::Face(_, key) = &mut s.plane {
+                    key.id = fix.face;
                 }
+            }
+            if fix.by_place {
+                report.rebinds.push(Rebind { node: fix.sketch, body: fix.body, what: fix.what });
+                self.note_found_by_place(fix.sketch);
             }
         }
-        for (sid, body, newid, what) in sfixes {
-            if let Some(s) = self.sketches.iter_mut().find(|s| s.id == sid) {
-                if let SketchPlane::Face(b, key) = &mut s.plane {
-                    let _ = b;
-                    key.id = newid;
-                }
-            }
-            report.rebinds.push(Rebind { node: sid, body, what });
-            self.note_found_by_place(sid);
+    }
+
+    /// WHERE THE FACE A REFERENCE HOLDS AS `id` STANDS NOW among `faces`, its name not on them: by the name first - the
+    /// record of a merge it yielded in, a piece returned to its whole, the one face of the same recipe - and by place
+    /// last, the one face standing exactly where the reference saw it (`seen`, to `PLACE_EXACT`), facing the same way.
+    /// The nearest face facing roughly the same way (within 25 deg) was taken before, however far, and a sketch went
+    /// onto a face an edit had moved into the place, saying nothing.
+    pub(crate) fn find_face(&self, faces: &[crate::geom::MeshFace], id: u32, seen: Option<&crate::feature::FaceKey>) -> Option<FaceFind> {
+        let live: Vec<u32> = faces.iter().map(|f| f.id).collect();
+        if let Some(face) = self.names.absorbed_target(id).filter(|t| live.contains(t)).or_else(|| self.names.same_recipe(id, &live)) {
+            return Some(FaceFind { face, by_place: false });
+        }
+        let key = seen?;
+        let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+        let off = |c: &crate::geom::Point3| ((c.x - key.centroid[0]).powi(2) + (c.y - key.centroid[1]).powi(2) + (c.z - key.centroid[2]).powi(2)).sqrt();
+        let there: Vec<u32> = faces.iter().filter(|f| f.id != 0 && dot(f.normal, key.normal) > 1.0 - PLACE_EXACT && off(&f.centroid) < PLACE_EXACT).map(|f| f.id).collect();
+        match there.as_slice() {
+            [one] => Some(FaceFind { face: *one, by_place: true }),
+            _ => None,
         }
     }
 
