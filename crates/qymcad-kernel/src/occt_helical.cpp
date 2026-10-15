@@ -1028,36 +1028,34 @@ extern "C" QymShape* qym_shape_stitch(const QymShape* const* parts, size_t n, do
 // (`BRepOffsetAPI_MakeFilling`). An open boundary is not a refusal by construction: the kernel will stretch a
 // surface over an open chain too, and that is meaningful (a piece of a dome over three edges). The result is
 // judged by the common `finish` barrier, not by guesswork here.
-// THE FACE BESIDE EACH EDGE OF A PATCH. The filling makes its edges anew and keeps no history of them, so an edge of the
-// patch is matched to the boundary edge of the body it lies along, by place: the middle of the patch edge on that edge,
-// to 1e-4 mm. The face beside it is the largest named face of the body at the boundary edge - the face the shape is
-// continued from, the one a tangent patch takes for its support - a choice that does not move from rebuild to rebuild.
-static void note_beside_boundary(const QymShape* s, const std::vector<TopoDS_Edge>& boundary, const TopoDS_Shape& patch, TopTools_DataMapOfShapeInteger& ebeside) {
+// THE FACE BESIDE EACH EDGE OF A PATCH, by the history of the filling: what it made of each boundary edge of the body
+// (`made_of`), or the boundary edge itself where the patch is a plane spanned on a closed edge. The face
+// beside it is the largest named face of the body at the boundary edge - the face the shape is continued from, the one
+// a tangent patch takes for its support - a choice that does not move from rebuild to rebuild.
+static void note_beside_boundary(const QymShape* s, const std::vector<TopoDS_Edge>& boundary, const TopoDS_Shape& patch, const std::function<TopTools_ListOfShape(const TopoDS_Edge&)>& made_of, TopTools_DataMapOfShapeInteger& ebeside) {
     TopTools_IndexedDataMapOfShapeListOfShape e2f;
     TopExp::MapShapesAndAncestors(s->shape, TopAbs_EDGE, TopAbs_FACE, e2f);
-    for (TopExp_Explorer ex(patch, TopAbs_EDGE); ex.More(); ex.Next()) {
-        BRepAdaptor_Curve c(TopoDS::Edge(ex.Current()));
-        const gp_Pnt mid = c.Value(0.5 * (c.FirstParameter() + c.LastParameter()));
-        const TopoDS_Vertex at = BRepBuilderAPI_MakeVertex(mid);
-        for (const TopoDS_Edge& b : boundary) {
-            BRepExtrema_DistShapeShape d(at, b);
-            if (!d.IsDone() || d.Value() > 1e-4) continue;
-            const int i = e2f.FindIndex(b);
-            if (i < 1) break;
-            double best = -1.0;
-            int name = 0;
-            for (TopTools_ListIteratorOfListOfShape it(e2f.FindFromIndex(i)); it.More(); it.Next()) {
-                if (!s->fids.IsBound(it.Value())) continue;
-                GProp_GProps g;
-                BRepGProp::SurfaceProperties(it.Value(), g);
-                if (g.Mass() > best) {
-                    best = g.Mass();
-                    name = s->fids.Find(it.Value());
-                }
+    TopTools_IndexedMapOfShape kept;
+    TopExp::MapShapes(patch, TopAbs_EDGE, kept);
+    for (const TopoDS_Edge& b : boundary) {
+        const int i = e2f.FindIndex(b);
+        if (i < 1) continue;
+        double best = -1.0;
+        int name = 0;
+        for (TopTools_ListIteratorOfListOfShape it(e2f.FindFromIndex(i)); it.More(); it.Next()) {
+            if (!s->fids.IsBound(it.Value())) continue;
+            GProp_GProps g;
+            BRepGProp::SurfaceProperties(it.Value(), g);
+            if (g.Mass() > best) {
+                best = g.Mass();
+                name = s->fids.Find(it.Value());
             }
-            if (name != 0) ebeside.Bind(ex.Current(), name);
-            break;
         }
+        if (name == 0) continue;
+        TopTools_ListOfShape images = made_of(b);
+        if (images.IsEmpty() && kept.Contains(b)) images.Append(b);
+        for (TopTools_ListIteratorOfListOfShape it(images); it.More(); it.Next())
+            if (kept.Contains(it.Value()) && !ebeside.IsBound(it.Value())) ebeside.Bind(it.Value(), name);
     }
 }
 
@@ -1120,7 +1118,11 @@ extern "C" QymShape* qym_shape_patch(const QymShape* s, const uint32_t* idx, siz
         }
         TopoDS_Shape face;
         mf.Build();
-        if (mf.IsDone()) face = mf.Shape();
+        bool filled = false;
+        if (mf.IsDone()) {
+            face = mf.Shape();
+            filled = !face.IsNull();
+        }
         // a closed flat edge the filling will not take is spanned by the plane it lies in: the disc over a circle
         if (face.IsNull() && ring) {
             BRepBuilderAPI_MakeFace mk(BRepBuilderAPI_MakeWire(last).Wire(), Standard_True);
@@ -1133,7 +1135,9 @@ extern "C" QymShape* qym_shape_patch(const QymShape* s, const uint32_t* idx, siz
         // thickening, a face replacement) inherited that number instead of a name.
         return qym_born(face, [&](QymShape& q, QymCounters&) {
             if (name != 0) q.fids.Bind(q.shape, (int)name);
-            note_beside_boundary(s, boundary, q.shape, q.ebeside);
+            QymBuilderHistory filling(mf);
+            const auto made_of = [&](const TopoDS_Edge& b) { return filled ? filling.Generated(b) : TopTools_ListOfShape(); };
+            note_beside_boundary(s, boundary, q.shape, made_of, q.ebeside);
         });
     } QYM_WHY_CATCH("patch")
     return nullptr;

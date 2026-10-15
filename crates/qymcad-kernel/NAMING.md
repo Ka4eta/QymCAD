@@ -72,11 +72,23 @@ The caps of a profile operation of several regions are named after the profile t
 person picked; a face merged from several profiles takes the caps of the lowest of them (`ops::profile::name_sides`,
 `caps_of_merged_regions_are_named_by_their_profiles`).
 
-**Where an algorithm gives no history**, the bridge reads it from something else, named with its reason: the patch over
-a boundary (`note_beside_boundary`). The turn of the seam of a round face is carried by its own history: the record of
-the cutting asked of what it rebuilt (`QymRepairAsk::Apply`), then the modifier of the turn. The simple offset of a
-sheet is run by a modifier the bridge keeps (`SimpleOffset`), whose image of each face and edge is its history; the
-algorithm that wraps the same modifier answers none.
+**Where an algorithm hides its history**, the bridge reads it where the algorithm keeps it: the turn of the seam of a
+round face through the record of the cutting asked of what it rebuilt (`QymRepairAsk::Apply`), then the modifier of
+the turn; the simple offset of a sheet through a modifier the bridge runs itself (`SimpleOffset`), the algorithm that
+wraps the same modifier answering none; the edges of a patch through what the filling generated from each boundary
+edge. No operation names by place but the bodies with no history at all - a body brought in from a file, a body made
+of a mesh (`no_operation_names_by_place_but_a_body_with_no_history`).
+
+### What the bridge relies on in OCCT
+
+Each behaviour of OCCT the names stand on is held by a check that turns red when a version of OCCT changes it:
+
+| what the bridge relies on | the check |
+| --- | --- |
+| the record of `ShapeUpgrade_ShapeDivideClosed`, asked by `Apply`, gives every rebuilt element its image | `a_seam_on_the_end_of_an_edge` |
+| `BRepTools_Modifier` with `BRepOffset_SimpleOffset` answers the image of each face; a reversed face comes forward | `an_offset_surface_moves_its_faces` |
+| `BRepOffsetAPI_MakeFilling` generates a patch edge from each boundary edge | `every_operation_names_what_it_makes` (the patch) |
+| a fault inside OCCT comes back as an exception, not the end of the program | `a_fault_of_occt_is_a_refusal` |
 
 ## How a reference finds its element
 
