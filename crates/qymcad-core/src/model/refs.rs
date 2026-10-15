@@ -79,7 +79,7 @@ impl Project {
     /// onto a face an edit had moved into the place, saying nothing.
     pub(crate) fn find_face(&self, faces: &[crate::geom::MeshFace], id: u32, seen: Option<&crate::feature::FaceKey>) -> Option<FaceFind> {
         let live: Vec<u32> = faces.iter().map(|f| f.id).collect();
-        if let Some(face) = self.names.absorbed_target(id).filter(|t| live.contains(t)).or_else(|| self.names.same_recipe(id, &live)) {
+        if let Some(face) = self.names.absorbed_target_among(id, &live).or_else(|| self.names.same_recipe(id, &live)) {
             return Some(FaceFind { face, by_place: false });
         }
         let key = seen?;
@@ -314,12 +314,13 @@ impl Project {
         }
     }
 
-    /// Resolve a face reference: by name first, then by a recorded merge, and only then by snapshot.
+    /// Resolve a face reference: by its name, the record of a merge it yielded in, a piece returned to its whole, the one
+    /// face of the same recipe, and last by place - only the one face standing exactly where the reference saw it, the
+    /// step marked for the person (`find_face`). The order and its reasons: `crates/qymcad-kernel/NAMING.md`, "How a
+    /// reference finds its element".
     ///
-    /// The rules match those for edges, for the same reason: a name is an address and a positional number
-    /// is not. A number is trusted only while the snapshot agrees with it — as soon as some faces gain
-    /// names, the numbering of the rest shifts and a number stored in the file starts pointing at a
-    /// different face, silently. The snapshot fallback is used only on an unambiguous match.
+    /// A positional number is trusted only while the snapshot agrees with it: as soon as some faces gain names, the
+    /// numbering of the rest shifts and a number stored in the file starts pointing at a different face, silently.
     pub fn resolve_face_id(&self, fid: Id, src: Id, stored: u32) -> Option<u32> {
         let fs = self.regen_faces.get(&src)?;
         if fs.is_empty() {
@@ -340,13 +341,11 @@ impl Project {
                 return Some(stored);
             }
         }
-        if let Some(t) = self.names.absorbed_target(stored) {
-            if live(t).is_some() {
-                return Some(t);
-            }
+        let ids: Vec<u32> = fs.iter().map(|f| f.id).collect();
+        if let Some(t) = self.names.absorbed_target_among(stored, &ids) {
+            return Some(t);
         }
         // Then the structure of the name: the one live piece of the same wall.
-        let ids: Vec<u32> = fs.iter().map(|f| f.id).collect();
         if let Some(t) = self.names.same_recipe(stored, &ids) {
             return Some(t);
         }
@@ -407,10 +406,11 @@ impl Project {
 
     /// Resolve the stored edge ids of feature `fid` against the current edges of body `src`.
     ///
-    /// A valid id passes through as is. A stale one (absent from `regen_edges[src]` because the topology
-    /// changed) is repaired from the snapshot: the nearest edge by midpoint and direction, but only on an
-    /// unambiguous match — the best candidate has to be clearly closer than the second and within
-    /// tolerance. Otherwise the edge drops out. Returns the current ids for the kernel.
+    /// A valid id passes through as is. A stale one (absent from `regen_edges[src]` because the topology changed) is
+    /// found by the record of the name it yielded to, the canonical pair of its faces, the structure of its name, and
+    /// last by place - only the one edge with its middle exactly where the reference saw it, the step marked for the
+    /// person; otherwise it drops out, and the node says so. The order and its reasons: `crates/qymcad-kernel/NAMING.md`,
+    /// "How a reference finds its element". Returns the current ids for the kernel.
     pub fn resolve_edge_ids(&self, fid: Id, src: Id, stored: &[u32]) -> Vec<u32> {
         self.resolve_edge_ids_in(self.regen_edges.get(&src).map(|v| v.as_slice()).unwrap_or(&[]), fid, stored)
     }
@@ -453,6 +453,7 @@ impl Project {
         }
         let diag = ((hi[0] - lo[0]).powi(2) + (hi[1] - lo[1]).powi(2) + (hi[2] - lo[2]).powi(2)).sqrt();
         let tol = (diag * 0.02).max(0.5);
+        let live_ids: Vec<u32> = es.iter().map(|e| e.id).collect();
         let mut out = Vec::with_capacity(stored.len());
         for &eid in stored {
             // A positional number is trusted only while the snapshot agrees with it.
@@ -492,13 +493,11 @@ impl Project {
             // edge of the same body. The kernel reported which name yielded to which, so this is not a
             // search for something similar but a translation of a recorded fact: old pair to new pair. The
             // geometric fallback stays after it, and only for what has no translation.
-            if let Some(t) = self.names.absorbed_target(eid) {
-                if es.iter().any(|e| e.id == t) {
-                    if !out.contains(&t) {
-                        out.push(t);
-                    }
-                    continue;
+            if let Some(t) = self.names.absorbed_target_among(eid, &live_ids) {
+                if !out.contains(&t) {
+                    out.push(t);
                 }
+                continue;
             }
             // An edge between a piece and its neighbour is the same edge. Once an operation starts cutting
             // a face, the edge is named by the pair "piece plus neighbour" while the reference remembers
@@ -625,5 +624,26 @@ mod tests {
         let edge = |id: u32, x: f64| crate::geom::MeshEdge { id, mid: [x, 0.0, 0.0], dir: [0.0, 0.0, 1.0], ..Default::default() };
         let live = [edge(beside_cut, 0.0), edge(seam, 10.0)];
         assert_eq!(p.resolve_edge_ids_in(&live, node, &[picked]), vec![beside_cut], "the reference to a piece took another edge of its pair");
+    }
+
+    /// A PIECE RETURNS TO ITS WHOLE ONLY WHILE THE FACE IS WHOLE AGAIN. A rounding picked the edge of piece 1 of a wall;
+    /// the pieces were numbered anew, and the edge of the whole - the piece beside it - was taken for it without a word.
+    /// With another piece of the wall alive the reference is found where it stood, and the step is marked.
+    #[test]
+    fn a_piece_beside_the_whole_is_not_the_whole() {
+        let mut p = Project::default();
+        let node = 2;
+        let wall = GeoName::new(206, Role::Wall, 167);
+        let whole = p.names.intern_face(wall);
+        let [old_piece, new_piece] = [1, 7].map(|split| p.names.intern_face(GeoName { split, ..wall }));
+        let floor = p.names.intern_face(GeoName::new(35, Role::Wall, 30));
+        let picked = p.names.intern_edge(crate::names::EdgeName::new(floor, old_piece, 0));
+        let of_whole = p.names.intern_edge(crate::names::EdgeName::new(floor, whole, 0));
+        let of_piece = p.names.intern_edge(crate::names::EdgeName::new(floor, new_piece, 0));
+        let edge = |id: u32, x: f64| crate::geom::MeshEdge { id, mid: [x, 0.0, 0.0], dir: [0.0, 0.0, 1.0], ..Default::default() };
+        p.edge_refs.insert(node, vec![ElemSnapshot { id: picked, at: [10.0, 0.0, 0.0], dir: [0.0, 0.0, 1.0] }]);
+        let live = [edge(of_whole, 0.0), edge(of_piece, 10.0)];
+        assert_eq!(p.resolve_edge_ids_in(&live, node, &[picked]), vec![of_piece], "the edge of a piece went to the edge of the piece beside it");
+        assert!(p.placed_now.lock().is_ok_and(|s| s.contains(&node)), "the edge found where it stood is not marked");
     }
 }

@@ -454,6 +454,34 @@ impl NameTable {
         self.absorbed_face(desc)
     }
 
+    /// WHERE A FORMER NAME LEADS AMONG THE LIVE ELEMENTS `live` (faces, or edges): `absorbed_target`, kept only when it
+    /// is one of them - and a piece returned to its whole only while the face is whole again. With another piece of the
+    /// same whole alive, the whole is a neighbour of the piece, not the piece: an edge of piece 1 read as the edge of
+    /// the whole is the edge of the piece beside it (measured on a sample: 20 picked edges of a rounding moved onto the
+    /// pieces beside theirs once the pieces were renumbered, and the rounding changed its shape without a word). The
+    /// reference then goes on to the steps after the record, which take nothing between two pieces.
+    pub fn absorbed_target_among(&self, desc: u32, live: &[u32]) -> Option<u32> {
+        let t = self.absorbed_target(desc).filter(|t| live.contains(t))?;
+        if self.absorbed.contains_key(&desc) {
+            return Some(t); // a recorded merge, not a guess from the structure
+        }
+        let faces: Vec<u32> = match self.edge(desc) {
+            Some(e) => e.faces.to_vec(),
+            None => vec![desc],
+        };
+        let whole_of = |n: GeoName| (n.feature, n.role, n.src);
+        let pieces: Vec<_> = faces.iter().filter(|f| !self.absorbed.contains_key(f)).filter_map(|f| self.get(*f)).filter(|n| n.split != 0).map(whole_of).collect();
+        if pieces.is_empty() {
+            return Some(t);
+        }
+        let live_faces = live.iter().flat_map(|d| match self.edge(*d) {
+            Some(e) => e.faces.to_vec(),
+            None => vec![*d],
+        });
+        let split_still = live_faces.filter_map(|f| self.get(f)).any(|n| n.split != 0 && pieces.contains(&whole_of(n)));
+        (!split_still).then_some(t)
+    }
+
     /// The canonical form of an edge name: the pair of face names reduced to their wholes, plus the index
     /// within the pair.
     ///
