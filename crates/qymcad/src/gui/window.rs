@@ -7,6 +7,8 @@ use std::time::Duration;
 
 use super::App;
 
+mod id_clash;
+
 /// The window: its context and clock, and what its last frame drew and asked for.
 pub(crate) struct Window {
     /// THE CONTEXT the mouse and the keys go into, kept for the whole life of the window. egui tells a click from
@@ -153,18 +155,7 @@ impl Window {
                 self.clashes.push(t.clone());
             }
         }
-        // AND THE RED FRAME WITH NO WORDS: egui's mark of a widget whose rectangle took another id under the same parent
-        // between two frames - a red stroke of 2 points over everything
-        for shape in &out.shapes {
-            if let egui::epaint::Shape::Rect(r) = &shape.shape {
-                if shape.clip_rect == egui::Rect::EVERYTHING && r.stroke.color == egui::Color32::RED && r.fill == egui::Color32::TRANSPARENT {
-                    let said = format!("a widget took another id at {:?}", r.rect);
-                    if !self.clashes.contains(&said) {
-                        self.clashes.push(said);
-                    }
-                }
-            }
-        }
+        id_clash::red_frames(&out.shapes, &mut self.clashes);
         // NOT ONE KEY OF THE CATALOGUE ON THE SCREEN INSTEAD OF A WORD, in any frame any check draws: a key the
         // catalogue lacks is drawn as it is, and nothing else would notice it
         let leaked: Vec<String> = self.drawn.iter().flat_map(|(t, _)| super::key_leak::leaks(t).into_iter().map(move |k| format!("{k:?} in {t:?}"))).collect();

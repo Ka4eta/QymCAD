@@ -24,7 +24,7 @@ mod tests {
         Allowed { path: "qymcad-render/src/sketch_marks.rs", why: "the marks of a sketch on the canvas: the glyph of a constraint in conflict is geometry, not a message" },
         Allowed { path: "qymcad-render/src/sketch_previews.rs", why: "the preview of a trim or an extension: the piece that goes is drawn red on the canvas, which is geometry" },
         Allowed { path: "qymcad-render/src/lib.rs", why: "the colours of the corners of a triangle in a check of the software rasteriser, not a message" },
-        Allowed { path: "qymcad/src/gui/window.rs", why: "the window the checks drive: it knows egui's own red frame of a widget that changed its id by its colour, not a message" },
+        Allowed { path: "qymcad/src/gui/window/id_clash.rs", why: "egui's own red frame of a widget that changed its id, told by its colour in the window the checks drive, not a message" },
     ];
 
     /// What a place that says something must not name itself: the colours of a tone and the icons of a tone.
