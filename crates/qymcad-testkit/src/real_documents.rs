@@ -386,13 +386,26 @@ fn honest(o: &Opened, node: Id, code: &str) -> bool {
 /// takes its edges with it, and two faces something now stands between no longer meet; that loss is the geometry's,
 /// not the name's. `None` for a node with no picks.
 fn picked_found(p: &Project, node: Id) -> Option<PickedEdges> {
+    let picked = picks_of(p, node)?;
+    judge_picks(p, node, &picked)
+}
+
+/// The picked edges of a rounding or a chamfer `node`, as it holds them now.
+fn picks_of(p: &Project, node: Id) -> Option<Vec<u32>> {
     use qymcad_core::feature::FeatureKind;
-    let n = p.timeline.iter().find(|n| n.id == node)?;
-    let (src, edges) = match &n.kind {
-        FeatureKind::Fillet { src, edges, .. } | FeatureKind::Chamfer { src, edges, .. } => (*src, edges),
+    match &p.timeline.iter().find(|n| n.id == node)?.kind {
+        FeatureKind::Fillet { edges, .. } | FeatureKind::Chamfer { edges, .. } => Some(edges.query.picked_descs()),
+        _ => None,
+    }
+}
+
+/// `picked_found` for the edges `picked`, which a rebuild may since have rewritten.
+fn judge_picks(p: &Project, node: Id, picked: &[u32]) -> Option<PickedEdges> {
+    use qymcad_core::feature::FeatureKind;
+    let src = match p.timeline.iter().find(|n| n.id == node)?.kind {
+        FeatureKind::Fillet { src, .. } | FeatureKind::Chamfer { src, .. } => src,
         _ => return None,
     };
-    let picked = edges.query.picked_descs();
     // asking leaves no trace: neither the count of finds by place nor the steps the next rebuild would mark
     let keep = p.snap_rebinds.load(Ordering::Relaxed);
     let marked = p.placed_now.lock().map(|s| s.clone()).unwrap_or_default();
@@ -480,13 +493,25 @@ fn new_reds(o: &Opened) -> Vec<String> {
 /// element that did not move and was renamed.
 fn rebuild(o: &mut Opened, was: Option<&Marks>) -> Vec<String> {
     o.project.snap_rebinds.store(0, Ordering::Relaxed);
+    let marked_before = o.project.placed_refs.clone();
+    // the picks as the edit left them: a reference found by place is rewritten to the name it found
+    let picks_before: HashMap<Id, Vec<u32>> = o.project.timeline.iter().filter_map(|n| picks_of(&o.project, n.id).map(|k| (n.id, k))).collect();
     let shapes = std::mem::take(&mut o.shapes);
     let (report, shapes) = crate::regenerate_dirty_with_shapes(&mut o.project, shapes);
     o.shapes = shapes;
     let mut out = new_reds(o);
+    // FOUND BY PLACE: a fault where the name could have been found - the faces of a picked edge still meet - and the
+    // geometry's where they no longer do: the edge standing there is another pair, and the step says so in yellow
     let snaps = o.project.snap_rebinds.load(Ordering::Relaxed);
     if snaps > 0 {
-        out.push(format!("{snaps} references found by place, not by name"));
+        let marked: Vec<Id> = o.project.placed_refs.difference(&marked_before).copied().collect();
+        let judged = |n: &Id| picks_before.get(n).and_then(|picked| judge_picks(&o.project, *n, picked));
+        let by_geometry = !marked.is_empty() && marked.iter().all(|n| judged(n).is_some_and(|k| k.lost > 0 && k.lost == k.with_a_face));
+        if by_geometry {
+            eprintln!("{}: nodes {marked:?} found by place what an edit made another pair of faces; they are marked", o.doc.name);
+        } else {
+            out.push(format!("{snaps} references found by place, not by name (nodes {marked:?})"));
+        }
     }
     out.extend(report.rebinds.iter().map(|r| format!("node {} rebound in body {}: {}", r.node, r.body, r.what)));
     if let Some(was) = was {
