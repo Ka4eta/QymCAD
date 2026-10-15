@@ -134,6 +134,13 @@ pub struct Caches {
     /// THE BORDERS OF A BODY MADE OF A MESH THAT DID NOT CLOSE, by body index, each a loop of corners in the body's own
     /// coordinates; keyed by the meshes they were found on.
     pub open_borders: std::cell::RefCell<Cached<std::collections::HashMap<usize, Vec<OpenBorder>>>>,
+    /// THE FLOOR OF THE SOFTWARE RASTER, pictures of its own keyed by the camera, the frame and the colours
+    /// (`qymcad_render::FloorFrame::key`), the latest first. The floor does not change with the model: while a person
+    /// edits with the view standing still, every frame of a preview is drawn again and the floor is not. Worked out anew
+    /// each frame, it made the frames of an extrusion three times slower under a loaded processor. Several are kept
+    /// because the canvas changes its size as a command's panel or a window opens and closes - four sizes in one
+    /// extrusion by hand - and each size is a picture of its own.
+    pub floor: std::cell::RefCell<Vec<Cached<Vec<egui::Color32>>>>,
 }
 
 impl Default for Caches {
@@ -156,6 +163,7 @@ impl Default for Caches {
             section_caps: std::cell::RefCell::new(Cached { rev: 0, value: std::rc::Rc::new(Vec::new()) }),
             mesh_bounds: std::cell::RefCell::new(Cached { rev: 0, value: std::collections::HashMap::new() }),
             open_borders: std::cell::RefCell::new(Cached { rev: u64::MAX, value: std::collections::HashMap::new() }),
+            floor: std::cell::RefCell::new(Vec::new()),
         }
     }
 }

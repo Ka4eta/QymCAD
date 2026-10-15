@@ -178,3 +178,31 @@ fn the_floor_fades_out_on_the_card() {
     }
     assert!(wrong.is_empty(), "the card's floor ends at an edge ({}):\n{}", wrong.len(), wrong.join("\n"));
 }
+
+/// THE FLOOR IS KEPT WHILE THE VIEW STANDS: the model changing under a standing camera - a part hidden, as every frame of
+/// a preview changes it - does not work the floor out again; the camera turning does, and the floor kept is the floor
+/// worked out afresh. Worked out on every frame, the floor made the frames of an extrusion three times slower under a
+/// loaded processor, and the autosave of a person waiting came before the extrusion was done.
+#[test]
+fn the_floor_is_kept_while_the_view_stands() {
+    let mut app = looked_at(&VIEWS[1]);
+    let rect = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(SIZE[0] as f32, SIZE[1] as f32));
+    let raster = |app: &App| qymcad_render::rasterize_3d(&app.painting(), rect, &app.viewing.cam.basis(), 1.0, 1.0).expect("the raster drew nothing");
+    let kept = |app: &App| {
+        let floor = app.cache.floor.borrow();
+        (floor[0].rev, floor[0].value.as_ptr() as usize)
+    };
+    raster(&app);
+    let first = kept(&app);
+    app.project.bodies[0].visible = false;
+    raster(&app);
+    assert_eq!(kept(&app), first, "the floor was worked out again for a change of the model under a standing camera");
+    app.viewing.cam.yaw += 0.01;
+    raster(&app);
+    let turned = kept(&app).0;
+    assert_ne!(turned, first.0, "the camera turned and the floor was not worked out again");
+    let held = app.cache.floor.borrow()[0].value.clone();
+    app.cache.floor.borrow_mut().clear();
+    raster(&app);
+    assert!(app.cache.floor.borrow()[0].value == held, "the floor kept is not the floor worked out afresh");
+}

@@ -112,11 +112,6 @@ pub struct ViewRays {
     pub proj: ProjParams,
 }
 
-/// Where a ray meets the floor.
-struct FloorHit {
-    at: [f64; 2],
-}
-
 impl ViewRays {
     /// The rays of a frame of `rect` points drawn at `ppp` pixels a point.
     pub fn new(cam: &Cam3, rect: Rect, ppp: f32, proj: ProjParams) -> Self {
@@ -147,24 +142,6 @@ impl ViewRays {
             Ray { from: std::array::from_fn(|a| self.target[a] + side[a]), along: fwd }
         }
     }
-
-    /// Where the ray meets the floor: none if it runs level or meets it behind the eye.
-    fn on_floor(&self, ray: &Ray) -> Option<FloorHit> {
-        if ray.along[2].abs() < 1e-12 {
-            return None;
-        }
-        let t = -ray.from[2] / ray.along[2];
-        if self.proj.inv_d_eye > 0.0 && t <= self.proj.z_near {
-            return None;
-        }
-        Some(FloorHit { at: [ray.from[0] + ray.along[0] * t, ray.from[1] + ray.along[1] * t] })
-    }
-}
-
-/// What a pixel of the floor comes out as: its colour, premultiplied, 0..1.
-#[derive(Clone, Copy, Debug)]
-pub struct FloorPixel {
-    pub colour: [f32; 4],
 }
 
 /// A line `width` pixels wide.
@@ -212,65 +189,153 @@ impl Paint {
     }
 }
 
-/// THE FLOOR AT THE PIXEL whose middle is `ndc` (`ViewRays::through`): the grid and the axes X and Y where its ray meets
-/// the plane, the Z axis where the ray passes by it. None where neither is.
-pub fn floor_pixel(rays: &ViewRays, look: &FloorLook, ndc: (f64, f64)) -> Option<FloorPixel> {
-    let ray = rays.through(ndc);
-    let ppp = rays.ppp;
-    let pixel = (rays.pixel.x as f64, rays.pixel.y as f64);
-    let mut colour = Paint::NONE;
-    if let Some(FloorHit { at: p }) = rays.on_floor(&ray) {
-        // THE SIZE OF A PIXEL ON THE PLANE, from the points the next pixel to the right and the next one down meet - what
-        // `fwidth` gives the card. A neighbour whose ray misses the plane is taken as a pixel without end.
-        let next = |d: (f64, f64)| rays.on_floor(&rays.through((ndc.0 + d.0, ndc.1 + d.1)));
-        let fw = match (next((pixel.0, 0.0)), next((0.0, -pixel.1))) {
-            (Some(a), Some(b)) => [(a.at[0] - p[0]).abs() + (b.at[0] - p[0]).abs(), (a.at[1] - p[1]).abs() + (b.at[1] - p[1]).abs()].map(|v| v.max(1e-12)),
-            _ => [f64::INFINITY; 2],
+/// THE FLOOR OF A FRAME, ROW BY ROW: what one picture of the floor needs besides its rays - where the Z axis can be seen.
+///
+/// A row is worked out in one pass: along a row of the picture the ray of sight changes by the same step from one pixel
+/// to the next, so the point met on the floor and the size of a pixel there (what `fwidth` gives the card) come from
+/// the row's first ray and two steps, with no ray cast per pixel. Cast three times a pixel, the floor cost a frame of
+/// 1100 x 800 2.15 s of one thread in the build the checks run - the crate is not optimised there - and a person waiting
+/// on an extrusion saw the frames of the preview go three times slower.
+pub struct FloorRows<'a> {
+    rays: &'a ViewRays,
+    look: &'a FloorLook,
+    /// The pixels the Z axis can fall on, when both its ends stand in front of the eye; none means every pixel.
+    z_box: Option<egui::Rect>,
+}
+
+impl<'a> FloorRows<'a> {
+    pub fn new(rays: &'a ViewRays, look: &'a FloorLook) -> Self {
+        let on_screen = |q: [f64; 3]| {
+            let rel = v_sub(q, rays.target);
+            let depth = v_dot(rel, rays.fwd);
+            let k = 1.0 + depth * rays.proj.inv_d_eye;
+            (k > 1e-3).then(|| {
+                let f = rays.scale / k;
+                egui::pos2(((rays.half.x as f64 + v_dot(rel, rays.right) * f) * rays.ppp) as f32, ((rays.half.y as f64 - v_dot(rel, rays.up) * f) * rays.ppp) as f32)
+            })
         };
-        let len = (ray.along.iter().map(|v| v * v).sum::<f64>()).sqrt();
-        let level = (ray.along[2] / len).abs();
-        let r = (p[0] - look.centre[0]).hypot(p[1] - look.centre[1]);
-        // a ray running within 0.7 deg of level meets the plane where a pixel spans more than the grid can show
-        let grazing = Fade { gone: 0.0, whole: FLOOR_GRAZING }.at(level);
+        let top = look.reach * FLOOR_Z_REACH;
+        let z_box = match (on_screen([0.0; 3]), on_screen([0.0, 0.0, top])) {
+            (Some(a), Some(b)) => Some(egui::Rect::from_two_pos(a, b).expand((FLOOR_AXIS_Z * rays.ppp) as f32 + 2.0)),
+            _ => None,
+        };
+        FloorRows { rays, look, z_box }
+    }
+
+    /// THE FLOOR ALONG ROW `y` of the picture, into `out` - the row's pixels, premultiplied: the grid and the axes X and Y
+    /// where a ray meets the plane, the Z axis where a ray passes by it; transparent where neither is.
+    pub fn row(&self, y: usize, out: &mut [Color32]) {
+        let (rays, look) = (self.rays, self.look);
+        let ppp = rays.ppp;
+        let ndc_y = 1.0 - (y as f64 + 0.5) * rays.pixel.y as f64;
+        let ndc_x = |x: f64| (x + 0.5) * rays.pixel.x as f64 - 1.0;
+        let first = rays.through((ndc_x(0.0), ndc_y));
+        let step = |r: Ray| Ray { from: v_sub(r.from, first.from), along: v_sub(r.along, first.along) };
+        let right = step(rays.through((ndc_x(1.0), ndc_y)));
+        let down = step(rays.through((ndc_x(0.0), ndc_y - rays.pixel.y as f64)));
+        let grazing = Fade { gone: 0.0, whole: FLOOR_GRAZING };
         let lod = Fade { gone: FLOOR_FADE_GONE, whole: FLOOR_FADE_WHOLE };
         let line = Line { width: FLOOR_LINE * ppp };
-        let mut grid = Paint::NONE;
-        let mut spacing = look.step;
-        for k in 0..FLOOR_LEVELS {
-            // the lines across X and the lines across Y each fade by their own spacing on screen: looked at low, the lines
-            // running away from the eye stay wide apart while the lines across the view close in
-            let cov = (0..2).map(|a| line.covers((p[a] - (p[a] / spacing).round() * spacing).abs() / fw[a]) * lod.at(spacing / (fw[a] * ppp))).fold(0.0, f64::max);
-            let c = Paint::of(if k == 0 { look.minor } else { look.major }, cov * grazing * look.fade(1.0).at(r));
-            if c.rgba[3] > grid.rgba[3] {
-                grid = c;
-            }
-            spacing *= 5.0;
-        }
-        let near_level = Fade { gone: 0.0, whole: 0.01 }.at(level) * look.fade(2.0).at(r);
         let axis = Line { width: FLOOR_AXIS * ppp };
-        let ax = Paint::of(look.axis_x, axis.covers(p[1].abs() / fw[1]) * near_level);
-        let ay = Paint::of(look.axis_y, axis.covers(p[0].abs() / fw[0]) * near_level);
-        colour = ay.over(ax.over(grid));
+        let persp = rays.proj.inv_d_eye > 0.0;
+        // THE LOOP IS WRITTEN OUT BY HAND, without closures or iterators: this crate is not optimised in the build the
+        // checks and a debug run use, and there every small closure is a call - per pixel of a full frame.
+        let (fade_in, fade_out) = (look.fade(1.0), look.fade(2.0));
+        let level_fade = Fade { gone: 0.0, whole: 0.01 };
+        let (cx, cy, reach2) = (look.centre[0], look.centre[1], 2.0 * look.reach);
+        for (x, px) in out.iter_mut().enumerate() {
+            let k = x as f64;
+            let from = [first.from[0] + right.from[0] * k, first.from[1] + right.from[1] * k, first.from[2] + right.from[2] * k];
+            let along = [first.along[0] + right.along[0] * k, first.along[1] + right.along[1] * k, first.along[2] + right.along[2] * k];
+            let mut colour = Paint::NONE;
+            let az = along[2];
+            // where the ray meets the floor: never if it runs level, and in perspective only in front of the eye
+            let t = if az.abs() < 1e-12 { 0.0 } else { -from[2] / az };
+            if az.abs() >= 1e-12 && (!persp || t > rays.proj.z_near) {
+                let p = [from[0] + along[0] * t, from[1] + along[1] * t];
+                let r = ((p[0] - cx) * (p[0] - cx) + (p[1] - cy) * (p[1] - cy)).sqrt();
+                if r < reach2 {
+                    // the size of a pixel on the plane: how far the point met moves a pixel to the right and a pixel down
+                    let dtx = -(right.from[2] * az - from[2] * right.along[2]) / (az * az);
+                    let dty = -(down.from[2] * az - from[2] * down.along[2]) / (az * az);
+                    let fw = [
+                        ((right.from[0] + right.along[0] * t + along[0] * dtx).abs() + (down.from[0] + down.along[0] * t + along[0] * dty).abs()).max(1e-12),
+                        ((right.from[1] + right.along[1] * t + along[1] * dtx).abs() + (down.from[1] + down.along[1] * t + along[1] * dty).abs()).max(1e-12),
+                    ];
+                    let level = (az / (along[0] * along[0] + along[1] * along[1] + az * az).sqrt()).abs();
+                    let fade = fade_in.at(r) * grazing.at(level);
+                    // the strongest line of the levels here, and whether it is of the finest one
+                    let (mut best, mut finest) = (0.0f64, false);
+                    // every line of a coarser level is a line of the finest one: a pixel off the lines of the finest level
+                    // is off every line, and most pixels are
+                    let off_finest = |a: usize| (p[a] - (p[a] / look.step).round() * look.step).abs() / fw[a];
+                    let on_a_line = line.covers(off_finest(0)) > 0.0 || line.covers(off_finest(1)) > 0.0;
+                    if fade > 0.0 && on_a_line {
+                        let mut spacing = look.step;
+                        for lv in 0..FLOOR_LEVELS {
+                            // the lines across X and the lines across Y each fade by their own spacing on screen: looked at
+                            // low, the lines running away from the eye stay wide apart while the lines across the view close in
+                            for a in 0..2 {
+                                let off = (p[a] - (p[a] / spacing).round() * spacing).abs() / fw[a];
+                                let cov = line.covers(off);
+                                if cov > 0.0 {
+                                    let c = cov * lod.at(spacing / (fw[a] * ppp));
+                                    if c > best {
+                                        (best, finest) = (c, lv == 0);
+                                    }
+                                }
+                            }
+                            spacing *= 5.0;
+                        }
+                    }
+                    if best > 0.0 {
+                        colour = Paint::of(if finest { look.minor } else { look.major }, best * fade);
+                    }
+                    let near_level = level_fade.at(level) * fade_out.at(r);
+                    if near_level > 0.0 {
+                        let ax = axis.covers(p[1].abs() / fw[1]);
+                        if ax > 0.0 {
+                            colour = Paint::of(look.axis_x, ax * near_level).over(colour);
+                        }
+                        let ay = axis.covers(p[0].abs() / fw[0]);
+                        if ay > 0.0 {
+                            colour = Paint::of(look.axis_y, ay * near_level).over(colour);
+                        }
+                    }
+                }
+            }
+            if self.z_box.is_none_or(|b| b.contains(egui::pos2(x as f32 + 0.5, y as f32 + 0.5))) {
+                colour = self.z_axis(Ray { from, along }).over(colour);
+            }
+            *px = if colour.rgba[3] >= 0.5 / 255.0 {
+                let c = colour.rgba.map(|v| (v * 255.0).round().clamp(0.0, 255.0) as u8);
+                Color32::from_rgba_premultiplied(c[0], c[1], c[2], c[3])
+            } else {
+                Color32::TRANSPARENT
+            };
+        }
     }
-    // THE Z AXIS: where the ray passes closest to the line standing up from the origin, fading with its height
-    let (o, d) = (ray.from, ray.along);
-    let aa = d.iter().map(|v| v * v).sum::<f64>();
-    let b = d[2];
-    let den = aa - b * b;
-    if den > 1e-12 * aa {
+
+    /// THE Z AXIS where `ray` passes closest to the line standing up from the origin, fading with its height.
+    fn z_axis(&self, ray: Ray) -> Paint {
+        let (rays, look) = (self.rays, self.look);
+        let (o, d) = (ray.from, ray.along);
+        let aa = d.iter().map(|v| v * v).sum::<f64>();
+        let b = d[2];
+        let den = aa - b * b;
+        if den <= 1e-12 * aa {
+            return Paint::NONE;
+        }
         let dd = (0..3).map(|k| d[k] * o[k]).sum::<f64>();
         let e = o[2];
         let sc = (b * e - dd) / den; // along the ray
         let tc = (aa * e - b * dd) / den; // up the axis
         let persp = rays.proj.inv_d_eye > 0.0;
-        if tc >= 0.0 && (!persp || sc > rays.proj.z_near) {
-            let gap = ((o[0] + d[0] * sc).powi(2) + (o[1] + d[1] * sc).powi(2) + (o[2] + d[2] * sc - tc).powi(2)).sqrt();
-            let per_point = if persp { sc * rays.proj.inv_d_eye / rays.scale } else { 1.0 / rays.scale };
-            let az = Line { width: FLOOR_AXIS_Z * ppp }.covers(gap / per_point * ppp) * look.fade(FLOOR_Z_REACH).at(tc);
-            if az > 0.0 {
-                colour = Paint::of(look.axis_z, az).over(colour);
-            }
+        if tc < 0.0 || (persp && sc <= rays.proj.z_near) {
+            return Paint::NONE;
         }
+        let gap = ((o[0] + d[0] * sc).powi(2) + (o[1] + d[1] * sc).powi(2) + (o[2] + d[2] * sc - tc).powi(2)).sqrt();
+        let per_point = if persp { sc * rays.proj.inv_d_eye / rays.scale } else { 1.0 / rays.scale };
+        Paint::of(look.axis_z, Line { width: FLOOR_AXIS_Z * rays.ppp }.covers(gap / per_point * rays.ppp) * look.fade(FLOOR_Z_REACH).at(tc))
     }
-    (colour.rgba[3] >= 0.5 / 255.0).then_some(FloorPixel { colour: colour.rgba })
 }

@@ -301,7 +301,7 @@ pub fn rasterize_3d(pn: &Painting, rect: Rect, basis: &([f64; 3], [f64; 3], [f64
     let inv_d = proj.inv_d_eye;
     let rays = qymcad_ui_state::ViewRays::new(&pn.cam, rect, ppp * quality, proj);
     let look = qymcad_ui_state::floor_look(pn, rect);
-    let floor = FloorFrame { rays: &rays, look: &look, size: [w, h] };
+    let floor = FloorFrame { rays: &rays, look: &look, size: [w, h] }.picture(&pn.cache.floor);
 
     // 1) project the visible front-facing triangles into pixel coordinates. The colour is PER VERTEX
     // (Gouraud): from the smoothed normal, interpolated in the raster; in flat mode the face normal goes
@@ -375,7 +375,7 @@ pub fn rasterize_3d(pn: &Painting, rect: Rect, basis: &([f64; 3], [f64; 3], [f64
     let nthreads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1).clamp(1, 8);
     if nthreads <= 1 || h < 64 {
         raster_band(&mut color, &mut zbuf, w, 0, h, &tris);
-        floor.draw(&mut color, &zbuf, 0);
+        lay_floor(&mut color, &zbuf, &floor);
         raster_band_blend(&mut color, &zbuf, w, 0, h, &ghost_tris);
     } else {
         let band = h.div_ceil(nthreads);
@@ -384,19 +384,21 @@ pub fn rasterize_3d(pn: &Painting, rect: Rect, basis: &([f64; 3], [f64; 3], [f64
             let mut y0 = 0;
             let tref = &tris;
             let gref = &ghost_tris;
-            let fref = &floor;
+            let mut frest = &floor[..];
             while y0 < h {
                 let rows = band.min(h - y0);
                 let (cb, c2) = crest.split_at_mut(rows * w);
                 let (zb, z2) = zrest.split_at_mut(rows * w);
                 crest = c2;
                 zrest = z2;
+                let (fb, f2) = frest.split_at(rows * w);
+                frest = f2;
                 let y = y0;
-                // within a band: the opaque ones first (they fill z), the floor under and over them by z, then the
-                // ghosts on top (z test, blend)
+                // within a band: the opaque ones first (they fill z), the floor where none is, then the ghosts on top
+                // (z test, blend)
                 s.spawn(move || {
                     raster_band(cb, zb, w, y, rows, tref);
-                    fref.draw(cb, zb, y);
+                    lay_floor(cb, zb, fb);
                     raster_band_blend(cb, zb, w, y, rows, gref);
                 });
                 y0 += rows;
