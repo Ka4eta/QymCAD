@@ -259,7 +259,9 @@ const WINDOW_OPENERS: &str = concat!(
         "\n",
         include_str!("view_anim.rs"),
         "\n",
-        include_str!("../gui.rs")
+        include_str!("../gui.rs"),
+        "\n",
+        include_str!("panel_places.rs")
     ),
 );
 
