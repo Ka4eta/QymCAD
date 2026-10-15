@@ -188,20 +188,14 @@ pub fn try_constraint_inner(
             p.y = y;
         }
         project.solve_sketch(si);
-        *status = if shrunk {
-            Notice::refusal(qymcad_i18n::tr("sk-constraint-shrinks"))
-        } else {
-            Notice::refusal(qymcad_i18n::tr1("sk-constraint-conflict", "r", &qymcad_i18n::num(resid, 2)))
-        };
+        *status = Notice::refusal(if shrunk { qymcad_i18n::tr("sk-constraint-shrinks") } else { qymcad_i18n::tr1("sk-constraint-conflict", "r", &qymcad_i18n::num(resid, 2)) });
         return true;
     }
     let lifted = project.drop_implied_relations(si, had, &among);
     *status = if resid >= 1e-3 {
         Notice::info(qymcad_i18n::tr1("sk-constraint-added-resid", "r", &qymcad_i18n::num(resid, 2)))
-    } else if lifted > 0 {
-        Notice::info(qymcad_i18n::tr1("sk-constraint-added-implied", "n", &lifted.to_string()))
     } else {
-        Notice::info(qymcad_i18n::tr("sk-constraint-added"))
+        Notice::info(if lifted > 0 { qymcad_i18n::tr1("sk-constraint-added-implied", "n", &lifted.to_string()) } else { qymcad_i18n::tr("sk-constraint-added") })
     };
     true
 }

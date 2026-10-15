@@ -107,7 +107,7 @@ pub fn group_pick_click(active_path: &[Id], joint: &mut qymcad_ui_state::JointCo
 pub fn start_ground_pick_armed(jc: &mut qymcad_ui_state::JointCtx, on: bool) {
     jc.joint.ground_pick = on;
     jc.joint.pick_first = None;
-    *jc.status = if on { Notice::info(qymcad_i18n::tr("tb-ground-pick")) } else { Notice::info(qymcad_i18n::tr("tb-ground-off")) };
+    *jc.status = Notice::info(if on { qymcad_i18n::tr("tb-ground-pick") } else { qymcad_i18n::tr("tb-ground-off") });
 }
 
 /// The arming half of the tool: the reading of the flag and the clearing of every OTHER tool stayed with
@@ -457,7 +457,7 @@ pub fn joint_pick_ground_click(jc: &mut qymcad_ui_state::JointCtx, body: Id) {
     jc.project.set_grounded(comp, !g);
     qymcad_ui_state::mark_dirty_for_rebuild(&mut jc.rebuild()); // the document is marked; the planner does the counting
     let name = jc.project.components.iter().find(|c| c.id == comp).map(|c| qymcad_i18n::name(&c.name)).unwrap_or_default();
-    *jc.status = if !g { Notice::info(qymcad_i18n::tr1("jt-grounded", "name", &name)) } else { Notice::info(qymcad_i18n::tr1("jt-released", "name", &name)) };
+    *jc.status = Notice::info(if !g { qymcad_i18n::tr1("jt-grounded", "name", &name) } else { qymcad_i18n::tr1("jt-released", "name", &name) });
     qymcad_ui_state::close_edit(jc.edits, jc.project); // closed, not committed: committing drops the asked rebuild, and the assembly would not be solved
 }
 

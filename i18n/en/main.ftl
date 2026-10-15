@@ -2761,3 +2761,13 @@ import-scale-kept = The scale is left as it was.
 import-scale-wait = The bodies are still loading from the file. Try again when loading is done.
 settings-import-ask = Ask for units and scale on every import
 settings-import-ask-hint = Unticked, the window comes up for files without units (STL, OBJ, PLY) and when a model is under 1 mm or over 10 m.
+
+# The faults of the document: the counter in the status line, its window, the line a rebuild leaves.
+win-faults = Errors and warnings
+faults-errors-hint = Errors in the document: { $n }. Click to go to them.
+faults-warnings-hint = Warnings in the document: { $n }. Click to go to them.
+faults-row-hint = Click to go there
+faults-none = There are no errors or warnings in the document.
+fault-sketch-conflict = The constraints of the sketch conflict: { $n } of them cannot hold at once
+io-rebuild-left-errors = Operations that did not build: { $n }. The first, { $where }:
+io-rebuild-left-warnings = Operations built only in part: { $n }. The first, { $where }:

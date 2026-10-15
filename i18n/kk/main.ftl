@@ -2756,3 +2756,13 @@ icontheme-mgr-conflict-fix-folder = Тақырып қалтасындағы mani
 icontheme-mgr-conflict-fix-archive = .qicons файлын ашыңыз немесе шығарыңыз, manifest.ron ішіндегі id: өрісін бірегей мәнге өзгертіңіз немесе жаңа ID бар тақырыпты қайта экспорттаңыз.
 icontheme-mgr-meta-title = Манифест ақпараты
 icontheme-mgr-meta-version = Нұсқасы: { $value }
+
+# The faults of the document: the counter in the status line, its window, the line a rebuild leaves.
+win-faults = Қателер мен ескертулер
+faults-errors-hint = Құжаттағы қателер: { $n }. Оларға өту үшін шертіңіз.
+faults-warnings-hint = Құжаттағы ескертулер: { $n }. Оларға өту үшін шертіңіз.
+faults-row-hint = Сонда өту үшін шертіңіз
+faults-none = Құжатта қателер мен ескертулер жоқ.
+fault-sketch-conflict = Эскиз байланыстары бір-біріне қайшы: { $n } бір мезгілде орындала алмайды
+io-rebuild-left-errors = Құрылмаған операциялар: { $n }. Біріншісі, { $where }:
+io-rebuild-left-warnings = Толық құрылмаған операциялар: { $n }. Біріншісі, { $where }:

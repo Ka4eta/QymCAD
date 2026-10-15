@@ -498,11 +498,11 @@ pub fn sketch_tool_click_inner(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, 
             // nothing happened: there was no telling whether the program was broken or something had been
             // left undone. Emptied by the font, which could not write the letters typed, it is the font that is
             // named.
-            *sk.status = if sk.tool.text_refused {
-                Notice::refusal(qymcad_i18n::tr1("sk-text-no-letters", "name", &qymcad_ui_state::font_label(&sk.tool_prefs.font, "opt-font")))
+            *sk.status = Notice::refusal(if sk.tool.text_refused {
+                qymcad_i18n::tr1("sk-text-no-letters", "name", &qymcad_ui_state::font_label(&sk.tool_prefs.font, "opt-font"))
             } else {
-                Notice::refusal(qymcad_i18n::tr("sk-text-needs-string"))
-            };
+                qymcad_i18n::tr("sk-text-needs-string")
+            });
         }
         11 => {
             // A CLICK ON A LABEL THAT IS ALREADY THERE PLACES NOTHING. The tool is in hand while a label is edited, and
@@ -873,11 +873,7 @@ pub fn sketch_click_at(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Context,
                         qymcad_ui_state::take_whole_rects(&*sk.project, si, &mut *sk.sel_sk);
                     }
                     *sk.status = if sk.sel_sk.items.iter().any(|(k, _)| *k == 1) {
-                        if sk.armed.pat_op() == 2 {
-                            Notice::info(qymcad_i18n::tr("sk-click-rot-centre"))
-                        } else {
-                            Notice::info(qymcad_i18n::tr("sk-params-above"))
-                        }
+                        Notice::info(if sk.armed.pat_op() == 2 { qymcad_i18n::tr("sk-click-rot-centre") } else { qymcad_i18n::tr("sk-params-above") })
                     } else {
                         Notice::info(qymcad_i18n::tr("sk-click-for-array"))
                     };

@@ -274,7 +274,7 @@ impl App {
         (self.params.arr.full, self.params.arr.two, self.params.arr.three, self.params.arr.axis) = (true, false, false, 0); // a full turn, one direction, the assembly's axis
         self.viewing.mode_3d = true;
         self.tools.cmd.params = if mode == 2 { vec![] } else { vec![CmdParam::new("f-pitch", "cstep", 30.0, 0.01, 100000.0)] };
-        self.status = if mode == 2 { Notice::info(crate::i18n::tr("msg-comp-circ-array")) } else { Notice::info(crate::i18n::tr("msg-comp-lin-array")) };
+        self.status = Notice::info(if mode == 2 { crate::i18n::tr("msg-comp-circ-array") } else { crate::i18n::tr("msg-comp-lin-array") });
     }
 
     /// Reopen an EXISTING component array for editing (a double click in the tree).
@@ -336,7 +336,7 @@ impl App {
                             if is_src {
                                 self.project.delete_component(cid); // the source was the target, so it goes too
                             }
-                            self.status = if is_src { Notice::info(crate::i18n::tr("msg-part-and-array-deleted")) } else { Notice::info(crate::i18n::tr("msg-comp-array-deleted")) };
+                            self.status = Notice::info(if is_src { crate::i18n::tr("msg-part-and-array-deleted") } else { crate::i18n::tr("msg-comp-array-deleted") });
                         }
                         None => {
                             self.project.delete_component(cid);

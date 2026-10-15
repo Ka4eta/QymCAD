@@ -25,6 +25,21 @@ pub(super) struct ViewDrag {
     pub to: egui::Pos2,
 }
 
+/// A FORMULA TYPED INTO A FIELD OF A COMMAND: the field, and what is typed into it.
+#[cfg(test)]
+pub(super) struct Typed<'a> {
+    pub field: &'a str,
+    pub text: &'a str,
+}
+
+/// A RUN OF WORDS AS THE FRAME PAINTED IT: what it says, where it stands and in which colour.
+#[cfg(test)]
+pub(super) struct PaintedWords {
+    pub text: String,
+    pub rect: egui::Rect,
+    pub colour: egui::Color32,
+}
+
 #[cfg(test)]
 pub(super) struct Hand<'a> {
     pub app: &'a mut super::App,
@@ -292,6 +307,42 @@ impl<'a> Hand<'a> {
     /// WHAT THE LAST FRAME DREW, shape by shape: a sign laid over the window is told by its look.
     pub fn shapes_drawn(&self) -> &[egui::epaint::ClippedShape] {
         &self.win.shapes
+    }
+
+    /// EVERY RUN OF WORDS THE NEXT FRAME PAINTS, with its place and its colour: a warning is told from information by
+    /// the colour on screen, which is what a person sees, not by the field behind it.
+    pub fn painted_words(&mut self) -> Vec<PaintedWords> {
+        fn collect(s: &egui::Shape, out: &mut Vec<PaintedWords>) {
+            match s {
+                egui::Shape::Text(t) => {
+                    let section = t.galley.job.sections.first().map(|s| s.format.color).filter(|c| *c != egui::Color32::PLACEHOLDER);
+                    let colour = t.override_text_color.or(section).unwrap_or(t.fallback_color);
+                    out.push(PaintedWords { text: t.galley.text().to_string(), rect: egui::Rect::from_min_size(t.pos, t.galley.size()), colour });
+                }
+                egui::Shape::Vec(v) => v.iter().for_each(|x| collect(x, out)),
+                _ => {}
+            }
+        }
+        self.frame(Vec::new());
+        let mut out = Vec::new();
+        for cs in &self.win.shapes {
+            collect(&cs.shape, &mut out);
+        }
+        out
+    }
+
+    /// FRAMES UNTIL THE REBUILD A GESTURE STARTED HAS ENDED, a minute at most: a person waits for the card to go
+    /// before reading the line.
+    pub fn settle(&mut self) -> &mut Self {
+        self.frame(Vec::new()); // the frame that notices the document changed and starts its rebuild
+        for _ in 0..1200 {
+            if self.app.regen.busy.is_none() && !self.app.regen.wanted {
+                break;
+            }
+            self.run(egui::Modifiers::default(), Vec::new());
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        self.frame(Vec::new())
     }
 
     /// WHERE `word` IS WRITTEN, the next frame drawn - the place written first, when it is written in several.
@@ -638,6 +689,15 @@ impl<'a> Hand<'a> {
         if let Some(p) = self.app.tools.cmd.params.iter_mut().find(|p| p.key == key) {
             p.val = v;
             p.txt = format!("{v}");
+        }
+        self
+    }
+
+    /// Type a formula into a field of the command, as into the popup at the geometry - a name of a parameter where
+    /// `set` types a number.
+    pub fn formula(&mut self, typed: Typed) -> &mut Self {
+        if let Some(p) = self.app.tools.cmd.params.iter_mut().find(|p| p.key == typed.field) {
+            p.txt = typed.text.to_string();
         }
         self
     }

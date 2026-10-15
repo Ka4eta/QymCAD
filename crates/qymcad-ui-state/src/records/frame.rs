@@ -142,6 +142,9 @@ pub struct Caches {
     /// because the canvas changes its size as a command's panel or a window opens and closes - four sizes in one
     /// extrusion by hand - and each size is a picture of its own.
     pub floor: std::cell::RefCell<Vec<Cached<Vec<egui::Color32>>>>,
+    /// THE FAULTS OF THE DOCUMENT and the key they were gathered for (`document_faults`): the status line asks for
+    /// them every frame, and gathering walks every node, mate, sketch and parameter.
+    pub faults: std::cell::RefCell<Option<crate::FaultMemo>>,
 }
 
 impl Default for Caches {
@@ -165,6 +168,7 @@ impl Default for Caches {
             mesh_bounds: std::cell::RefCell::new(Cached { rev: 0, value: std::collections::HashMap::new() }),
             open_borders: std::cell::RefCell::new(Cached { rev: u64::MAX, value: std::collections::HashMap::new() }),
             floor: std::cell::RefCell::new(Vec::new()),
+            faults: std::cell::RefCell::new(None),
         }
     }
 }
@@ -207,12 +211,14 @@ pub enum WinKind {
     IconManager,
     /// The developer icon theme packager modal.
     IconPackager,
+    /// The errors and warnings of the document, each with the way to it - opened from the status line.
+    Faults,
 }
 
 impl WinKind {
     /// EVERY KIND, so that a walk over the windows cannot silently miss one added later. A guard checks that the
     /// count here matches the number of variants declared above.
-    pub const ALL: [WinKind; 13] = [
+    pub const ALL: [WinKind; 14] = [
         WinKind::SaveTemplate,
         WinKind::Start,
         WinKind::DocProps,
@@ -226,6 +232,7 @@ impl WinKind {
         WinKind::Updates,
         WinKind::IconManager,
         WinKind::IconPackager,
+        WinKind::Faults,
     ];
 }
 

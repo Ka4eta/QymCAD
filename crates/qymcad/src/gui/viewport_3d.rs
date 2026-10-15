@@ -645,7 +645,7 @@ impl App {
                         Some(fid) => {
                             self.params.chamfer.ref_face = if self.params.chamfer.ref_face == fid { 0 } else { fid };
                             self.params.chamfer.pick_ref = false;
-                            self.status = if self.params.chamfer.ref_face != 0 { Notice::info(crate::i18n::tr("vp-chamfer-ref-set")) } else { Notice::info(crate::i18n::tr("vp-chamfer-ref-cleared")) };
+                            self.status = Notice::info(if self.params.chamfer.ref_face != 0 { crate::i18n::tr("vp-chamfer-ref-set") } else { crate::i18n::tr("vp-chamfer-ref-cleared") });
                         }
                         None => self.status = Notice::refusal(crate::i18n::tr("vp-miss-body-face")),
                     }

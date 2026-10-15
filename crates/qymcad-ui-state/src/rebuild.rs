@@ -80,18 +80,24 @@ pub fn regenerate_now(rc: &mut RebuildCtx) {
     // REBINDS OF GEOMETRY REFERENCES ARE VISIBLE. A lost reference used to latch onto a "similar" face
     // again on every rebuild, silently - now it is an event that gets announced.
     rc.regen.rebinds = report.rebinds.clone();
-    if let Some((_, e)) = report.errors.first() {
+    // WHAT DID NOT BUILD IS SAID IN RED, the first node and how many, as the rebuild in the background says it
+    let left = crate::rebuild_left(rc.project);
+    if let Some(said) = left.clone().filter(|n| n.tone == crate::Tone::Error) {
+        *rc.status = said;
+    } else if let Some((_, e)) = report.errors.first() {
         // the error text is in the person's language: the core returned a CODE, the words are found here
         *rc.status = Notice::error(format!("{} {}", qymcad_i18n::tr("status-rebuild"), qymcad_i18n::error_words::error_text(e)));
     } else if !report.rebinds.is_empty() {
         let first = &report.rebinds[0];
-        *rc.status = if report.rebinds.len() == 1 {
-            Notice::warning(qymcad_i18n::tr1("io-rebound-one", "what", &first.what))
+        *rc.status = Notice::warning(if report.rebinds.len() == 1 {
+            qymcad_i18n::tr1("io-rebound-one", "what", &first.what)
         } else {
-            Notice::warning(qymcad_i18n::tr2("io-rebound-many", "n", &report.rebinds.len().to_string(), "first", &first.what))
-        };
+            qymcad_i18n::tr2("io-rebound-many", "n", &report.rebinds.len().to_string(), "first", &first.what)
+        });
     } else if snaps > 0 {
         *rc.status = Notice::warning(qymcad_i18n::tr1("io-rebound-by-place", "n", &snaps.to_string()));
+    } else if let Some(said) = left {
+        *rc.status = said; // built, but some of it only in part
     }
     invalidate(rc.regen);
 }

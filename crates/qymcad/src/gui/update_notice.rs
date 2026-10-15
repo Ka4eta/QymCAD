@@ -56,6 +56,8 @@ mod tests {
                     sketch_ses: &app.sketch_ses,
                     status: &qymcad_ui_state::Notice::default(),
                     win: &mut app.win,
+                    par_search: &mut app.par_search,
+                    ask: &mut Vec::new(),
                 },
                 ui,
             );

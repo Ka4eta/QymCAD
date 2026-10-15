@@ -40,7 +40,7 @@ impl App {
             return;
         };
         self.side.m3.take(p);
-        self.status = if self.side.m3.picks.is_empty() { Notice::info(crate::i18n::tr("m3-hint")) } else { Notice::info(self.measure_text()) };
+        self.status = Notice::info(if self.side.m3.picks.is_empty() { crate::i18n::tr("m3-hint") } else { self.measure_text() });
     }
 }
 

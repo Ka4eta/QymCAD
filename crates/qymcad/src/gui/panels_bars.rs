@@ -283,13 +283,33 @@ fn update_note(scheme: &qymcad_ui_state::SchemeUi, win: &mut qymcad_ui_state::Wi
     }
 }
 
+/// THE FAULTS OF THE DOCUMENT AS TWO BADGES - the errors red, the warnings yellow, each with its count; a kind with
+/// none has no badge. They count what the document holds now, whatever the line last said: a red cut in another part
+/// is counted while one works here. True when either was clicked.
+fn fault_badges(ui: &mut egui::Ui, pal: &crate::palette::Palette, faults: &[qymcad_ui_state::Fault]) -> bool {
+    let count = qymcad_ui_state::fault_count(faults);
+    let errors = fault_badge(ui, pal, qymcad_ui_state::Notice::error(count.errors.to_string()), "faults-errors-hint");
+    let warnings = fault_badge(ui, pal, qymcad_ui_state::Notice::warning(count.warnings.to_string()), "faults-warnings-hint");
+    errors || warnings
+}
+
+/// One badge: the icon and the number in the colour of the tone; nothing for a count of zero.
+fn fault_badge(ui: &mut egui::Ui, pal: &crate::palette::Palette, count: qymcad_ui_state::Notice, hint: &str) -> bool {
+    if count.words == "0" {
+        return false;
+    }
+    ui.separator();
+    let text = qymcad_ui_state::notice_text(pal, &count, qymcad_ui_state::NoticeSize::Line);
+    ui.add(egui::Label::new(text).sense(egui::Sense::click())).on_hover_cursor(egui::CursorIcon::PointingHand).on_hover_text(crate::i18n::tr1(hint, "n", &count.words)).clicked()
+}
+
 /// THE STATUS LINE: what was just said, how defined the sketch is, the units and the cursor.
 ///
 /// Takes what it reads and nothing else - six borrows rather than the whole application. THE SKETCH'S
 /// DEFINEDNESS is the sketcher's main state, and in CAD it belongs in the status line: one looks at the
 /// drawing rather than hunting for it in a panel off to the side.
 pub(crate) fn status_bar(sc: &mut qymcad_ui_state::StatusCtx, ui: &mut egui::Ui) {
-    let qymcad_ui_state::StatusCtx { cache, cursor, project, scheme, set, sketch_ses, status, win } = sc;
+    let qymcad_ui_state::StatusCtx { cache, cursor, project, scheme, set, sketch_ses, status, win, par_search, ask } = sc;
     let (cursor, status) = (*cursor, *status);
     // THE CHECK FOR A NEWER VERSION IS STARTED HERE, and shown here, so that the two cannot drift apart.
     //
@@ -298,7 +318,21 @@ pub(crate) fn status_bar(sc: &mut qymcad_ui_state::StatusCtx, ui: &mut egui::Ui)
     crate::gui::update_ui::ask_if_due(set);
     ui.horizontal(|ui| {
         // a warning yellow with its icon, an error red with its: the line is where a person looks after an action
-        qymcad_ui_state::say(ui, &scheme.pal, status, qymcad_ui_state::NoticeSize::Line);
+        let faults = qymcad_ui_state::document_faults(cache, project);
+        let said = qymcad_ui_state::notice_text(&scheme.pal, status, qymcad_ui_state::NoticeSize::Line);
+        let fault_said = matches!(status.tone, qymcad_ui_state::Tone::Warning | qymcad_ui_state::Tone::Error) && !faults.is_empty();
+        // the words of a fault lead where the badges lead: it is the line a person reads first
+        let words_clicked = if fault_said {
+            ui.add(egui::Label::new(said).sense(egui::Sense::click())).on_hover_cursor(egui::CursorIcon::PointingHand).clicked()
+        } else {
+            ui.label(said);
+            false
+        };
+        let badge_clicked = fault_badges(ui, &scheme.pal, &faults);
+        let lead = words_clicked || badge_clicked;
+        if lead {
+            qymcad_ui_state::lead_to_faults(&faults, project, win, par_search, ask);
+        }
         update_note(scheme, win, ui);
         if let Some(sid) = sketch_ses.editing {
             if let Some(si) = project.sketches.iter().position(|s| s.id == sid) {

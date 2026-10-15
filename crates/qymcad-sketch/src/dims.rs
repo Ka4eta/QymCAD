@@ -365,7 +365,7 @@ pub fn dim_click_inner(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, pos: Pos
         // the sketch before this pick: resolving it may make an axis of the sketch on demand, and Esc takes that back too
         let before = sk.dim.first.is_none().then(|| Box::new(sk.project.sketches[si].clone()));
         let Some(r) = resolve_dim_ref(sk, rect, pos, si) else {
-            *sk.status = if sk.dim.first.is_some() { Notice::info(qymcad_i18n::tr("sk-need-second")) } else { Notice::info(qymcad_i18n::tr("sk-dim-pick-hint")) };
+            *sk.status = Notice::info(if sk.dim.first.is_some() { qymcad_i18n::tr("sk-need-second") } else { qymcad_i18n::tr("sk-dim-pick-hint") });
             return true;
         };
         match sk.dim.first.take() {
@@ -444,10 +444,8 @@ pub fn dim_click_inner(sk: &mut qymcad_ui_state::SketchCtx, rect: Rect, pos: Pos
             sk.place.dim = Some(ci); // the next click places it and opens its value
             *sk.status = if conflict {
                 Notice::refusal(qymcad_i18n::tr("sk-angle-conflict"))
-            } else if redundant {
-                Notice::info(qymcad_i18n::tr("sk-driven-angle"))
             } else {
-                Notice::info(qymcad_i18n::tr1("sk-angle-added", "a", &qymcad_i18n::num(deg, 1)))
+                Notice::info(if redundant { qymcad_i18n::tr("sk-driven-angle") } else { qymcad_i18n::tr1("sk-angle-added", "a", &qymcad_i18n::num(deg, 1)) })
             };
         }
     }
@@ -568,10 +566,8 @@ pub fn make_between_dim(sk: &mut qymcad_ui_state::SketchCtx, si: usize, r1: qymc
         sk.place.dim = Some(ci);
         *sk.status = if conflict {
             Notice::refusal(qymcad_i18n::tr("sk-dim-conflict"))
-        } else if redundant {
-            Notice::info(qymcad_i18n::tr("sk-driven-dim-hint"))
         } else {
-            Notice::info(qymcad_i18n::tr("sk-drag-dim-hint"))
+            Notice::info(if redundant { qymcad_i18n::tr("sk-driven-dim-hint") } else { qymcad_i18n::tr("sk-drag-dim-hint") })
         };
     }
 }

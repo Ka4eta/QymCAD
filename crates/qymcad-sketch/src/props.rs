@@ -68,7 +68,7 @@ pub fn sketch_props(pr: &mut qymcad_ui_state::PropsCtx, ui: &mut egui::Ui, si: u
             let n = pr.project.merge_close_points(si, tol);
             pr.project.solve_sketch(si);
             qymcad_ui_state::invalidate(&mut *pr.regen);
-            *pr.status = if n > 0 { Notice::info(qymcad_i18n::tr1("sk-stitched-n", "n", &n.to_string())) } else { Notice::info(qymcad_i18n::tr("sk-no-coincident-points")) };
+            *pr.status = Notice::info(if n > 0 { qymcad_i18n::tr1("sk-stitched-n", "n", &n.to_string()) } else { qymcad_i18n::tr("sk-no-coincident-points") });
         }
         ui.label(egui::RichText::new(qymcad_i18n::tr("sk-welcome")).weak().small());
         ui.separator();

@@ -1049,7 +1049,7 @@ impl App {
             // it.
             exit_draw_tools(&mut qymcad_ui_state::tools_of!(self));
             self.side.clip.arm_copy(eids, cut);
-            self.status = if cut { Notice::info(crate::i18n::tr("g-cut-base-point")) } else { Notice::info(crate::i18n::tr("g-copy-base-point")) };
+            self.status = Notice::info(if cut { crate::i18n::tr("g-cut-base-point") } else { crate::i18n::tr("g-copy-base-point") });
             return;
         }
         // outside a sketch, Ctrl+C acts on THE TREE (a part, a subassembly, a sketch node).
@@ -1335,7 +1335,7 @@ impl qymcad_shell::Fills for App {
     fn fill(&mut self, key: &'static str, ui: &mut egui::Ui) {
         // WHAT THE BARS ASKED FOR IS DONE AFTER THE DRAWING. A button that acted mid-frame would start a
         // command while the bar of that command was still being laid out.
-        let mut bar_asks = Vec::new();
+        let (mut bar_asks, mut win_asks) = (Vec::new(), Vec::new());
         match key {
             "menubar" => crate::gui::panels_bars::menu_bar(&mut self.bar_ctx(&mut bar_asks), ui),
             "toolbar" => crate::gui::panels_bars::toolbar(&mut self.bar_ctx(&mut bar_asks), ui),
@@ -1369,6 +1369,8 @@ impl qymcad_shell::Fills for App {
                     sketch_ses: &self.sketch_ses,
                     status: &self.status,
                     win: &mut self.win,
+                    par_search: &mut self.par_search,
+                    ask: &mut win_asks,
                 },
                 ui,
             ),
@@ -1378,10 +1380,8 @@ impl qymcad_shell::Fills for App {
             "viewport" => self.viewport(ui),
             _ => {}
         }
-        if !bar_asks.is_empty() {
-            let ctx = ui.ctx().clone();
-            self.do_bar_asks(bar_asks, &ctx);
-        }
+        self.do_bar_asks(bar_asks, &ui.ctx().clone());
+        self.do_win_asks(win_asks, &ui.ctx().clone()); // a click on a fault in the status line goes where a window's link goes
     }
 
     fn bar_frame(&self) -> egui::Frame {
@@ -1505,7 +1505,7 @@ impl App {
         } // "save as a part of the library"
         {
             let mut asks = Vec::new();
-            crate::gui::panels_windows::params_window(&mut self.win_ctx(&mut asks), ctx);
+            crate::gui::panels_windows::doc_windows(&mut self.win_ctx(&mut asks), ctx);
             self.do_win_asks(asks, ctx);
         }
         {

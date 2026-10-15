@@ -2761,3 +2761,13 @@ import-scale-kept = Масштаб оставлен прежним.
 import-scale-wait = Тела ещё загружаются из файла. Повторите, когда загрузка закончится.
 settings-import-ask = Спрашивать единицы и масштаб при каждом импорте
 settings-import-ask-hint = Без галочки окно появляется у файлов без единиц (STL, OBJ, PLY) и когда модель меньше 1 мм или больше 10 м.
+
+# The faults of the document: the counter in the status line, its window, the line a rebuild leaves.
+win-faults = Ошибки и предупреждения
+faults-errors-hint = Ошибок в документе: { $n }. Щёлкните, чтобы перейти к ним.
+faults-warnings-hint = Предупреждений в документе: { $n }. Щёлкните, чтобы перейти к ним.
+faults-row-hint = Щёлкните, чтобы перейти туда
+faults-none = В документе нет ошибок и предупреждений.
+fault-sketch-conflict = Связи эскиза противоречат друг другу: { $n } не могут выполняться одновременно
+io-rebuild-left-errors = Не построено операций: { $n }. Первая, { $where }:
+io-rebuild-left-warnings = Построено не полностью операций: { $n }. Первая, { $where }:

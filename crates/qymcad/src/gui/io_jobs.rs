@@ -25,17 +25,26 @@ fn rebuild_says_it_started(regen: &mut qymcad_ui_state::Rebuilding, status: &mut
     }
 }
 
-/// The end of a rebuild: an error is always said. Success replaces only the rebuild's own line - with the words of
-/// the operation it covered, or "Done" - and leaves alone anything written since by someone else.
-/// Reported behaviour: grounding named the part, the rebuild it asked for ended and the line read "Done".
-fn rebuild_says_it_ended(regen: &mut qymcad_ui_state::Rebuilding, status: &mut qymcad_ui_state::Notice, error: Option<&qymcad_core::errors::CoreError>) {
+/// The end of a rebuild: an error is always said, in red, naming the first node of the timeline that did not build and
+/// how many did not (`rebuild_left`). Otherwise only the rebuild's own line is replaced - by the nodes that built in
+/// part, in yellow, or by the words of the operation it covered, or "Done" - and anything written since by someone else
+/// is left alone. Reported behaviour: grounding named the part, the rebuild it asked for ended and the line read
+/// "Done". Reported behaviour: a parameter left a cut and every node after it red, and the line said so in the plain
+/// colour of "Done".
+fn rebuild_says_it_ended(regen: &mut qymcad_ui_state::Rebuilding, status: &mut qymcad_ui_state::Notice, project: &Project, error: Option<&qymcad_core::errors::CoreError>) {
     regen.computed_depth = regen.computing_depth; // the rebuild ran to its end: the document it was asked for is computed
     let over = std::mem::take(&mut regen.over);
-    match error {
-        Some(e) => rebuild_says(regen, status, Notice::error(crate::i18n::tr1("io-rebuild-error", "error", &crate::gui::error_words::error_text(e)))),
+    let left = qymcad_ui_state::rebuild_left(project);
+    // an error the timeline does not hold (a failure of the pass itself) is said in the words it came with
+    let failed = left
+        .clone()
+        .filter(|n| n.tone == qymcad_ui_state::Tone::Error)
+        .or_else(|| error.map(|e| Notice::error(crate::i18n::tr1("io-rebuild-error", "error", &crate::gui::error_words::error_text(e)))));
+    match failed {
+        Some(said) => rebuild_says(regen, status, said),
         None if status.is_empty() || *status == regen.line => {
-            let line = if over.is_empty() { Notice::info(format!("{} {}", ph::CHECK, crate::i18n::tr("io-ready"))) } else { over };
-            rebuild_says(regen, status, line);
+            let done = if over.is_empty() { Notice::info(format!("{} {}", ph::CHECK, crate::i18n::tr("io-ready"))) } else { over };
+            rebuild_says(regen, status, left.unwrap_or(done));
         }
         None => {}
     }
@@ -401,7 +410,7 @@ impl App {
         for (body, faces) in built {
             qymcad_ui_state::set_body_faces(&mut self.live, &mut self.project, body, faces);
         }
-        rebuild_says_it_ended(&mut self.regen, &mut self.status, errors.first().map(|(_, e)| e));
+        rebuild_says_it_ended(&mut self.regen, &mut self.status, &self.project, errors.first().map(|(_, e)| e));
         qymcad_ui_state::settle_baseline(&mut self.disk.edits, &self.project);
         // if this rebuild was the preparation of a live B-rep, then it HAS NOW HAPPENED, and the outcome is
         // drawn from its result (after invalidate: that is what moves the geometry revision).
@@ -1121,7 +1130,7 @@ pub(crate) fn spawn_save(io: &mut DocIo, live: &mut LiveGeom, project: &mut Proj
         pulse: None,
         quiet: false,
     });
-    *status = if autosave { Notice::info(crate::i18n::tr("io-autosaving")) } else { Notice::info(crate::i18n::tr1("io-saving-path", "path", &path)) };
+    *status = Notice::info(if autosave { crate::i18n::tr("io-autosaving") } else { crate::i18n::tr1("io-saving-path", "path", &path) });
 }
 
 /// "SAVE AS A PART OF THE LIBRARY": the name, the description, the tags, the category and the preview.

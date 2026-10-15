@@ -2744,3 +2744,13 @@ import-scale-kept = Масштаб залишено колишнім.
 import-scale-wait = Тіла ще завантажуються з файлу. Повторіть, коли завантаження завершиться.
 settings-import-ask = Запитувати одиниці та масштаб при кожному імпорті
 settings-import-ask-hint = Без прапорця вікно з'являється для файлів без одиниць (STL, OBJ, PLY) і коли модель менша за 1 мм або більша за 10 м.
+
+# The faults of the document: the counter in the status line, its window, the line a rebuild leaves.
+win-faults = Помилки та попередження
+faults-errors-hint = Помилок у документі: { $n }. Клацніть, щоб перейти до них.
+faults-warnings-hint = Попереджень у документі: { $n }. Клацніть, щоб перейти до них.
+faults-row-hint = Клацніть, щоб перейти туди
+faults-none = У документі немає помилок і попереджень.
+fault-sketch-conflict = Зв'язки ескізу суперечать одне одному: { $n } не можуть виконуватися одночасно
+io-rebuild-left-errors = Не побудовано операцій: { $n }. Перша, { $where }:
+io-rebuild-left-warnings = Побудовано не повністю операцій: { $n }. Перша, { $where }:

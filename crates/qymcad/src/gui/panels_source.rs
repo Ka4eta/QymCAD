@@ -226,6 +226,11 @@ const WINDOW_OPENERS: &str = concat!(
         "\n",
         include_str!("panels_windows/params.rs"),
         "\n",
+        include_str!("panels_windows/faults.rs"),
+        "\n",
+        // the faults lead to their windows from the status line and from the window of faults
+        include_str!("../../../qymcad-ui-state/src/faults.rs"),
+        "\n",
         include_str!("panels_windows/schemes.rs"),
         "\n",
         include_str!("panels_windows/settings.rs"),

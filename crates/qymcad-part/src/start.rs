@@ -16,10 +16,8 @@ pub fn start_move_tool(t: &mut qymcad_ui_state::Tools, status: &mut qymcad_ui_st
     let what = if op == 3 { qymcad_i18n::tr("f-rotation-centre") } else { qymcad_i18n::tr("f-base-point") };
     *status = if armed.move_op() == 0 {
         Notice::info(qymcad_i18n::tr("msg-cancelled"))
-    } else if has_sel {
-        Notice::info(qymcad_i18n::tr1("cmd-click-what", "what", &what))
     } else {
-        Notice::info(qymcad_i18n::tr1("cmd-select-then-click", "what", &what))
+        Notice::info(if has_sel { qymcad_i18n::tr1("cmd-click-what", "what", &what) } else { qymcad_i18n::tr1("cmd-select-then-click", "what", &what) })
     };
 }
 
@@ -35,10 +33,8 @@ pub fn start_pattern(t: &mut qymcad_ui_state::Tools, status: &mut qymcad_ui_stat
     pat.center = None;
     *status = if armed.pat_op() == 0 {
         Notice::info(qymcad_i18n::tr("msg-cancelled"))
-    } else if armed.pat_op() == 2 {
-        Notice::info(qymcad_i18n::tr("msg-circ-array-sketch"))
     } else {
-        Notice::info(qymcad_i18n::tr("msg-lin-array-sketch"))
+        Notice::info(if armed.pat_op() == 2 { qymcad_i18n::tr("msg-circ-array-sketch") } else { qymcad_i18n::tr("msg-lin-array-sketch") })
     };
 }
 
@@ -548,7 +544,7 @@ pub fn start_array_cmd(pc: &mut qymcad_ui_state::PartCtx, cmd: u8) {
     pc.arr.axis_pick = false;
     // a full circular array asks no angle (the sync adds the field once "full" is switched off)
     pc.cmd.params = if cmd == 18 { vec![] } else { vec![qymcad_ui_state::CmdParam::new("f-pitch", "step", 25.0, 0.01, 100000.0)] };
-    *pc.status = if cmd == 18 { Notice::info(qymcad_i18n::tr("msg-circ-array")) } else { Notice::info(qymcad_i18n::tr("msg-lin-array")) };
+    *pc.status = Notice::info(if cmd == 18 { qymcad_i18n::tr("msg-circ-array") } else { qymcad_i18n::tr("msg-lin-array") });
 }
 
 /// THE CLICK THAT NAMES THE SKETCH a waiting tool asked for.

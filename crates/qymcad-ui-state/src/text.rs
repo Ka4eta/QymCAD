@@ -179,11 +179,7 @@ pub fn text_obj_editor(ed: Editing, font_cache: &mut FontCache, tc: &mut TextCtx
                 invalidate(ed.regen);
             }
             None => {
-                *ed.status = if font.family.is_empty() {
-                    Notice::warning(qymcad_i18n::tr("sk-text-font-unknown"))
-                } else {
-                    Notice::warning(qymcad_i18n::tr1("sk-text-font-gone", "name", &font.family))
-                };
+                *ed.status = Notice::warning(if font.family.is_empty() { qymcad_i18n::tr("sk-text-font-unknown") } else { qymcad_i18n::tr1("sk-text-font-gone", "name", &font.family) });
             }
         }
         close = true;

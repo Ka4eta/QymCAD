@@ -13,5 +13,7 @@ mod settings;
 pub(crate) use settings::*;
 mod params;
 pub(crate) use params::*;
+mod faults;
+pub(crate) use faults::*;
 mod library;
 pub(crate) use library::*;

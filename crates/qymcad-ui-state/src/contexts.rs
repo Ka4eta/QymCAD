@@ -919,6 +919,10 @@ pub struct StatusCtx<'a> {
     pub status: &'a Notice,
     /// The badge leads to the window, so the line must be able to open it.
     pub win: &'a mut Windows,
+    /// A fault of a parameter opens the table narrowed to its name.
+    pub par_search: &'a mut String,
+    /// A click on a single fault goes there: the request is carried out after the frame, as the windows' are.
+    pub ask: &'a mut Vec<WinAsk>,
 }
 
 /// THE MESH FORMATS a body can be written as. Their names and extensions live in the table of formats

@@ -129,7 +129,7 @@ pub(crate) fn params_rows_ui(wc: &mut qymcad_ui_state::WinCtx, ui: &mut egui::Ui
                 .enumerate()
                 .map(|(k, n)| {
                     let dup = wc.project.named_dims.iter().filter(|m| m.name == n.name).count() > 1;
-                    (k, n.name.clone(), wc.project.driver_path(&n.target), wc.project.named_dim_value(n), dup)
+                    (k, n.name.clone(), qymcad_ui_state::path_in_words(&wc.project.driver_path(&n.target)), wc.project.named_dim_value(n), dup)
                 })
                 .filter(|(_, nm, path, _, _)| hit(nm, path))
                 .collect();
@@ -247,23 +247,13 @@ pub(crate) fn params_rows_ui(wc: &mut qymcad_ui_state::WinCtx, ui: &mut egui::Ui
             }
             Act::GoTo(k) => {
                 // NAVIGATING IS NOT EDITING THE DOCUMENT: there must be no undo step here.
-                let Some(target) = wc.project.named_dims.get(k).map(|n| n.target.clone()) else { continue };
+                //
                 // THE ORDER MATTERS AND IT IS ONE REQUEST, NOT TWO. Stepping into a component clears the
                 // selection, so a selection made here and a step deferred to the end of the frame would
-                // undo each other: the jump landed nowhere.
-                match target {
-                    qymcad_core::model::DimTarget::Sketch { sketch, .. } => {
-                        let owner = wc.project.sketch_owner(sketch);
-                        if let Some(si) = wc.project.sketch_index(sketch) {
-                            wc.ask.push(qymcad_ui_state::WinAsk::GoTo { owner, sel: Sel::Sketch(si) });
-                        }
-                    }
-                    qymcad_core::model::DimTarget::Feature { node, .. } => {
-                        let owner = wc.project.timeline.iter().find(|n| n.id == node).and_then(|n| n.parent);
-                        if let Some(ti) = wc.project.timeline.iter().position(|n| n.id == node) {
-                            wc.ask.push(qymcad_ui_state::WinAsk::GoTo { owner, sel: Sel::Feature(ti) });
-                        }
-                    }
+                // undo each other: the jump landed nowhere. The road is the one a fault in the window of
+                // faults takes, so the two windows cannot come to lead to different places.
+                if let Some(g) = qymcad_ui_state::fault_goes_to(wc.project, &qymcad_ui_state::FaultPlace::Driver(k)) {
+                    wc.ask.push(qymcad_ui_state::WinAsk::GoTo { owner: g.owner, sel: g.sel });
                 }
             }
             Act::DropDriver(k) => {

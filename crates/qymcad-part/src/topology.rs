@@ -78,11 +78,7 @@ pub fn delete_sketch_full(pc: &mut qymcad_ui_state::PartCtx, sid: Id, dependents
     }
     *pc.sel = qymcad_ui_state::Sel::None;
     resync_after_topology_change(pc);
-    *pc.status = if removed.is_empty() {
-        Notice::info(qymcad_i18n::tr("sketch-deleted"))
-    } else {
-        Notice::info(qymcad_i18n::tr1("sketch-deleted-n", "n", &removed.len().to_string()))
-    };
+    *pc.status = Notice::info(if removed.is_empty() { qymcad_i18n::tr("sketch-deleted") } else { qymcad_i18n::tr1("sketch-deleted-n", "n", &removed.len().to_string()) });
     qymcad_ui_state::commit_edit(&mut pc.rebuild());
 }
 
