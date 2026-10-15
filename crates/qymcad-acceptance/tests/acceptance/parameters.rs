@@ -138,6 +138,21 @@ probe! {
 }
 
 probe! {
+    /// THE NAME OF A CONSTANT IS REFUSED IN WORDS: a formula reads `e` as the constant, so a parameter `e` would sit
+    /// in the table and nothing could reach it.
+    fn the_name_of_a_constant_is_refused() {
+        let mut s = Session::start();
+        build::into_the_first_part(&mut s);
+        let said = add_and_see(&mut s, "e", "5");
+        let constant = s.word("par-name-constant");
+        // THE TAIL AFTER THE NAME, not the head: the head ("The name ...") is the same as that of a name with a bad letter.
+        let tail = constant.rsplit('}').next().unwrap_or(&constant).trim().to_string();
+        assert!(said.iter().any(|t| t.contains(&tail)), "a parameter called \"e\" was added and nothing says the name is a constant: {said:?}");
+        assert!(!s.document().parameters.iter().any(|p| p.name == "e"), "the document took a parameter called \"e\": {:?}", s.document().parameters);
+    }
+}
+
+probe! {
     /// A FORMULA THAT CANNOT BE COUNTED HAS NO VALUE AND THE TABLE SAYS SO: an unknown name, and a circle of two
     /// parameters that live off each other.
     fn a_formula_that_cannot_be_counted_says_so() {

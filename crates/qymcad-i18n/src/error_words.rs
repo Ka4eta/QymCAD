@@ -127,6 +127,20 @@ pub fn expr_error_text(e: &qymcad_core::errors::ExprError) -> String {
     error_text(&qymcad_core::errors::CoreError::Expr(e.clone()))
 }
 
+/// A NAME A FORMULA WILL NOT TAKE -> WORDS.
+///
+/// One line for the three fields that give a name: the parameters table, the name of a sketch dimension and the
+/// name of a feature's number. The name of a constant gets a reason of its own: "letters, digits and _" says
+/// nothing about `e`, which is all of those, and the person would look for a typo that is not there.
+pub fn ident_refusal_text(name: &str) -> String {
+    use qymcad_core::drivers::{check_ident, IdentError};
+    let key = match check_ident(name) {
+        Err(IdentError::Constant) => "par-name-constant",
+        _ => "par-name-bad",
+    };
+    crate::tr1(key, "name", name.trim())
+}
+
 /// NUMBERS IN MESSAGES ARE FORMATTED HERE rather than handed to fluent: it has typography of its own
 /// (digit separators by locale), and in a diameter like 12.5 it gives 12,5 in the middle of technical
 /// text where a dot is expected.

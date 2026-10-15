@@ -1075,6 +1075,7 @@ par-name-taken =
     The name "{ $name }" is already taken by:
     { $where }
 par-name-bad = The name "{ $name }" cannot be used in a formula: letters, digits and "_" only, not starting with a digit
+par-name-constant = The name "{ $name }" belongs to a mathematical constant: a formula reads the constant there, not the parameter. Pick another name
 par-rename-step = parameter rename
 par-edit-step = parameter edit
 par-delete = Delete the parameter
@@ -1306,7 +1307,6 @@ sk-params-hint = Named values for dimensions: w=50, d=w/2. A dimension can be gi
 sk-driver-name-hint = The name of a driver dimension (a skeleton sketch): its value becomes a parameter that a part can refer to by expression
 sk-driver-label = driver:
 sk-driver-step = driver name
-sk-driver-name-bad = The name cannot be used in a formula: letters, digits and "_" only, not starting with a digit
 sk-driver-name-taken-hint = Another dimension or a global parameter already uses this name. A formula sees one name only, so two drivers cannot share it — pick another.
 sk-welcome = The tools are in the left bar. Dimensions and constraints are placed by clicking the geometry; a dimension value is set by double-clicking. A dimension can start from a point, a centre, a midpoint or the origin. Select geometry and drag it to move the whole of it.
 sk-tangency = Tangency

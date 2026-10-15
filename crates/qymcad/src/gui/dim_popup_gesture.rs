@@ -253,6 +253,23 @@ mod tests {
         assert_eq!(app.project.named_dims.len(), 1, "a taken name was applied after all — the project holds two \"len\": {:?}", app.project.named_dims);
     }
 
+    /// THE NAME OF A CONSTANT IS REFUSED IN THE POPUP, WITH ITS REASON: a formula would read `tau` as the constant
+    /// and never reach the dimension.
+    #[test]
+    fn the_name_of_a_constant_is_refused_in_the_popup() {
+        let mut app = App::default();
+        app.project.new_document();
+        let (si, ci) = sketch_with_dim(&mut app);
+        let mut p = Popup::new();
+        p.enter_driver_field(&mut app, si, ci);
+        p.type_text("tau").frame(&mut app, si, ci);
+
+        let said = crate::i18n::tr1("par-name-constant", "name", "tau");
+        assert!(p.shows(&said), "it is not said the name is a constant: expected \"{said}\", in the frame {:?}", p.drawn);
+        p.key(egui::Key::Enter).frame(&mut app, si, ci);
+        assert!(app.project.named_dims.is_empty(), "the name of a constant was applied: {:?}", app.project.named_dims);
+    }
+
     /// AN OPEN SKETCH HOLDS THE REBUILD. A dimension named in its popup and given another value - an extrusion of another
     /// sketch counted from that name - asks for no rebuild while the sketch is open; closing the sketch asks for it.
     /// Reported behaviour: naming a driver rebuilt under the sign of a rebuild while the sketch was still being drawn in.

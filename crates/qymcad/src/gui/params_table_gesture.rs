@@ -251,6 +251,22 @@ mod tests {
         assert!(t.shows(&said), "the program did not explain the refusal: \"{said}\" was expected, and the frame holds {:?}", t.drawn);
     }
 
+    /// THE NAME OF A CONSTANT IS REFUSED WITH ITS OWN REASON. Reported behaviour: a parameter `e = 5` was accepted,
+    /// and a dimension `= e * 2` came out 5.436, not 10 - a formula reads `e` as the constant.
+    #[test]
+    fn the_name_of_a_constant_is_refused_and_says_why() {
+        let mut app = app_with_params();
+        let mut t = Table::new();
+        t.enter_name(&mut app, 0);
+        t.type_text("e").frame(&mut app);
+        t.key(egui::Key::Enter).frame(&mut app);
+        t.frame(&mut app);
+
+        assert_eq!(app.project.parameters[0].name, "w", "the name \"e\" was applied - a formula reads the constant there");
+        let said = crate::i18n::tr1("par-name-constant", "name", "e");
+        assert!(t.shows(&said), "the program did not say the name is a constant: \"{said}\" was expected, and the frame holds {:?}", t.drawn);
+    }
+
     /// THE SEARCH LEAVES ONLY WHAT MATCHES.
     ///
     /// With a hundred and fifty names the list cannot be sorted out by eye. The search goes by name and

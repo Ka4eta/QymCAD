@@ -113,7 +113,7 @@ pub fn dim_expr_field_in(rc: &mut RebuildCtx, ui: &mut egui::Ui, id: Id, key: &s
             let who = rc.project.name_owner(&nm).map(|o| if o.path.is_empty() { qymcad_i18n::tr("par-owner-project") } else { o.path });
             let msg = match who {
                 Some(w) => qymcad_i18n::tr2("par-name-taken", "name", &nm, "where", &w),
-                None => qymcad_i18n::tr("sk-driver-name-bad"),
+                None => qymcad_i18n::error_words::ident_refusal_text(&nm),
             };
             crate::say(ui, &rc.scheme.pal, &crate::Notice::warning(msg), crate::NoticeSize::Small).on_hover_text(qymcad_i18n::tr("sk-driver-name-taken-hint"));
         }

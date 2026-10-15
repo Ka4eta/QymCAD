@@ -99,7 +99,7 @@ pub(crate) fn params_rows_ui(wc: &mut qymcad_ui_state::WinCtx, ui: &mut egui::Ui
                             let where_ = if o.path.is_empty() { crate::i18n::tr("par-owner-project") } else { o.path.clone() };
                             crate::i18n::tr2("par-name-taken", "name", &nm, "where", &where_)
                         }
-                        _ => crate::i18n::tr1("par-name-bad", "name", &nm),
+                        _ => crate::gui::error_words::ident_refusal_text(&nm),
                     });
                 }
 
@@ -224,7 +224,7 @@ pub(crate) fn params_rows_ui(wc: &mut qymcad_ui_state::WinCtx, ui: &mut egui::Ui
                     done
                 };
                 if done.is_err() {
-                    *wc.status = Notice::refusal(crate::i18n::tr1("par-name-bad", "name", &nm));
+                    *wc.status = Notice::refusal(crate::gui::error_words::ident_refusal_text(&nm));
                 }
             }
             Act::SetExpr(i, e) => {
