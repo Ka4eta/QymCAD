@@ -40,6 +40,14 @@ result: if the right face or edge is taken, press **Accept** in the properties a
 not, open the feature with a double-click and pick it again. The mark stays in the file until one
 or the other is done. Changed your mind after Accept — Ctrl+Z brings the mark back.
 
+## When a fillet or chamfer turns yellow: built a hair short
+
+A fillet or chamfer whose size eats a face whole — a radius as high as the step it rounds — is built
+exactly where its edges are straight between flat faces. Elsewhere it is built a hair short of the
+size, by no more than 0.001%, and its row turns yellow with the words “built a hair short of its
+size”. The part is usable as it is. If the exact size matters, make it slightly smaller or larger
+than the face it eats, and the mark goes.
+
 ## Deleting a line
 
 Select the line and press Delete. The window shows what is built on it. Only the line itself goes:

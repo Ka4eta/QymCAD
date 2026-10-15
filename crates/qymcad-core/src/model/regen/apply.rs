@@ -289,6 +289,10 @@ impl Project {
                     };
                     self.regen_warnings.insert(node_id, crate::errors::CoreError::EdgesDropped { asked: asked.max(asked0), dropped: dropped + lost0 });
                 }
+                // built a hair short of its size: said where nothing else is
+                if kernel.take_stepped_back(body) && !self.regen_warnings.contains_key(&node_id) {
+                    self.regen_warnings.insert(node_id, crate::errors::CoreError::BuiltSteppedBack);
+                }
                 true
             }
             Err(e) => {

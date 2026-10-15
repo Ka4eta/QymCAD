@@ -282,6 +282,9 @@ pub enum CoreError {
     RefFoundByPlace,
     /// A body brought in from a file failed the checks of the door and could not be repaired: it is kept as it came.
     ImportKeptAsItCame,
+    /// A WARNING, not a failure: a blend was built a hair short of its size (by 1e-5 of it at most) - at the size asked
+    /// a face vanishes whole, and the edges are not of a kind its exact construction takes.
+    BuiltSteppedBack,
     /// A shell cannot be built on this body: offsetting the faces fails inside the kernel, which raises an
     /// internal error. This is neither the user's fault nor a lost reference but a limit of the algorithm.
     ShellNotBuiltHere,
@@ -474,6 +477,7 @@ impl CoreError {
             EdgesDropped { .. } => "warn-edges-dropped".into(),
             RefFoundByPlace => "warn-ref-found-by-place".into(),
             ImportKeptAsItCame => "warn-import-kept-as-it-came".into(),
+            BuiltSteppedBack => "warn-built-stepped-back".into(),
             PushFaceOnSheet => "error-push-face-on-sheet".into(),
             NeedsSolidNotSheet => "error-needs-solid-not-sheet".into(),
             DraftFailed { .. } => "error-draft-failed".into(),
@@ -598,6 +602,7 @@ impl std::fmt::Display for CoreError {
             EdgesDropped { asked, dropped } => write!(f, "{dropped} of the {asked} edges could not be taken"),
             RefFoundByPlace => write!(f, "a reference was found by place, not by name"),
             ImportKeptAsItCame => write!(f, "the body brought in failed the checks and is kept as it came"),
+            BuiltSteppedBack => write!(f, "built a hair short of its size"),
             PushFaceOnSheet => write!(f, "push face on a sheet"),
             NeedsSolidNotSheet => write!(f, "solid tool on a sheet"),
             DraftFailed { angle } => write!(f, "draft {angle:.1} failed"),

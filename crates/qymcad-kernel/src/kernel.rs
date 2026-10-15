@@ -26,6 +26,9 @@ pub struct OcctKernel {
     /// THE EDGES A BLEND LEFT OUT, per body built: (edges asked, edges left out). A rounding that cannot take an
     /// edge builds the rest, and the node says so in words rather than going red or keeping quiet.
     pub dropped: std::cell::RefCell<std::collections::HashMap<Id, qymcad_core::feature::DroppedEdges>>,
+    /// THE BODIES BUILT A HAIR SHORT OF THEIR SIZE: refused at the size asked, built stepped back, and no exact
+    /// construction of the limiting case taken. The node says so in yellow rather than standing green off its drawing.
+    pub stepped_back: std::cell::RefCell<std::collections::HashSet<Id>>,
     /// THE REQUEST TO STOP, shared with whoever started the rebuild. The rebuild itself looks at it between nodes;
     /// an operation that runs long inside one node (recognising a mesh: 11 s of 14 s on a 160k-triangle ball in a
     /// debug build) looks at it as it goes, so that neither Cancel nor deleting the source waits for it to finish.
@@ -282,10 +285,14 @@ impl qymcad_core::feature::Kernel for OcctKernel {
             mine.insert(id, shape);
         }
         self.dropped.borrow_mut().extend(w.kernel.dropped.into_inner());
+        self.stepped_back.borrow_mut().extend(w.kernel.stepped_back.into_inner());
         self.roles.borrow_mut().extend(w.kernel.roles.into_inner());
     }
     fn take_dropped_edges(&self, body: Id) -> Option<qymcad_core::feature::DroppedEdges> {
         self.dropped.borrow_mut().remove(&body)
+    }
+    fn take_stepped_back(&self, body: Id) -> bool {
+        self.stepped_back.borrow_mut().remove(&body)
     }
 
     fn body_edge_geometry(&self, body: Id) -> Vec<(u32, Vec<[f64; 3]>, Option<([f64; 3], [f64; 3], f64)>)> {

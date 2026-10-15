@@ -145,3 +145,20 @@ fn every_limiting_blend_is_built_as_drawn() {
     let fails: Vec<String> = cases().iter().flat_map(check).collect();
     assert!(fails.is_empty(), "{} faults:\n  {}", fails.len(), fails.join("\n  "));
 }
+
+/// A LIMITING BLEND BUILT A HAIR SHORT SAYS SO. Four roundings of R5 on the top of a cube of 10 meet at its corners -
+/// a corner is a blend of its own, which the exact construction does not take - and are built stepped back: the node
+/// stands yellow with the words, not green off its drawing.
+#[test]
+fn a_limiting_blend_built_a_hair_short_says_so() {
+    let mut p = Project::default();
+    p.new_document();
+    let cube = p.add_box(10.0, 10.0, 10.0);
+    let _ = qymcad_testkit::regenerate(&mut p);
+    let top: Vec<u32> = p.regen_edges[&cube].iter().filter(|e| (e.a[2] - 10.0).abs() < 1e-9 && (e.b[2] - 10.0).abs() < 1e-9).map(|e| e.id).collect();
+    assert_eq!(top.len(), 4, "setup: the top of the cube has four edges");
+    let node = p.add_fillet(cube, 5.0, top);
+    let _ = qymcad_testkit::regenerate(&mut p);
+    assert!(!p.regen_errors.contains_key(&node), "the rounding went red: {:?}", p.regen_errors.get(&node));
+    assert_eq!(p.regen_warnings.get(&node), Some(&qymcad_core::errors::CoreError::BuiltSteppedBack), "the rounding built a hair short does not say so");
+}

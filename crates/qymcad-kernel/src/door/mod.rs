@@ -138,8 +138,12 @@ impl crate::kernel::OcctKernel {
         // the words of a refusal are those of this operation or none: an old refusal turned into an error some other way
         // left its words behind, and a refusal here without words of its own read them as its reason
         crate::clear_kernel_refusal();
-        let shape = self.attempt(&op)?;
+        self.stepped_back.borrow_mut().remove(&op.body);
+        let Attempt { shape, size } = self.attempt(&op)?;
         let built = self.finish(op.body, shape)?;
+        if size == Size::SteppedBack {
+            self.stepped_back.borrow_mut().insert(op.body);
+        }
         // kept with the body until its result lands and the table names them
         self.roles.borrow_mut().insert(op.body, op.roles);
         Ok(built)
@@ -186,8 +190,7 @@ impl crate::kernel::OcctKernel {
     /// A TRIAL OF AN OPERATION: the same work, the same steps back, the same cleaning and checks - and nothing landed.
     /// What a tool asks before it lays its node, so the answer it gets is the one the node will get.
     pub fn trial<W: Fn(&Bodies, f64) -> Result<crate::Shape, CoreError>>(&self, op: Operation<'_, W>) -> Result<crate::Shape, CoreError> {
-        let shape = self.attempt(&op)?;
-        self.clean(shape)
+        self.clean(self.attempt(&op)?.shape)
     }
 
     /// The work at the asked size; on a refusal of a sized operation, at each step back in turn - on the bodies of the
@@ -196,12 +199,12 @@ impl crate::kernel::OcctKernel {
     ///
     /// A limiting case the operation builds exactly is built so (`Operation::limit`), checked against the body stepped
     /// back: the step back stays the reference and the last resort.
-    fn attempt<W: Fn(&Bodies, f64) -> Result<crate::Shape, CoreError>>(&self, op: &Operation<'_, W>) -> Result<crate::Shape, CoreError> {
+    fn attempt<W: Fn(&Bodies, f64) -> Result<crate::Shape, CoreError>>(&self, op: &Operation<'_, W>) -> Result<Attempt, CoreError> {
         let cache = self.shapes.borrow();
         let bodies = Bodies { cache: &cache };
         let asked = (op.work)(&bodies, 1.0);
         match (asked, op.sizing) {
-            (Ok(shape), _) => Ok(shape),
+            (Ok(shape), _) => Ok(Attempt { shape, size: Size::AsAsked }),
             (Err(e), Sizing::Unsized) => Err(e),
             (Err(e), Sizing::Sized(back)) => {
                 let near = back
@@ -214,10 +217,27 @@ impl crate::kernel::OcctKernel {
                         Some(Near { shape, factor: *f })
                     })
                     .ok_or(e)?;
-                Ok(op.limit.and_then(|exact| exact(&bodies)).filter(|x| agrees(x, &near)).unwrap_or(near.shape))
+                Ok(match op.limit.and_then(|exact| exact(&bodies)).filter(|x| agrees(x, &near)) {
+                    Some(shape) => Attempt { shape, size: Size::AsAsked },
+                    None => Attempt { shape: near.shape, size: Size::SteppedBack },
+                })
             }
         }
     }
+}
+
+/// WHAT AN ATTEMPT BUILT, and at what size.
+struct Attempt {
+    shape: crate::Shape,
+    size: Size,
+}
+
+/// THE SIZE A BODY WAS BUILT AT: the one asked - by the work, or exactly by the construction of its limiting case - or a
+/// hair short of it.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Size {
+    AsAsked,
+    SteppedBack,
 }
 
 /// A BODY BUILT STEPPED BACK and the factor on the size it was built at.
