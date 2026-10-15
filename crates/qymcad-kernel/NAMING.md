@@ -63,7 +63,8 @@ In `qym_result`, in this order:
    The body worked on gives every name; a tool gives only the names its roles made.
 2. **The roles are named** (`naming::land_roles`).
 3. **Two elements became one** - coplanar faces glued into the monolith, the two sides of a strip taken out, an edge of
-   the base and of the tool lying together (`merge_names`), by one rule in every operation: a name of the document
+   the base and of the tool lying together (`merge_names`), the bindings of a profile's edges to its walls
+   (`carry_binding`), by one rule in every operation (`takes_the_name`): a name of the document
    beats a role of the operation, a role beats a positional number, and of one rank the smaller descriptor wins
    (`a_merged_wall_keeps_the_name_of_the_base`). The order of a walk never decides. A name another element already
    wears - its source went on elsewhere too - is not in the draw: one name, one element.

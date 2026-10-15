@@ -459,7 +459,7 @@ struct QymRepairHistory : QymHistory {
 
 /// A BINDING CARRIED THROUGH A HISTORY: every element of type `ty` of the shapes `before`, bound to a value, hands it
 /// to its images, or keeps it when the algorithm left it as it was; a removed element hands it to none. When two
-/// elements become one the smaller value wins, whatever the order of the walk: the pieces of an arc glued back into one
+/// elements become one the rule of every merge decides (`takes_the_name`), whatever the order of the walk: the pieces of an arc glued back into one
 /// circle keep the value of the first piece by the recipe. With the first of the walk winning, a circle cut in four
 /// took the value of whichever piece the walk met first, and the caps of its region were looked up under it in vain.
 void carry_binding(QymHistory& history, const TopTools_ListOfShape& before, TopAbs_ShapeEnum ty, TopTools_DataMapOfShapeInteger& bound);

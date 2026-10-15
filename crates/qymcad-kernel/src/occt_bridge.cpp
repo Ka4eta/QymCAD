@@ -264,6 +264,8 @@ struct TakenNames {
 // one merge always has one winner. Measured on a real part with the order deciding: one edit gave the win now to the
 // smaller name, now to the larger, and six walls lost their name to the draw. The loser is not lost: written to
 // `absorbed`, a reference to it goes on finding the face it became. Answers whether `id` took the image.
+static bool takes_the_name(int challenger, int holder);
+
 static bool merge_names(TopTools_DataMapOfShapeInteger& out, const TopoDS_Shape& image, const TopoDS_Shape& source, int id, TakenNames& record) {
     const int have = out.Find(image);
     if (have == id) return false;
@@ -277,9 +279,7 @@ static bool merge_names(TopTools_DataMapOfShapeInteger& out, const TopoDS_Shape&
     auto note = [&](int loser, int winner) {
         if (record.absorbed && qym_recipe(loser) && qym_recipe(winner)) record.absorbed->emplace_back((unsigned)loser, (unsigned)winner);
     };
-    auto rank = [](int d) { return (d & QYM_NAMED) ? 2 : (d & QYM_ROLE) ? 1 : 0; };
-    const bool wins = rank(id) > rank(have) || (rank(id) == rank(have) && rank(id) > 0 && (unsigned)id < (unsigned)have);
-    if (!wins) {
+    if (!takes_the_name(id, have)) {
         note(id, have);
         return false;
     }
@@ -399,6 +399,16 @@ void carry_ids(QymHistory& history, const TopoDS_Shape& a, TopAbs_ShapeEnum ty, 
     carry_ids_with(history, a, ty, aid, out, next, false, splits_of, splits_idx, nullptr, record);
 }
 
+// THE ONE RULE OF EVERY MERGE: whether `challenger` takes an image `holder` wears. A name of the document beats a role
+// the operation hands out now, a role beats a positional number, and of one rank the smaller value wins - in a merge of
+// names (`merge_names`) and in a merge of the bindings a profile carries to its walls (`carry_binding`) alike. The rule
+// and why: `crates/qymcad-kernel/NAMING.md`, "How the bridge names a result", step 3.
+static bool takes_the_name(int challenger, int holder) {
+    auto rank = [](int d) { return (d & QYM_NAMED) ? 2 : (d & QYM_ROLE) ? 1 : 0; };
+    if (rank(challenger) != rank(holder)) return rank(challenger) > rank(holder);
+    return (unsigned)challenger < (unsigned)holder;
+}
+
 void carry_binding(QymHistory& history, const TopTools_ListOfShape& before, TopAbs_ShapeEnum ty, TopTools_DataMapOfShapeInteger& bound) {
     TopTools_DataMapOfShapeInteger moved;
     TopTools_MapOfShape seen;
@@ -407,10 +417,10 @@ void carry_binding(QymHistory& history, const TopTools_ListOfShape& before, TopA
             const TopoDS_Shape& e = ex.Current();
             if (!bound.IsBound(e) || !seen.Add(e)) continue;
             const int value = bound.Find(e);
-            // the smaller value wins an image two elements share
+            // an image two elements share goes by the rule of every merge
             auto give = [&](const TopoDS_Shape& to) {
                 if (!moved.IsBound(to)) moved.Bind(to, value);
-                else if (value < moved.Find(to)) moved.ChangeFind(to) = value;
+                else if (takes_the_name(value, moved.Find(to))) moved.ChangeFind(to) = value;
             };
             const TopTools_ListOfShape& mod = history.Modified(e);
             if (mod.IsEmpty()) {
