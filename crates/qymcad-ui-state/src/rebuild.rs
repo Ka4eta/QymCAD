@@ -357,7 +357,7 @@ pub fn rebuild_if_dirty(rc: &mut RebuildCtx) {
     if rc.edits.open.is_some() {
         return; // an operation is under way — its closing will sum it up (one rebuild per action)
     }
-    mark_changed_params_dirty(rc.params_seen, rc.project);
+    let placement = mark_changed_params_dirty(rc.params_seen, rc.project);
     // THE REBUILD RUNNING NOW IS FOR A DOCUMENT THAT IS NO MORE: its result is thrown away on arrival, so it is asked
     // to stop rather than left to finish. Asked before anything below may return: deleting a part leaves no node
     // dirty. Reported behaviour: a part deleted while its mesh was being recognised, and the spinner went on turning
@@ -371,6 +371,9 @@ pub fn rebuild_if_dirty(rc: &mut RebuildCtx) {
     if !asked && rc.sketch_ses.editing.is_some() {
         return;
     }
+    // A MATE COUNTING FROM A CHANGED VALUE asks for the rebuild by itself: it has no node to mark, and only the placement
+    // pass of a rebuild moves it. Reported behaviour: pa made 45 under a hinge of angle pa, the part stayed at 90.
+    let asked = asked || placement;
     // THE REBUILD WAS STOPPED BY HAND — it does not start again on its own. An explicit request
     // (`asked`) clears the mark: "Rebuild everything" and any edit of the document both mean
     // "compute again".

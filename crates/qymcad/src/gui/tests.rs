@@ -51,3 +51,6 @@ pub(in crate::gui) mod a_quick_rebuild_does_not_blink;
 
 #[cfg(test)]
 mod nothing_changed_rebuilds_nothing;
+
+#[cfg(test)]
+mod a_hinge_follows_its_parameter;

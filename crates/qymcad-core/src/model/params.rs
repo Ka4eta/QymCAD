@@ -222,6 +222,13 @@ impl Project {
         }
     }
 
+    /// DOES THE PLACEMENT COUNT FROM ONE OF `names`: the angle or an offset of a mate written as a formula. A mate is no
+    /// node of the timeline - its formulas stand in `feat_dims` under its own id - so there is nothing to mark; the
+    /// placement pass of every rebuild solves it (`solve_joints`), and a rebuild has to be asked for.
+    pub fn placement_counts_from(&self, names: &[String]) -> bool {
+        self.joints.iter().filter_map(|j| self.feat_dims.get(&j.id)).any(|m| m.values().any(|e| names.iter().any(|n| crate::expr::mentions(e, n))))
+    }
+
     /// Mark every feature that has a parametric dimension expression as dirty. Called after `parameters`
     /// changed, so the dependent bodies rebuild on the next regenerate.
     pub fn mark_param_dependents_dirty(&mut self) {

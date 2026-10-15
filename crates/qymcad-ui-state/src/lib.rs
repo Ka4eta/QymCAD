@@ -420,7 +420,10 @@ pub fn edit_key(dc: &DrawCtx) -> u64 {
 /// frame asked for a rebuild — and round it went again. An open parametric document rebuilt WITHOUT
 /// END, and to no purpose: it has no live B-rep yet, so every such rebuild failed with "the source
 /// body has not been built" and left that error in the status line.
-pub fn mark_changed_params_dirty(params_seen: &std::collections::HashMap<String, f64>, project: &mut Project) {
+///
+/// Answers whether the placement counts from a changed value (`Project::placement_counts_from`): a mate has no node to
+/// mark, and its angle follows the parameter only through a rebuild asked for.
+pub fn mark_changed_params_dirty(params_seen: &std::collections::HashMap<String, f64>, project: &mut Project) -> bool {
     let vars = project.param_map();
     let mut changed: Vec<String> = vars.iter().filter(|(k, v)| params_seen.get(*k).is_none_or(|old| (*old - **v).abs() > 1e-12)).map(|(k, _)| k.clone()).collect();
     // a name that was seen and is gone - a parameter deleted - changes whatever was counted from it
@@ -428,6 +431,7 @@ pub fn mark_changed_params_dirty(params_seen: &std::collections::HashMap<String,
     for name in &changed {
         project.mark_param_dependents_dirty_for(name);
     }
+    project.placement_counts_from(&changed)
 }
 
 /// The live wireframe preview of the active command (the prism of the profile along its extent) plus the
