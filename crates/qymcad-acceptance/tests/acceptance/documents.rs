@@ -5,19 +5,6 @@ use qymcad_acceptance::probe;
 /// A sample project of the repository.
 const SAMPLE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../examples/Filter-v2.qcad");
 
-/// A DOCUMENT OF AN OLD VERSION, made by the probe for itself: the example written to a scratch file of the probe with
-/// its meshes holding no normals of the surface, as the window saved a document before it kept them. The example stays
-/// free to be saved by any build - standing on it, the probe fell at its setup each time someone did (16.10).
-fn an_old_document() -> String {
-    let mut p = qymcad_io::load_project(SAMPLE).expect("the example opens");
-    for b in p.bodies.iter_mut() {
-        b.mesh.norms.clear();
-    }
-    let path = std::env::temp_dir().join(format!("qymcad-old-document-{}.qcad", std::process::id())).to_string_lossy().into_owned();
-    qymcad_io::save_project(&p, &path).expect("the old document is written");
-    path
-}
-
 probe! {
     /// A PROJECT OPENED AND NOT TOUCHED CLOSES WITHOUT A QUESTION: there is nothing in it to save.
     fn a_project_opened_and_untouched_closes_without_a_question() {
@@ -54,7 +41,8 @@ probe! {
         if let Some(button) = s.find(&dont_save, pos2(0.0, 0.0)) {
             s.click(button.center());
         }
-        let old_document = an_old_document();
+        // a document of an old version made for the probe: the example stays free to be saved by any build
+        let old_document = Session::old_document_of(SAMPLE).expect("the old document is written");
         s.answer_file(&old_document);
         let old = s.document().bodies.iter().all(|b| b.lit_by_the_surface == 0);
         assert!(old, "setup: the old document the probe wrote holds the surface's normals");

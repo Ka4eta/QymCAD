@@ -13,7 +13,6 @@ publish = false
 # be a door around the window; `the_checks_reach_the_program_through_its_session_alone` holds it.
 [dependencies]
 qymcad = { path = "../qymcad" }
-qymcad-io.workspace = true
 
 # ONE BINARY FOR ALL THE CHECKS: every file under `tests/` would otherwise link the whole program again.
 [[test]]

@@ -332,4 +332,18 @@ impl Session {
         let breps: Vec<(qymcad_core::model::Id, Vec<u8>)> = live.shapes.iter().filter_map(|(id, sh)| live.blobs.get(id).cloned().or_else(|| sh.to_brep_bytes()).map(|b| (*id, b))).collect();
         qymcad_io::save_project_guarded_with_brep(&self.app.project, path, &breps).map_err(|e| e.to_string())
     }
+
+    /// A DOCUMENT OF AN OLD VERSION made of the file at `path`: written to a scratch file of this process with its
+    /// meshes holding no normals of the surface, as the window saved a document before it kept them. A check of what
+    /// the program does with an old document makes its own, and the file it is made of stays free to be saved by any
+    /// build. Returns where it was written.
+    pub fn old_document_of(path: &str) -> Result<String, String> {
+        let mut p = qymcad_io::load_project(path)?;
+        for b in p.bodies.iter_mut() {
+            b.mesh.norms.clear();
+        }
+        let out = std::env::temp_dir().join(format!("qymcad-old-document-{}.qcad", std::process::id())).to_string_lossy().into_owned();
+        qymcad_io::save_project(&p, &out)?;
+        Ok(out)
+    }
 }

@@ -3705,7 +3705,6 @@ name = "qymcad-acceptance"
 version = "0.1.0"
 dependencies = [
  "qymcad",
- "qymcad-io",
 ]
 
 [[package]]
