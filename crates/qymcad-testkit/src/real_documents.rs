@@ -246,7 +246,7 @@ pub fn determinism(doc: &Doc) -> Vec<String> {
 }
 
 /// THE STEPS OF THIS PROCESS, in order, since it started: every document opened, rebuilt, edited and undone. A rename
-/// of the same document comes with the state of the process as well as with the document: measured on 16.10, the
+/// of the same document comes with the state of the process as well as with the document: measured, the
 /// chamfer 11963 of the case of the examples was stepped back in 3 of 20 rebuilds with the filter rebuilt before it
 /// in the same process and in none of 20 without it, every node before 11963 giving the same body. The fault is
 /// repeated by the same steps, not by the document alone.
