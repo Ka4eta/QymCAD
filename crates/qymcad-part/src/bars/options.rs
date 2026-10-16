@@ -17,7 +17,7 @@ pub fn tool_options_bar(bc: &mut qymcad_ui_state::BarCtx, ui: &mut egui::Ui) {
             ui.separator();
             let ask = if bc.corner.at.is_some() { qymcad_i18n::tr("sk-enter-apply-expr") } else { qymcad_i18n::tr("g-fillet-all-hint") };
             ui.label(egui::RichText::new(ask).weak());
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            qymcad_ui_state::end_of_bar(ui, |ui| {
                 if ui.button(qymcad_i18n::tr("cmd-cancel-btn")).clicked() {
                     cancel = true;
                 }
@@ -50,7 +50,7 @@ pub fn tool_options_bar(bc: &mut qymcad_ui_state::BarCtx, ui: &mut egui::Ui) {
             ui.label(egui::RichText::new(qymcad_i18n::tr(name)).strong());
             ui.separator();
             ui.label(egui::RichText::new(qymcad_i18n::tr(ask)).weak());
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            qymcad_ui_state::end_of_bar(ui, |ui| {
                 if ui.button(qymcad_i18n::tr("cmd-cancel-btn")).clicked() {
                     cancel = true;
                 }
@@ -434,12 +434,8 @@ pub fn tool_options_bar(bc: &mut qymcad_ui_state::BarCtx, ui: &mut egui::Ui) {
                 }
             }
         }
-        // UNDER AN ID OF ITS OWN, not one counted after the options of the tool, which change with it: egui marked the count
-        // with a red frame each time another tool was taken
-        ui.scope_builder(egui::UiBuilder::new().id(egui::Id::new("the count of the selected in a sketch")), |ui| {
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.label(egui::RichText::new(qymcad_i18n::tr1("opt-selected-n", "n", &bc.sel_sk.items.len().to_string())).weak());
-            });
+        qymcad_ui_state::end_of_bar(ui, |ui| {
+            ui.label(egui::RichText::new(qymcad_i18n::tr1("opt-selected-n", "n", &bc.sel_sk.items.len().to_string())).weak());
         });
     });
 }

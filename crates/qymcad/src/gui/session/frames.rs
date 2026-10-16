@@ -22,6 +22,21 @@ impl Session {
         self.win.run(&mut self.app, self.held, events, false);
     }
 
+    /// THE POINT OF THE VIEW NEAREST TO `near` THAT NOTHING LIES OVER - no box of fields at the geometry, no window: a
+    /// person drags the view where the view is seen, not on a box standing over it, which takes the drag.
+    fn bare_view_near(&self, near: Pos2) -> Pos2 {
+        let canvas = self.app.viewing.view_rect.shrink2(self.app.viewing.view_rect.size() * 0.1);
+        let bare = |p: Pos2| canvas.contains(p) && self.win.ctx.layer_id_at(p).is_none_or(|l| l.order == egui::Order::Background);
+        let rings = (0..12).flat_map(|r| (0..16).map(move |k| (r, k)));
+        rings
+            .map(|(r, k)| {
+                let turn = k as f32 / 16.0 * std::f32::consts::TAU;
+                near + egui::vec2(turn.cos(), turn.sin()) * (r as f32 * 30.0)
+            })
+            .find(|p| bare(*p))
+            .unwrap_or(near)
+    }
+
     /// BRING WHAT `at` POINTS TO INTO THE MIDDLE PART OF THE CANVAS, as a person does: what is far off the canvas
     /// is first brought nearer by turning the wheel over the middle of it, and then the view is dragged with
     /// `buttons` and `modifiers` held, a part of the canvas at a time. A wheel turn or a drag that took the place
@@ -45,7 +60,8 @@ impl Session {
                 continue;
             }
             let step = ((centre - before) * drag_sign).clamp(-canvas.size() * 0.35, canvas.size() * 0.35);
-            self.drag_holding(centre, centre + step, buttons, modifiers);
+            let from = self.bare_view_near(centre);
+            self.drag_holding(from, from + step, buttons, modifiers);
             self.settle();
             if at(self).distance(centre) >= before.distance(centre) {
                 drag_sign = -drag_sign;

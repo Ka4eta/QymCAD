@@ -2,6 +2,16 @@
 
 use super::*;
 
+/// THE END OF A BAR, laid from the right, under an id of its own taken from the place in the code that draws it - not
+/// one counted after what the bar holds before it, which changes with the tool in hand: egui marked the buttons at the
+/// end with red frames each time ("the rectangle changed its id"). A call site is drawn once a frame.
+#[track_caller]
+pub fn end_of_bar<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> egui::InnerResponse<R> {
+    let at = std::panic::Location::caller();
+    let id = egui::Id::new(("the end of a bar", at.file(), at.line(), at.column()));
+    ui.scope_builder(egui::UiBuilder::new().id(id), |ui| ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), add).inner)
+}
+
 /// Keep the ANCHOR of a dimension input popup inside the viewport `rect`, so that with large values
 /// (where the geometry runs off the edge) the little window does not fly out of the frame. The popup
 /// is about 200x60 px, so room is left for it.

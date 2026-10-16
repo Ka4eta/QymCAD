@@ -73,10 +73,15 @@ pub(crate) fn hotkeys_window(wc: &mut qymcad_ui_state::WinCtx, ctx: &egui::Conte
                 // and centre the row in it.
                 ui.horizontal(|ui| {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if !wc.set.hotkeys.is_empty() && ui.button(crate::i18n::tr("hotkeys-reset-all")).clicked() {
-                            wc.set.hotkeys.clear();
-                            settle(wc.hotkeys);
-                        }
+                        // WHAT COMES AND GOES IN THE ROW UNDER IDS OF ITS OWN - the button of the reset, shown once a key is
+                        // changed, and the cross of the filter: the glass after them took another id each time, and egui
+                        // marked it with a red frame
+                        qymcad_shell::keyed(ui, "the reset of all the keys", |ui| {
+                            if !wc.set.hotkeys.is_empty() && ui.button(crate::i18n::tr("hotkeys-reset-all")).clicked() {
+                                wc.set.hotkeys.clear();
+                                settle(wc.hotkeys);
+                            }
+                        });
                         let glass = ui.fonts_mut(|f| f.layout_no_wrap(ph::MAGNIFYING_GLASS.to_string(), egui::TextStyle::Body.resolve(ui.style()), egui::Color32::WHITE).size().x);
                         // THE WHOLE FIELD, margins included: `desired_width` is the width of the text alone, and the field's
                         // own margins on top of it pushed the row, and the body with it, past the title bar
@@ -91,7 +96,7 @@ pub(crate) fn hotkeys_window(wc: &mut qymcad_ui_state::WinCtx, ctx: &egui::Conte
                             bottom: 2,
                         });
                         let resp = ui.add_sized([field, side], edit);
-                        filter_clear(ui, &resp, &mut wc.hotkeys.filter);
+                        qymcad_shell::keyed(ui, "the cross of the filter of the keys", |ui| filter_clear(ui, &resp, &mut wc.hotkeys.filter));
                         ui.label(ph::MAGNIFYING_GLASS);
                     });
                 });

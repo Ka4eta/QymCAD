@@ -155,7 +155,21 @@ impl Window {
                 self.clashes.push(t.clone());
             }
         }
-        id_clash::red_frames(&out.shapes, &mut self.clashes);
+        // each red frame named with the words written where it stands, so that a check failing on it says which widget
+        for at in id_clash::red_frames(&out.shapes) {
+            let words: Vec<&str> = self.drawn.iter().filter(|(t, w)| !t.is_empty() && w.intersects(at)).map(|(t, _)| t.as_str()).collect();
+            // and the widgets of the last frame a screen reader was told of there, by their kind and caption
+            let widgets: Vec<String> = self.widgets.iter().filter(|w| w.rect.intersects(at)).map(|w| format!("{:?} {:?}", w.kind, w.label)).collect();
+            let said = format!("a widget took another id at {at:?} {words:?} {widgets:?}");
+            if !self.clashes.contains(&said) {
+                self.clashes.push(said);
+            }
+        }
+        // NOT ONE WIDGET UNDER ANOTHER'S ID, in any frame any check draws: egui paints its complaint over the window - two
+        // widgets of a frame under one id, or a widget that took another id at its place - and a person sees red frames
+        // that no number of a check would notice. Reported behaviour: red frames on a change of workbench, on a rebuild,
+        // on a panel carried on the diagram of the layout.
+        assert!(self.clashes.is_empty(), "egui marked widgets under one id: {}", self.clashes.join("; "));
         // NOT ONE KEY OF THE CATALOGUE ON THE SCREEN INSTEAD OF A WORD, in any frame any check draws: a key the
         // catalogue lacks is drawn as it is, and nothing else would notice it
         let leaked: Vec<String> = self.drawn.iter().flat_map(|(t, _)| super::key_leak::leaks(t).into_iter().map(move |k| format!("{k:?} in {t:?}"))).collect();
