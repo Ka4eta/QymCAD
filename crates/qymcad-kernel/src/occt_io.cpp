@@ -352,6 +352,15 @@ static QymShape* off_seams_first(const QymShape* s, const uint32_t* idx, size_t 
 static QymShape* off_seams(const QymShape* s, const uint32_t* idx, size_t n, const std::function<QymShape*(const QymShape*)>& op);
 static std::vector<uint32_t> every_edge(const QymShape* s);
 
+// ONE BLEND AT A TIME in the process. Two chamfers of OCCT on two threads, each on a body of its own, clash: on the case
+// of the examples the chamfer 11963 came out invalid in 3 of 40 rebuilds, every time while a chamfer of 2 of another part
+// was being built on a neighbouring thread, and in none of 20 rebuilds on one thread. Recursive: a blend that moves the
+// seams off its edges asks itself again.
+static std::recursive_mutex& blend_lock() {
+    static std::recursive_mutex m;
+    return m;
+}
+
 // A BODY OF ITS OWN FOR A BLEND: a copy of `s` with every record of its names carried to the copy's elements. The chamfer
 // and the fillet of OCCT raise the tolerances of the edges and vertices of the body they are given (measured on the
 // case of the examples: a chamfer of 3, the sum of the tolerances of its body 0.0720624 -> 0.0744600), and those edges
@@ -385,6 +394,7 @@ extern "C" QymShape* qym_shape_fillet_all(const QymShape* s, double r) {
         QYM_SIGNALS;
         const std::vector<uint32_t> every = every_edge(s);
         if (along_a_seam(s, every.data(), every.size())) return off_seams_first(s, every.data(), every.size(), [&](const QymShape* m) { return qym_shape_fillet_all(m, r); });
+        std::lock_guard<std::recursive_mutex> one_at_a_time(blend_lock());
         const QymShape own = own_copy(*s); // the body handed stays as it was (`own_copy`)
         s = &own;
         BRepFilletAPI_MakeFillet mk(s->shape);
@@ -416,6 +426,7 @@ extern "C" QymShape* qym_shape_chamfer_all(const QymShape* s, double d) {
         QYM_SIGNALS;
         const std::vector<uint32_t> every = every_edge(s);
         if (along_a_seam(s, every.data(), every.size())) return off_seams_first(s, every.data(), every.size(), [&](const QymShape* m) { return qym_shape_chamfer_all(m, d); });
+        std::lock_guard<std::recursive_mutex> one_at_a_time(blend_lock());
         const QymShape own = own_copy(*s); // the body handed stays as it was (`own_copy`)
         s = &own;
         BRepFilletAPI_MakeChamfer mk(s->shape);
@@ -1555,6 +1566,7 @@ extern "C" QymShape* qym_shape_fillet_edges(const QymShape* s, double r, const u
     try {
         QYM_SIGNALS;
         if (along_a_seam(s, idx, n)) return off_seams_first(s, idx, n, [&](const QymShape* m) { return qym_shape_fillet_edges(m, r, idx, n, names, corners, all_names, n_all); });
+        std::lock_guard<std::recursive_mutex> one_at_a_time(blend_lock());
         const QymShape own = own_copy(*s); // the body handed stays as it was (`own_copy`)
         s = &own;
         BRepFilletAPI_MakeFillet mk(s->shape);
@@ -1611,6 +1623,7 @@ extern "C" QymShape* qym_shape_fillet_at_vertices(const QymShape* s, double r_de
             }
             return out > 0.0 ? out : r_default;
         };
+        std::lock_guard<std::recursive_mutex> one_at_a_time(blend_lock());
         const QymShape own = own_copy(*s); // the body handed stays as it was (`own_copy`)
         s = &own;
         BRepFilletAPI_MakeFillet mk(s->shape);
@@ -1655,6 +1668,7 @@ extern "C" QymShape* qym_shape_fillet_var(const QymShape* s, double r1, double r
     try {
         QYM_SIGNALS;
         if (along_a_seam(s, idx, n)) return off_seams_first(s, idx, n, [&](const QymShape* m) { return qym_shape_fillet_var(m, r1, r2, idx, n); });
+        std::lock_guard<std::recursive_mutex> one_at_a_time(blend_lock());
         const QymShape own = own_copy(*s); // the body handed stays as it was (`own_copy`)
         s = &own;
         BRepFilletAPI_MakeFillet mk(s->shape);
@@ -1685,6 +1699,7 @@ extern "C" QymShape* qym_shape_chamfer_edges(const QymShape* s, double d, const 
     try {
         QYM_SIGNALS;
         if (along_a_seam(s, idx, n)) return off_seams_first(s, idx, n, [&](const QymShape* m) { return qym_shape_chamfer_edges(m, d, idx, n, names, corners, all_names, n_all); });
+        std::lock_guard<std::recursive_mutex> one_at_a_time(blend_lock());
         const QymShape own = own_copy(*s); // the body handed stays as it was (`own_copy`)
         s = &own;
         BRepFilletAPI_MakeChamfer mk(s->shape);
@@ -1722,6 +1737,7 @@ extern "C" QymShape* qym_shape_chamfer_edges_asym(const QymShape* s, double a, d
     try {
         QYM_SIGNALS;
         if (along_a_seam(s, idx, n)) return off_seams_first(s, idx, n, [&](const QymShape* m) { return qym_shape_chamfer_edges_asym(m, a, b, mode, flip, ref_face, idx, n, names, corners, all_names, n_all); });
+        std::lock_guard<std::recursive_mutex> one_at_a_time(blend_lock());
         const QymShape own = own_copy(*s); // the body handed stays as it was (`own_copy`)
         s = &own;
         BRepFilletAPI_MakeChamfer mk(s->shape);
