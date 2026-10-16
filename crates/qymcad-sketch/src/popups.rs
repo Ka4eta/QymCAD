@@ -889,7 +889,20 @@ pub fn dim_editor(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Context, rect
     if want_focus {
         buf = if cur_expr.trim().is_empty() { qymcad_core::expr::fmt_num(cur_val) } else { cur_expr.clone() };
     }
-    let eval_res = if buf.trim().is_empty() { None } else { Some(sk.project.eval_expr(&buf)) };
+    // A FORMULA THAT COMES BACK TO THE NAME OF THIS VERY DIMENSION has no value to take, as the table of parameters says
+    // (`check_dim_target_text`): taken, `dia + 1` written for `dia` added one on every solve - measured 20 -> 24 over the
+    // solves of one edit and two more. It is judged where every other formula with no value is, so the reason stands under
+    // the field while typing and Enter is refused with it.
+    let own =
+        sk.project.sketches[si].constraints.get(ci).and_then(Project::dim_refs).map(|r| qymcad_core::model::DimTarget::Sketch { sketch: sk.project.sketches[si].id, refs: Project::dim_key_pub(&r) });
+    let eval_res = if buf.trim().is_empty() {
+        None
+    } else {
+        Some(match &own {
+            Some(target) => sk.project.check_dim_target_text(target, &buf),
+            None => sk.project.eval_expr(&buf),
+        })
+    };
     let (mut toggle_driven, mut toggle_diam) = (false, false);
     let mut name_taken = false;
     let is_edge = matches!(sk.project.sketches[si].constraints.get(ci), Some(Constraint::EdgeDistance { .. }));

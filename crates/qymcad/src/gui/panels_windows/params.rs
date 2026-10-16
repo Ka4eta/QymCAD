@@ -381,3 +381,6 @@ pub(crate) fn apply_param_edit(wc: &mut qymcad_ui_state::WinCtx) {
 
 #[cfg(test)]
 mod tests;
+/// The popup of a sketch dimension and the fields of a feature's number refuse a formula leaning on itself as the table does.
+#[cfg(test)]
+mod leans_on_itself;

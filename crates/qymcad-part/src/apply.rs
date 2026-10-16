@@ -99,7 +99,9 @@ pub fn apply_feat_cmd(pc: &mut qymcad_ui_state::PartCtx) {
     // NOTHING TO APPLY YET: Enter is refused in words, the command's own ask repeated, and the document untouched -
     // unless the command names what is missing itself (the axis, the faces, the patch's edges, the trimmed sheet)
     // A FIELD THAT CANNOT BE TAKEN refuses Enter as it closes the Apply button: Enter comes from the keyboard, past it
-    if let Some((label, msg)) = pc.cmd.params.iter().find_map(|p| field_value(p, &pc.project.param_map()).err().map(|m| (qymcad_i18n::tr(p.label_key()), m))) {
+    let vars = pc.project.param_map();
+    let refused = |p: &qymcad_ui_state::CmdParam| field_value(p, &vars).err().or_else(|| field_leans_on_itself(p, pc.project, pc.cmd.edit));
+    if let Some((label, msg)) = pc.cmd.params.iter().find_map(|p| refused(p).map(|m| (qymcad_i18n::tr(p.label_key()), m))) {
         *pc.status = Notice::refusal(format!("{label}: {msg}"));
         return;
     }

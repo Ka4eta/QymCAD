@@ -368,7 +368,23 @@ pub fn sync_dir_cmd_params(armed: &qymcad_ui_state::Armed, cmd: &mut qymcad_ui_s
 /// be applied silently. This gates Apply (both Enter and the buttons) and marks the field in the popup.
 pub fn cmd_exprs_valid(cmd: &qymcad_ui_state::FeatCommand, project: &Project) -> bool {
     let vars = project.param_map();
-    cmd.params.iter().all(|p| field_value(p, &vars).is_ok())
+    cmd.params.iter().all(|p| field_value(p, &vars).is_ok() && field_leans_on_itself(p, project, cmd.edit).is_none())
+}
+
+/// WHAT A FIELD OF A COMMAND OPENED ON NODE `edit` CANNOT TAKE beyond what [`field_value`] refuses, in words: a formula
+/// that comes back to the name given to this very number, as the table of parameters refuses it
+/// (`Project::check_dim_target_text`). Taken, `depth*2` written for the height named `depth` left `depth` with no value
+/// and the extrusion with no height. A new command's numbers have no name yet, so only an edit is asked.
+pub fn field_leans_on_itself(p: &qymcad_ui_state::CmdParam, project: &Project, edit: Option<Id>) -> Option<String> {
+    let target = qymcad_core::model::DimTarget::Feature { node: edit?, key: p.key.clone() };
+    // asked on every frame the bar is drawn: a number with no name has nothing to come back to, and costs no evaluation
+    if project.name_of_target(&target).is_empty() {
+        return None;
+    }
+    match project.check_dim_target_text(&target, &p.txt) {
+        Err(e @ qymcad_core::errors::ExprError::LeansOnItself(_)) => Some(qymcad_i18n::error_words::expr_error_text(&e)),
+        _ => None,
+    }
 }
 
 /// WHAT A FIELD OF A COMMAND HOLDS: its expression worked out, or in words why it cannot be taken - an expression that
