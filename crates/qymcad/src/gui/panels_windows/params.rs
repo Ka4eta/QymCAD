@@ -43,8 +43,9 @@ pub(crate) fn params_rows_ui(wc: &mut qymcad_ui_state::WinCtx, ui: &mut egui::Ui
     enum Act {
         Rename(usize, String),
         SetExpr(usize, String),
-        /// A driving dimension's value (or a feature's parameter) is edited straight from the table.
-        SetDriver(usize, f64),
+        /// A driving dimension's value (or a feature's parameter) is edited straight from the table: the text as typed,
+        /// a formula kept as a formula.
+        SetDriver(usize, String),
         DropDriver(usize),
         /// Go to whatever was named: the dimension's sketch, or the feature.
         GoTo(usize),
@@ -172,12 +173,13 @@ pub(crate) fn params_rows_ui(wc: &mut qymcad_ui_state::WinCtx, ui: &mut egui::Ui
                 match val {
                     Some(v) => {
                         let id = egui::Id::new(("drv_val", k));
-                        let shown = qymcad_core::expr::fmt_num(v);
+                        // THE FORMULA WHEN THERE IS ONE, the number otherwise - what was typed, as the popup of the
+                        // dimension shows it; on Enter the text goes in as typed. Reported behaviour: a formula typed
+                        // here became a constant - `a_len/4` with `a_len` = 40 stayed 10 when `a_len` went to 60.
+                        let shown = wc.project.named_dims.get(k).and_then(|n| wc.project.dim_target_expr(&n.target)).unwrap_or_else(|| qymcad_core::expr::fmt_num(v));
                         let r = super::expr_field::expr_field(ui, &*wc.project, id, &shown, w_expr, &crate::i18n::tr("par-example"));
-                        if r.committed && r.text.trim() != shown {
-                            if let Ok(nv) = wc.project.eval_expr(&r.text) {
-                                acts.push(Act::SetDriver(k, nv));
-                            }
+                        if r.committed && r.text.trim() != shown.trim() {
+                            acts.push(Act::SetDriver(k, r.text.trim().to_string()));
                         }
                         ui.label(format!("{v:.3}"));
                     }
@@ -239,10 +241,16 @@ pub(crate) fn params_rows_ui(wc: &mut qymcad_ui_state::WinCtx, ui: &mut egui::Ui
                 }
                 *dirty = true;
             }
-            Act::SetDriver(k, v) => {
+            Act::SetDriver(k, text) => {
                 let Some(target) = wc.project.named_dims.get(k).map(|n| n.target.clone()) else { continue };
+                // A TEXT THAT IS NOT TAKEN IS REFUSED BEFORE THE STEP OPENS, so it leaves no empty step of undo: a formula
+                // with no value now, or one that comes back to this very name and would drift on every evaluation.
+                if let Err(e) = wc.project.check_dim_target_text(&target, &text) {
+                    *wc.status = Notice::refusal(crate::gui::error_words::expr_error_text(&e));
+                    continue;
+                }
                 let mut ed = qymcad_ui_state::edit_over(wc.rebuild(), crate::i18n::tr("par-edit-step"));
-                let done = ed.project().set_dim_target_value(&target, v);
+                let done = ed.project().set_dim_target_text(&target, &text).unwrap_or(false);
                 // THE SKETCH IS RESOLVED EXACTLY ONCE - here, on commit - AND THE BODIES STANDING ON IT ARE
                 // MARKED FOR REBUILD.
                 //

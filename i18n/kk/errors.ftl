@@ -214,6 +214,7 @@ error-expr-unexpected-end = өрнек тым ерте аяқталады: са�
 error-expr-trailing-input = «{ $what }» жанында артық енгізу
 error-expr-not-a-number = Нәтиже сан емес (нөлге бөлу ме?)
 error-expr-too-deep = Формула { $limit } деңгейден тереңірек салынған — жақшалар, функциялар, таңбалар немесе дәрежелер бір-бірінің ішінде
+error-expr-leans-on-itself = Формула { $what } атауының өзіне қайта оралады — оны басқа атаулар арқылы жазыңыз
 
 ## A message from the kernel itself — passed through untranslated: it is diagnostics, not prose.
 

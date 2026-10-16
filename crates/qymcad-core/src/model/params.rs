@@ -11,11 +11,31 @@ impl Project {
         let mut m: std::collections::HashMap<String, f64> = self.parameters.iter().filter(|p| !p.name.is_empty()).map(|p| (p.name.clone(), p.value)).collect();
         // Named driving dimensions (the skeleton sketch of an assembly): a name resolves to a dimension
         // value, which parts then consume through expressions.
-        for nd in &self.named_dims {
-            if !nd.name.is_empty() {
-                if let Some(v) = self.named_dim_value(nd) {
+        for nd in self.named_dims.iter().filter(|nd| !nd.name.is_empty() && matches!(nd.target, DimTarget::Sketch { .. })) {
+            if let Some(v) = self.named_dim_value(nd) {
+                m.insert(nd.name.clone(), v);
+            }
+        }
+        // A FEATURE'S NAMED NUMBER IS READ IN THE SAME SCOPE AS THE REBUILD READS IT: its formula may name a sketch
+        // dimension or another feature's number, not only a global parameter. Evaluated against the global parameters
+        // alone, `depth = a_len/4` gave no value, and the table said the dimension was gone while the body stood 10 deep.
+        // Up to eight passes, so a number written through another feature's number settles whichever order they stand in.
+        let features: Vec<&NamedDim> = self.named_dims.iter().filter(|nd| !nd.name.is_empty() && matches!(nd.target, DimTarget::Feature { .. })).collect();
+        for _ in 0..8 {
+            let mut changed = false;
+            for nd in &features {
+                let DimTarget::Feature { node, key } = &nd.target else { continue };
+                let v = match self.feat_dim(*node, key).filter(|e| !e.trim().is_empty()) {
+                    Some(e) => crate::expr::eval(e, &m).ok(),
+                    None => self.timeline.iter().find(|n| n.id == *node).and_then(|n| n.kind.dim(key)),
+                };
+                if let Some(v) = v {
+                    changed |= m.get(&nd.name).is_none_or(|o| (o - v).abs() > 1e-12);
                     m.insert(nd.name.clone(), v);
                 }
+            }
+            if !changed {
+                break;
             }
         }
         m
@@ -130,10 +150,7 @@ impl Project {
         match target {
             DimTarget::Sketch { sketch, refs } => {
                 let Some(si) = self.sketch_index(*sketch) else { return false };
-                let want: std::collections::BTreeSet<Id> = refs.iter().copied().collect();
-                let Some(ci) = self.sketches[si].constraints.iter().position(|c| Self::dim_refs(c).is_some_and(|r| r.into_iter().collect::<std::collections::BTreeSet<Id>>() == want)) else {
-                    return false;
-                };
+                let Some(ci) = self.dim_index(si, refs) else { return false };
                 // An entered value overrides the expression: a typed number has to stay, instead of losing
                 // to the previous formula on the next evaluation.
                 match self.sketches[si].constraints.get_mut(ci) {
@@ -169,6 +186,100 @@ impl Project {
                 true
             }
         }
+    }
+
+    /// The index of the dimensional constraint of sketch `si` addressed by `refs`, in either order of its entities.
+    pub(crate) fn dim_index(&self, si: usize, refs: &[Id]) -> Option<usize> {
+        let want: std::collections::BTreeSet<Id> = refs.iter().copied().collect();
+        self.sketches.get(si)?.constraints.iter().position(|c| Self::dim_refs(c).is_some_and(|r| r.into_iter().collect::<std::collections::BTreeSet<Id>>() == want))
+    }
+
+    /// THE FORMULA OF WHATEVER WAS NAMED, as it was typed: the expression of a sketch dimension or of a feature's number.
+    /// `None` when it holds a plain number - the table of parameters then shows the number.
+    pub fn dim_target_expr(&self, target: &DimTarget) -> Option<String> {
+        let e = match target {
+            DimTarget::Sketch { sketch, refs } => {
+                let si = self.sketch_index(*sketch)?;
+                self.sketches[si].constraints.get(self.dim_index(si, refs)?)?.expr()?.to_string()
+            }
+            DimTarget::Feature { node, key } => self.feat_dim(*node, key)?.to_string(),
+        };
+        (!e.trim().is_empty()).then_some(e)
+    }
+
+    /// SET WHATEVER WAS NAMED FROM THE TEXT TYPED FOR IT IN THE TABLE OF PARAMETERS. A plain number makes it a constant
+    /// ([`Project::set_dim_target_value`]); a formula is kept as typed with the number it gives now beside it, so it
+    /// follows the names it reads on every evaluation, as a formula typed at the dimension itself does.
+    ///
+    /// Reported behaviour: the table evaluated what was typed and kept the number - with the width named `a_len` = 40,
+    /// `a_len/4` typed for the height became the constant 10, and the width changed to 60 left the height at 10.
+    ///
+    /// Refused with the document untouched: a formula that gives no number now, and one that comes back to the name of
+    /// this very target through the names it reads, which would drift on every evaluation instead of standing. Answers
+    /// whether anything was written: `Ok(false)` when the target is gone.
+    ///
+    /// The sketch is not re-solved here, as in [`Project::set_dim_target_value`].
+    pub fn set_dim_target_text(&mut self, target: &DimTarget, text: &str) -> Result<bool, crate::errors::ExprError> {
+        let t = text.trim();
+        if let Ok(v) = t.parse::<f64>() {
+            return Ok(self.set_dim_target_value(target, v));
+        }
+        let v = self.check_dim_target_text(target, t)?;
+        if !self.set_dim_target_value(target, v) {
+            return Ok(false);
+        }
+        match target {
+            DimTarget::Sketch { sketch, refs } => {
+                let si = self.sketch_index(*sketch);
+                let ci = si.and_then(|si| self.dim_index(si, refs));
+                if let Some(e) = si.zip(ci).and_then(|(si, ci)| self.sketches[si].constraints.get_mut(ci)).and_then(Constraint::expr_mut) {
+                    *e = t.to_string();
+                }
+            }
+            DimTarget::Feature { node, key } => self.set_feat_dim(*node, key, t.to_string()),
+        }
+        Ok(true)
+    }
+
+    /// WHAT [`Project::set_dim_target_text`] WOULD REFUSE, asked before an undo step is opened for it: the number the text
+    /// gives now, or why it is not taken. A refusal leaves no step behind.
+    pub fn check_dim_target_text(&self, target: &DimTarget, text: &str) -> Result<f64, crate::errors::ExprError> {
+        let t = text.trim();
+        if self.comes_back_to(target, t) {
+            return Err(crate::errors::ExprError::LeansOnItself(self.name_of_target(target)));
+        }
+        self.eval_expr(t)
+    }
+
+    /// DOES `formula` COME BACK TO THE NAME OF `target`: through the names it reads, the formulas of those names, and on
+    /// down. Global parameters and named numbers share one scope, so both are followed. An unnamed target has no name to
+    /// come back to.
+    fn comes_back_to(&self, target: &DimTarget, formula: &str) -> bool {
+        let name = self.name_of_target(target);
+        if name.is_empty() {
+            return false;
+        }
+        let mut seen: Vec<String> = Vec::new();
+        let mut todo: Vec<String> = vec![formula.to_string()];
+        while let Some(f) = todo.pop() {
+            for n in self.parameters.iter().map(|p| &p.name).chain(self.named_dims.iter().map(|d| &d.name)) {
+                if n.is_empty() || !crate::expr::mentions(&f, n) {
+                    continue;
+                }
+                if *n == name {
+                    return true;
+                }
+                if seen.contains(n) {
+                    continue;
+                }
+                seen.push(n.clone());
+                let read = self.parameters.iter().find(|p| p.name == *n).map(|p| p.expr.clone());
+                if let Some(e) = read.or_else(|| self.named_dims.iter().find(|d| d.name == *n).and_then(|d| self.dim_target_expr(&d.target))) {
+                    todo.push(e);
+                }
+            }
+        }
+        false
     }
 
     /// Remove a driver name.

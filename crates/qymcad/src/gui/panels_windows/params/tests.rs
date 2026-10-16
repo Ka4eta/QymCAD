@@ -22,6 +22,68 @@ fn rectangle_with_two_drivers(app: &mut App) -> usize {
     si
 }
 
+/// The height of the rectangle as the sketch stands: the distance between its second and third corners. A distance, not a
+/// difference of y: the sketch holds no horizontal or vertical, and its sides may lean after a solve.
+fn height(app: &App, si: usize) -> f64 {
+    let p = &app.project.sketches[si].points;
+    (p[2].x - p[1].x).hypot(p[2].y - p[1].y)
+}
+
+/// A FORMULA TYPED INTO THE ROW OF A NAMED DIMENSION STAYS A FORMULA: the height written as `a_len/4` follows the width
+/// when the width is changed in the same table, and the row shows the formula, not the number it gave once.
+///
+/// Reported behaviour: the table evaluated what was typed and kept the number - a formula of a named dimension became a
+/// constant, and the name it read changed without it.
+#[test]
+fn a_formula_typed_for_a_named_dimension_follows_its_names() {
+    let mut app = App::default();
+    let si = rectangle_with_two_drivers(&mut app);
+    let mut hand = Hand::new(&mut app);
+    assert!(hand.press_word(&crate::i18n::tr("wb-params"), egui::pos2(0.0, 0.0)), "the button of the parameters is not on screen");
+    assert!(hand.type_after_word("b_len", "a_len/4"), "the value of b_len is not on screen");
+    hand.key(egui::Key::Enter).settle();
+    assert!(hand.type_after_word("a_len", "60"), "the value of a_len is not on screen");
+    hand.key(egui::Key::Enter).settle();
+    assert!((height(hand.app, si) - 15.0).abs() < 1e-6, "the width went to 60 and the height written as a_len/4 stands at {}", height(hand.app, si));
+    assert!(hand.written_at("a_len/4").is_some(), "the row of b_len does not show the formula typed into it");
+}
+
+/// A NUMBER TYPED OVER THE FORMULA REPLACES IT: the height becomes a constant and no longer follows the width.
+#[test]
+fn a_number_typed_over_a_formula_makes_the_dimension_a_constant() {
+    let mut app = App::default();
+    let si = rectangle_with_two_drivers(&mut app);
+    let mut hand = Hand::new(&mut app);
+    assert!(hand.press_word(&crate::i18n::tr("wb-params"), egui::pos2(0.0, 0.0)), "the button of the parameters is not on screen");
+    assert!(hand.type_after_word("b_len", "a_len/4"), "the value of b_len is not on screen");
+    hand.key(egui::Key::Enter).settle();
+    assert!(hand.type_after_word("b_len", "25"), "the value of b_len is not on screen");
+    hand.key(egui::Key::Enter).settle();
+    assert!(hand.written_at("a_len/4").is_none(), "the formula stays in the row of b_len after a number was typed over it");
+    assert!(hand.type_after_word("a_len", "60"), "the value of a_len is not on screen");
+    hand.key(egui::Key::Enter).settle();
+    assert!((height(hand.app, si) - 25.0).abs() < 1e-6, "the height typed as 25 followed the width to {}", height(hand.app, si));
+}
+
+/// A FORMULA THAT COMES BACK TO ITS OWN NAME IS REFUSED, said on the status line in the tone of a refusal, and the document
+/// is left as it was with no step of undo. Taken, `b_len + 1` would add one to the height on every evaluation.
+#[test]
+fn a_formula_that_comes_back_to_its_own_name_is_refused() {
+    let mut app = App::default();
+    rectangle_with_two_drivers(&mut app);
+    let pal = app.scheme.pal.clone();
+    let undo_before = app.disk.edits.undo.len();
+    let mut hand = Hand::new(&mut app);
+    assert!(hand.press_word(&crate::i18n::tr("wb-params"), egui::pos2(0.0, 0.0)), "the button of the parameters is not on screen");
+    assert!(hand.type_after_word("b_len", "b_len + 1"), "the value of b_len is not on screen");
+    hand.key(egui::Key::Enter).settle();
+    let why = crate::gui::error_words::expr_error_text(&qymcad_core::errors::ExprError::LeansOnItself("b_len".into()));
+    let said = hand.status_painted().into_iter().find(|w| w.text.contains(&why));
+    assert!(said.as_ref().is_some_and(|w| w.colour == pal.error_mild()), "the status line does not refuse b_len + 1 in the tone of a refusal: {:?}", said.map(|w| (w.text, w.colour)));
+    assert_eq!(hand.app.project.param_map().get("b_len"), Some(&20.0), "a formula leaning on itself changed b_len");
+    assert_eq!(hand.app.disk.edits.undo.len(), undo_before, "a refused formula left a step of undo");
+}
+
 /// A NUMBER AT THE END OF A FORMULA IS NO NAME, and Enter after it applies the formula. A name does not begin with a digit,
 /// so the list of names has nothing to offer for `2`.
 ///

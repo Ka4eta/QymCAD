@@ -208,6 +208,10 @@ pub enum ExprError {
     /// another. The parser goes down one call per level, and a stored formula nested a few thousand deep ran the
     /// stack out and ended the program (`expr::MAX_FORMULA_DEPTH`).
     TooDeep { limit: usize },
+    /// The formula of a named number comes back to that name through the names it reads: `b = a/2` typed while `a`
+    /// is written as `b*2`, or `b = b + 1`. Every evaluation would take the last value and give a new one, so the
+    /// number drifts on each rebuild instead of standing.
+    LeansOnItself(String),
 }
 
 /// A kernel error: a fact rather than a phrase, with the words supplied by the application.
@@ -550,6 +554,7 @@ impl ExprError {
             TrailingInput(_) => "error-expr-trailing-input",
             NotANumber => "error-expr-not-a-number",
             TooDeep { .. } => "error-expr-too-deep",
+            LeansOnItself(_) => "error-expr-leans-on-itself",
         }
     }
 }
@@ -630,6 +635,7 @@ impl std::fmt::Display for ExprError {
             ExpectedParenAfterArgs => write!(f, "expected ')' after arguments"),
             NotANumber => write!(f, "result is not a number"),
             TooDeep { limit } => write!(f, "the formula nests deeper than {limit} levels"),
+            LeansOnItself(n) => write!(f, "the formula comes back to {n} itself"),
         }
     }
 }
