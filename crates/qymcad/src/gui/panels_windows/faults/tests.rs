@@ -314,24 +314,30 @@ fn a_driver_without_its_dimension_is_said_and_led_to_the_table() {
     assert!(row.as_ref().is_some_and(|w| w.colour == pal.warning()), "the row of the driver in the table does not say in yellow that its dimension is gone: {:?}", row.map(|w| (w.text, w.colour)));
 }
 
+/// `saved` written to disk as `file` and opened as the window opens a file: read in the queue of the window, the rebuild of a
+/// live window after it.
+fn saved_and_opened(mut saved: App, file: &str) -> App {
+    let dir = std::env::temp_dir().join("qym_faults_constant_name");
+    std::fs::create_dir_all(&dir).expect("the directory for the check");
+    let path = dir.join(file).to_string_lossy().into_owned();
+    crate::gui::set_project_path(&mut saved.disk.project_path, &mut saved.set, path.clone());
+    saved.save_project();
+    saved.wait_bg();
+    let mut app = App::default();
+    app.regen.ui_running = true;
+    crate::gui::io_jobs::spawn_project_load(&mut app.regen, path);
+    app.drain_busy_for_test();
+    app
+}
+
 /// A DOCUMENT WITH A PARAMETER NAMED `pi` IS NOT SILENT ON OPENING: naming refuses the name, but a document read from
 /// disk may hold it, and a formula reads the constant there. The badge counts it, a click says in yellow what is wrong
 /// and leads to the table narrowed to the parameter, where its row says the reason.
 #[test]
 fn a_parameter_named_like_a_constant_is_counted_said_and_led_to() {
-    let dir = std::env::temp_dir().join("qym_faults_constant_name");
-    std::fs::create_dir_all(&dir).expect("the directory for the check");
-    let path = dir.join("pi.qcad").to_string_lossy().into_owned();
     let mut saved = App::default();
     saved.project.parameters.push(qymcad_core::model::Param { name: "pi".into(), expr: "7".into(), value: 7.0 });
-    crate::gui::set_project_path(&mut saved.disk.project_path, &mut saved.set, path.clone());
-    saved.save_project();
-    saved.wait_bg();
-
-    let mut app = App::default();
-    app.regen.ui_running = true;
-    crate::gui::io_jobs::spawn_project_load(&mut app.regen, path);
-    app.drain_busy_for_test();
+    let mut app = saved_and_opened(saved, "parameter-pi.qcad");
     assert!(app.project.parameters.iter().any(|p| p.name == "pi"), "setup: the document opened without its parameter `pi`");
     let pal = app.scheme.pal.clone();
     let mut hand = Hand::new(&mut app);
@@ -346,4 +352,59 @@ fn a_parameter_named_like_a_constant_is_counted_said_and_led_to() {
     assert_eq!(hand.app.par_search, "pi", "the table is not narrowed to the parameter");
     let why = crate::gui::error_words::ident_refusal_text("pi");
     assert!(hand.painted_words().iter().any(|w| w.text.contains(&why) && w.rect.max.y < 860.0), "the table does not say why the name `pi` will not do");
+}
+
+/// A DIMENSION OF A SKETCH NAMED `tau` AND A NUMBER OF A FEATURE NAMED `pi`, IN A DOCUMENT FROM DISK, ARE COUNTED AS A
+/// PARAMETER SO NAMED IS: a formula reads the constant there and never the dimension. A click on the badge leads to where
+/// the dimension stands - its sketch, the node of its feature - and the field of the number says why its name will not
+/// do.
+#[test]
+fn a_dimension_named_like_a_constant_is_counted_said_and_led_to() {
+    let mut failures = Vec::new();
+    for case in ["a sketch dimension", "a feature number"] {
+        let mut saved = crate::gui::screen_keys::tests::plate();
+        let sketch = saved.project.sketches[0].id;
+        let name = if case == "a sketch dimension" { "tau" } else { "pi" };
+        let target = match case {
+            "a sketch dimension" => {
+                let s = &mut saved.project.sketches[0];
+                let left = s.points.iter().min_by(|p, q| p.x.total_cmp(&q.x)).expect("the points of the plate").id;
+                let right = s.points.iter().max_by(|p, q| p.x.total_cmp(&q.x)).expect("the points of the plate").id;
+                s.constraints.push(qymcad_core::model::Constraint::Distance { a: left, b: right, d: 40.0, off: 0.0, expr: String::new(), driven: false, axis: 0, at: None });
+                qymcad_core::model::DimTarget::Sketch { sketch, refs: qymcad_core::model::Project::dim_key_pub(&[left, right]) }
+            }
+            _ => {
+                let node = saved.project.timeline.iter().find(|n| n.kind.body().is_some()).expect("the extrusion of the plate").id;
+                qymcad_core::model::DimTarget::Feature { node, key: "height".into() }
+            }
+        };
+        // written straight into the document, as a file from disk holds it: naming refuses the name
+        saved.project.named_dims.push(qymcad_core::model::NamedDim { name: name.into(), target: target.clone() });
+        let mut app = saved_and_opened(saved, &format!("dimension-{name}.qcad"));
+        let want = match &target {
+            qymcad_core::model::DimTarget::Sketch { sketch, .. } => app.project.sketch_index(*sketch).map(Sel::Sketch),
+            qymcad_core::model::DimTarget::Feature { node, .. } => app.project.timeline.iter().position(|n| n.id == *node).map(Sel::Feature),
+        };
+        let mut hand = Hand::new(&mut app);
+        hand.settle();
+        let Some(badge) = hand.status_badge(qymcad_ui_state::Tone::Warning) else {
+            failures.push(format!("{case} named `{name}`: no yellow badge"));
+            continue;
+        };
+        hand.click_screen(badge.rect.center()).settle();
+        if want.as_ref() != Some(&hand.app.chosen.sel) {
+            failures.push(format!("{case} named `{name}`: a click did not lead to where it stands"));
+        }
+        // THE FIELD OF THE NUMBER SAYS WHY ITS NAME WILL NOT DO, not that it is taken: the number holds the name itself
+        if case == "a feature number" {
+            let taken = crate::i18n::tr2("par-name-taken", "name", name, "where", "");
+            let taken = taken.trim();
+            let why = crate::gui::error_words::ident_refusal_text(name);
+            let drawn: Vec<String> = hand.words_drawn().iter().map(|(t, _)| t.clone()).collect();
+            if drawn.iter().any(|t| t.contains(taken)) || !drawn.iter().any(|t| t.contains(&why)) {
+                failures.push(format!("{case} named `{name}`: its field does not say why the name will not do: {drawn:?}"));
+            }
+        }
+    }
+    assert!(failures.is_empty(), "a dimension named like a constant:\n{}", failures.join("\n"));
 }

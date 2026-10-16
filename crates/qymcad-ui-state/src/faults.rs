@@ -300,6 +300,18 @@ fn parameter_faults(project: &Project) -> Vec<Fault> {
     for p in project.parameters.iter().filter(|p| qymcad_core::expr::is_constant(&p.name)) {
         out.push(Fault { tone: Tone::Warning, words: qymcad_i18n::tr("par-name-is-constant"), path: p.name.clone(), place: FaultPlace::Parameter(p.name.clone()), owner: None });
     }
+    // A DIMENSION OF A SKETCH OR A NUMBER OF A FEATURE NAMED SO, the same; a click leads to where it stands - its sketch,
+    // its node - as a click on a parameter leads to its row.
+    for d in project.named_dims.iter().filter(|d| qymcad_core::expr::is_constant(&d.name)) {
+        let place = match &d.target {
+            qymcad_core::model::DimTarget::Sketch { sketch, .. } => FaultPlace::Sketch(*sketch),
+            qymcad_core::model::DimTarget::Feature { node, .. } => FaultPlace::Node(*node),
+        };
+        let at = project.driver_path(&d.target);
+        let path = if at.is_empty() { d.name.clone() } else { format!("{}.{}", path_in_words(&at), d.name) };
+        let owner = fault_goes_to(project, &place).and_then(|g| g.owner);
+        out.push(Fault { tone: Tone::Warning, words: qymcad_i18n::tr("par-name-is-constant"), path, place, owner });
+    }
     for (k, d) in project.named_dims.iter().enumerate() {
         if project.named_dim_value(d).is_none() {
             // the path is where the dimension stood: the name is in the words already

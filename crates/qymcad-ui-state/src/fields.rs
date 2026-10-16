@@ -110,7 +110,10 @@ pub fn dim_expr_field_in(rc: &mut RebuildCtx, ui: &mut egui::Ui, id: Id, key: &s
             mark_dirty_for_rebuild(rc);
         }
         if !nm.is_empty() && !name_ok {
-            let who = rc.project.name_owner(&nm).map(|o| if o.path.is_empty() { qymcad_i18n::tr("par-owner-project") } else { o.path });
+            // THE OWNER IS SOMEBODY ELSE: the number keeps its own name in the field, and a name of its own that will not
+            // do (`pi` from a document on disk) is unfit, not taken. The path is said in words, as the tree says it.
+            let other = rc.project.driver_name_taken_by(&nm, &target);
+            let who = rc.project.name_owner(&nm).filter(|_| other).map(|o| if o.path.is_empty() { qymcad_i18n::tr("par-owner-project") } else { crate::path_in_words(&o.path) });
             // THE HINT GIVES THE SAME REASON AS THE LINE: "taken" only when somebody holds the name. Reported
             // behaviour: over `pi`, which nobody holds, the hint said another dimension already used the name.
             let hint = if who.is_some() { qymcad_i18n::tr("sk-driver-name-taken-hint") } else { qymcad_i18n::error_words::ident_refusal_text(&nm) };

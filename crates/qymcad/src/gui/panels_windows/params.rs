@@ -96,7 +96,7 @@ pub(crate) fn params_rows_ui(wc: &mut qymcad_ui_state::WinCtx, ui: &mut egui::Ui
                         Some(o) if nm != own => {
                             // A GLOBAL PARAMETER HAS NO PATH, and giving it a "where this dimension sits" would be
                             // a lie: it is not a dimension and it sits nowhere.
-                            let where_ = if o.path.is_empty() { crate::i18n::tr("par-owner-project") } else { o.path.clone() };
+                            let where_ = if o.path.is_empty() { crate::i18n::tr("par-owner-project") } else { qymcad_ui_state::path_in_words(&o.path) };
                             crate::i18n::tr2("par-name-taken", "name", &nm, "where", &where_)
                         }
                         _ => crate::gui::error_words::ident_refusal_text(&nm),

@@ -988,10 +988,13 @@ pub fn dim_editor(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Context, rect
                         // WHOSE NAME IT IS, not merely "taken": otherwise the namesake has to be hunted for
                         // across the whole project by hand. A name with no owner is unusable in itself, and
                         // the line and its hint say why - the hint said "taken" over `tau`, which nobody holds.
-                        let owner = sk.project.name_owner(&nm);
+                        // the owner is somebody else: a dimension keeps its own name in the field
+                        let owner = sk.project.name_owner(&nm).filter(|_| sk.project.driver_name_taken(&nm, sid, &key_refs));
                         name_hint = if owner.is_some() { qymcad_i18n::tr("sk-driver-name-taken-hint") } else { qymcad_i18n::error_words::ident_refusal_text(&nm) };
                         name_refusal = Some(match owner {
-                            Some(o) => qymcad_i18n::tr2("par-name-taken", "name", "", "where", &if o.path.is_empty() { qymcad_i18n::tr("par-owner-project") } else { o.path }),
+                            Some(o) => {
+                                qymcad_i18n::tr2("par-name-taken", "name", "", "where", &if o.path.is_empty() { qymcad_i18n::tr("par-owner-project") } else { qymcad_ui_state::path_in_words(&o.path) })
+                            }
                             None => qymcad_i18n::error_words::ident_refusal_text(&nm),
                         });
                     }
