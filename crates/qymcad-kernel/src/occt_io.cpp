@@ -1024,34 +1024,34 @@ static void name_blend_faces(BRepBuilderAPI_MakeShape& mk, const QymShape* s, Qy
             }
         }
         // CORNER PATCHES: where several filleted edges meet, the kernel generates a face from the VERTEX
-        // rather than from an edge, and it used to be left unnamed, dragging the whole solid back into the
-        // positional scheme. A vertex is identified by its edges: the SMALLEST name among that vertex's
-        // filleted edges is taken (just as an edge is identified by the pair of its faces).
+        // rather than from an edge. A vertex has no recipe but the edges asked that meet at it: the patch takes the
+        // number of the end of the edge of the lowest place among them (`corners` holds two numbers an edge, its start
+        // and its end as it runs). Named after the edge alone, the patches at the two ends of one edge shared its name
+        // and the second became "piece 1" of the first, by the order the vertices were walked in (measured on the
+        // corners of a cube: `a_corner_patch_is_named_after_its_vertex`).
         if (corners) {
-            // ONE PATCH NAME MEANS ONE FACE. A corner patch's name is chosen as the SMALLEST among the
-            // vertex's edges, and one edge has two vertices, so both of them chose the same name and two
-            // different patches came out under a shared name (measured). The piece counter carries on between
-            // vertices: the second one gets a fresh number and a "piece k" record.
             std::map<unsigned, int> corner_piece;
             TopTools_IndexedDataMapOfShapeListOfShape v2e;
             TopExp::MapShapesAndAncestors(s->shape, TopAbs_VERTEX, TopAbs_EDGE, v2e);
             for (int vi = 1; vi <= v2e.Extent(); ++vi) {
                 const TopoDS_Shape& v = v2e.FindKey(vi);
-                // the smallest name among this vertex's SELECTED edges
-                unsigned best = 0;
-                size_t best_k = 0;
+                // the lowest place among this vertex's edges asked - the places run as `idx` does - and its end here
+                size_t lowest = n;
+                TopoDS_Shape lowest_edge;
                 for (TopTools_ListIteratorOfListOfShape it(v2e.FindFromIndex(vi)); it.More(); it.Next()) {
                     if (!s->eids.IsBound(it.Value())) continue;
                     uint32_t eid = static_cast<uint32_t>(s->eids.Find(it.Value()));
-                    for (size_t k = 0; k < n; ++k) {
-                        if (idx[k] != eid || corners[k] == 0) continue;
-                        if (best == 0 || corners[k] < best) {
-                            best = corners[k];
-                            best_k = k;
+                    for (size_t k = 0; k < lowest; ++k) {
+                        if (idx[k] == eid && corners[2 * k] != 0) {
+                            lowest = k;
+                            lowest_edge = it.Value();
+                            break;
                         }
                     }
                 }
-                (void)best_k;
+                if (lowest == n) continue;
+                const bool at_start = TopExp::FirstVertex(TopoDS::Edge(lowest_edge), Standard_False).IsSame(v);
+                const unsigned best = corners[2 * lowest + (at_start ? 0 : 1)];
                 if (best == 0) continue;
                 const TopTools_ListOfShape& gen = mk.Generated(v);
                 int& piece_state = corner_piece[best];

@@ -44,7 +44,8 @@ a tag in the high bits.
   piece number when one source gave several faces. The source is what the person gave the node: the sketch entity a
   wall was swept from, the contour picked for a region (its caps), the place in the pick of the edge a blend rounds -
   never the name of an element above, which changes when its own neighbours do (`ops::profile::name_sides`,
-  `ops::blend::blend_roles`, `a_blend_is_named_after_the_edge_it_was_picked_on`). Two picks on one edge - two edges
+  `ops::blend::blend_roles`, `a_blend_is_named_after_the_edge_it_was_picked_on`); a corner patch, after the end of the edge of the lowest place
+  among those meeting at its vertex (`a_corner_patch_is_named_after_its_vertex`). Two picks on one edge - two edges
   an edit above merged into one - give its surface, and a corner where picked edges meet, to the pick holding its edge
   by its name before one translated onto it, then to the lower place. An edge a description gave (every edge of a
   face) has no place in a pick, and its blend is named after the edge.

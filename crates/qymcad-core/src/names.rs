@@ -52,9 +52,9 @@ pub enum Role {
     Hole,
     /// A fillet or chamfer surface produced by an edge.
     Blend,
-    /// A corner patch of a fillet: the face produced by a vertex where several fillets meet. `src` is the
-    /// smallest of the names of the filleted edges at that vertex — a vertex is identified by its edges, the
-    /// way an edge is identified by its faces.
+    /// A corner patch of a fillet: the face produced by a vertex where several fillets meet. `src` is `2 x place +
+    /// end` of the edge of the lowest place in the pick among those meeting at the vertex - `end` 0 at the start of the
+    /// edge as it runs, 1 at its end; an edge a description gave stands by its name in place of a place.
     Corner,
     /// The inner wall of a shell.
     ShellWall,
