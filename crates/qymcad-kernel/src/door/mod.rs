@@ -113,8 +113,8 @@ pub struct Operation<'a, W: Fn(&Bodies, f64) -> Result<crate::Shape, CoreError>>
     /// scales every length of the operation by the factor and nothing else - an angle stays an angle; an unsized
     /// operation is called at 1.0 only.
     pub work: W,
-    /// The exact construction of the limiting case, where the operation has one: asked only after the work is refused at
-    /// its size and builds stepped back, and taken only when it agrees with that body (`agrees`).
+    /// The exact construction of the limiting case, where the operation has one: asked after the work is refused at its
+    /// size and before any step back; it measures itself and gives nothing where its measure does not hold.
     pub limit: Option<Limit<'a>>,
 }
 
@@ -197,8 +197,8 @@ impl crate::kernel::OcctKernel {
     /// cache, lent for the attempt only. The refusal told is the one at the asked size: a step back is the door's
     /// business, the person asked for the size.
     ///
-    /// A limiting case the operation builds exactly is built so (`Operation::limit`), checked against the body stepped
-    /// back: the step back stays the reference and the last resort.
+    /// A limiting case the operation builds exactly is built so (`Operation::limit`) before any step back; the step back
+    /// is the last resort, the node saying in yellow that its body is a hair short (`Size::SteppedBack`).
     fn attempt<W: Fn(&Bodies, f64) -> Result<crate::Shape, CoreError>>(&self, op: &Operation<'_, W>) -> Result<Attempt, CoreError> {
         let cache = self.shapes.borrow();
         let bodies = Bodies { cache: &cache };
@@ -207,20 +207,18 @@ impl crate::kernel::OcctKernel {
             (Ok(shape), _) => Ok(Attempt { shape, size: Size::AsAsked }),
             (Err(e), Sizing::Unsized) => Err(e),
             (Err(e), Sizing::Sized(back)) => {
-                let near = back
-                    .retreat
+                if let Some(shape) = op.limit.and_then(|exact| exact(&bodies)) {
+                    return Ok(Attempt { shape, size: Size::AsAsked });
+                }
+                back.retreat
                     .steps()
                     .iter()
                     .find_map(|f| {
                         let shape = (op.work)(&bodies, *f).ok()?;
                         shape.drop_slivers_under(back.strip(*f));
-                        Some(Near { shape, factor: *f })
+                        Some(Attempt { shape, size: Size::SteppedBack })
                     })
-                    .ok_or(e)?;
-                Ok(match op.limit.and_then(|exact| exact(&bodies)).filter(|x| agrees(x, &near)) {
-                    Some(shape) => Attempt { shape, size: Size::AsAsked },
-                    None => Attempt { shape: near.shape, size: Size::SteppedBack },
-                })
+                    .ok_or(e)
             }
         }
     }
@@ -238,21 +236,6 @@ struct Attempt {
 enum Size {
     AsAsked,
     SteppedBack,
-}
-
-/// A BODY BUILT STEPPED BACK and the factor on the size it was built at.
-struct Near {
-    shape: crate::Shape,
-    factor: f64,
-}
-
-/// WHETHER AN EXACT LIMITING CASE IS THE BODY STEPPED BACK, BUT EXACT: the same volume to ten times its step, and never
-/// closer than 1e-6. A step back is off the drawing by about its step: 2e-9 of the volume at 1 - 2e-8 on a chamfer of
-/// 10 x 10, 4e-6 at 1 - 1e-5 on two chamfers of 5 meeting across a top 10 wide (measured). A construction that took more
-/// or less than the blend - a prism carried past the end of an edge into a wall - is off by the volume it cut wrongly.
-fn agrees(exact: &crate::Shape, near: &Near) -> bool {
-    let (x, n) = (exact.volume(), near.shape.volume());
-    (x - n).abs() <= (10.0 * (1.0 - near.factor)).max(1e-6) * n.abs().max(1.0)
 }
 
 #[cfg(test)]
@@ -282,29 +265,31 @@ mod tests {
         assert!(k.shapes.borrow().get(&7).is_some_and(|s| (s.volume() - 1000.0).abs() < 1e-3), "the body is not in the cache at the step back");
     }
 
-    /// A LIMITING CASE BUILT EXACTLY IS TAKEN WHEN IT IS THE BODY STEPPED BACK, BUT EXACT. Refused at its size, a work
-    /// builds a hair smaller; an exact construction of the same body lands instead, and one of another body - a prism
-    /// carried past the end of an edge into a wall - does not.
+    /// THE EXACT CONSTRUCTION OF A LIMITING CASE COMES BEFORE THE STEP BACK: refused at its size, a work is not asked
+    /// again a hair smaller where the construction builds the body as drawn.
     #[test]
-    fn an_exact_limiting_case_lands_only_where_it_agrees_with_the_step_back() {
-        let landed = |exact: f64| -> f64 {
-            let k = crate::OcctKernel::default();
-            let limit = |_: &Bodies| block(exact).ok();
-            let op = Operation {
-                kind: Op::Fillet,
-                body: 7,
-                sizing: Sizing::Sized(StepBack { retreat: Retreat::Blend, size: 10.0 }),
-                roles: Roles::default(),
-                work: |_: &Bodies, f: f64| if f < 1.0 { block(f) } else { Err(CoreError::OpFailed(Op::Fillet)) },
-                limit: Some(&limit),
-            };
-            k.run(op).expect("landed");
-            let volume = k.shapes.borrow().get(&7).map(|s| s.volume()).unwrap_or(0.0);
-            volume
+    fn an_exact_limiting_case_comes_before_the_step_back() {
+        let k = crate::OcctKernel::default();
+        let asked = std::cell::Cell::new(0);
+        let limit = |_: &Bodies| block(1.0).ok();
+        let op = Operation {
+            kind: Op::Fillet,
+            body: 7,
+            sizing: Sizing::Sized(StepBack { retreat: Retreat::Blend, size: 10.0 }),
+            roles: Roles::default(),
+            work: |_: &Bodies, f: f64| {
+                asked.set(asked.get() + 1);
+                if f < 1.0 {
+                    block(f)
+                } else {
+                    Err(CoreError::OpFailed(Op::Fillet))
+                }
+            },
+            limit: Some(&limit),
         };
-        assert!((landed(1.0) - 1000.0).abs() < 1e-9, "the exact body did not land: {}", landed(1.0));
-        let wrong = landed(1.1);
-        assert!(wrong < 1000.0 && (wrong - 1000.0).abs() < 1e-3, "a body other than the one stepped back landed: {wrong}");
+        k.run(op).expect("landed");
+        let volume = k.shapes.borrow().get(&7).map(|s| s.volume()).unwrap_or(0.0);
+        assert!((volume - 1000.0).abs() < 1e-9 && asked.get() == 1, "the exact body did not land first: {volume}, the work asked {} times", asked.get());
     }
 
     /// THE WORDS OF AN OLD REFUSAL DO NOT OUTLIVE THE START OF A NEW OPERATION. A refusal that turned into an error

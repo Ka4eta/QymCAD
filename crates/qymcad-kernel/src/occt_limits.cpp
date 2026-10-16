@@ -8,8 +8,8 @@
 // across the edge, is the corner the blend takes off - a triangle for a chamfer, the corner less a circle for a
 // fillet - and it runs the length of the edge. That prism, carried past both ends, is cut from the body: one boolean,
 // exact to the drawing, the eaten face gone with no strip. Past the ends of an edge whose end faces bound the body
-// the prism meets nothing; where it would (an edge ending against a wall), the door, which compares this result with
-// the one stepped back, refuses it.
+// the prism meets nothing; where it would (an edge ending against a wall), a face of the prism other than the blend's
+// is left in the body, and the construction refuses: what bounds the material it took off is then not the blend alone.
 #include "occt_common.hpp"
 #include <BRepAdaptor_Curve.hxx>
 #include <BRepAdaptor_Surface.hxx>
@@ -26,7 +26,21 @@ struct Corner {
     double length;
     gp_Vec into_first, into_second;
     gp_Vec out_first, out_second;
+    TopoDS_Face first, second;
 };
+
+/// WHETHER THE BLEND LANDS ON ITS FACES: the point `reach` off the edge, across it into `face`, at its start, its middle
+/// and its end, is on the face - inside it or on its boundary. A size past the face is no limiting case but a blend
+/// rolling over the edge of the next one, which OCCT refuses and this construction does not build either (measured: a
+/// chamfer of 10.5 on a side 10 high came in green, the bottom of the block cut).
+bool lands_on(const Corner& c, const TopoDS_Face& face, const gp_Vec& reach) {
+    for (double t : {0.0, 0.5, 1.0}) {
+        gp_Pnt at = c.start.Translated(gp_Vec(c.along) * (c.length * t)).Translated(reach);
+        BRepClass_FaceClassifier cls(face, at, 1e-6);
+        if (cls.State() == TopAbs_OUT) return false;
+    }
+    return true;
+}
 
 /// The outward normal of a planar face, or nothing where the face is not a plane.
 bool plane_out(const TopoDS_Face& f, gp_Vec& out) {
@@ -66,6 +80,8 @@ bool corner_of(const QymShape* s, const TopoDS_Edge& edge, const TopTools_Indexe
     TopoDS_Face first = TopoDS::Face(faces.First()), second = TopoDS::Face(faces.Last());
     if (flip) std::swap(first, second);
     if (ref_face != 0 && s->fids.IsBound(second) && (uint32_t)s->fids.Find(second) == ref_face) std::swap(first, second);
+    c.first = first;
+    c.second = second;
     gp_Pnt a = curve.Value(curve.FirstParameter()), b = curve.Value(curve.LastParameter());
     c.length = a.Distance(b);
     if (c.length < 1e-6) return false;
@@ -180,6 +196,7 @@ extern "C" QymShape* qym_shape_blend_limit(const QymShape* s, const QymBlendLimi
         TopTools_IndexedDataMapOfShapeListOfShape faces_of;
         TopExp::MapShapesAndAncestors(body.shape, TopAbs_EDGE, TopAbs_FACE, faces_of);
         TopTools_ListOfShape tools;
+        TopTools_ListOfShape sides; // the faces of the prisms but the blends'
         TopTools_DataMapOfShapeInteger tool_ids;
         TopTools_MapOfShape ends;
         TopoDS_Compound all;
@@ -214,10 +231,14 @@ extern "C" QymShape* qym_shape_blend_limit(const QymShape* s, const QymBlendLimi
                 sec.centre = sec.near - c.out_first * a;
                 sec.radius = a;
             }
+            if (!lands_on(c, c.first, sec.near) || !lands_on(c, c.second, sec.far))
+                return why("blend/limit", "the blend reaches past a face it lies on"), nullptr;
             TopoDS_Face surface;
             TopoDS_Shape prism = prism_of(c, sec, 2.0 * (a + b) + 1.0, surface);
             if (prism.IsNull()) return why("blend/limit", "the prism of a blend was not built"), nullptr;
             if (names && names[k] != 0) tool_ids.Bind(surface, (int)names[k]);
+            for (TopExp_Explorer f(prism, TopAbs_FACE); f.More(); f.Next())
+                if (!f.Current().IsSame(surface)) sides.Append(f.Current());
             tools.Append(prism);
             bld.Add(all, prism);
             ++found;
@@ -229,6 +250,18 @@ extern "C" QymShape* qym_shape_blend_limit(const QymShape* s, const QymBlendLimi
         if (!qym_boolean_many(algo, args, tools)) return why("blend/limit", "the prisms were not cut from the body"), nullptr;
         TopoDS_Shape cut_out = algo.Shape();
         if (cut_out.IsNull()) return why("blend/limit", "the prisms were not cut from the body"), nullptr;
+        // THE MEASURE OF THE CONSTRUCTION: what bounds the material taken off is the surface of each blend and nothing
+        // else. A face of a prism left in the body - a prism carried past the end of an edge into a wall - took off what
+        // the blend does not, and the construction refuses rather than land a body off its drawing (measured on the
+        // frame of `face_is_one_island`: the roundings of its rim, a prism each into the walls at the corners, took off
+        // 21 mm^3 more than the blend).
+        TopTools_IndexedMapOfShape left;
+        TopExp::MapShapes(cut_out, TopAbs_FACE, left);
+        for (TopTools_ListIteratorOfListOfShape f(sides); f.More(); f.Next()) {
+            if (left.Contains(f.Value())) return why("blend/limit", "a prism reached past the blend into the body"), nullptr;
+            for (TopTools_ListIteratorOfListOfShape m(algo.Modified(f.Value())); m.More(); m.Next())
+                if (left.Contains(m.Value())) return why("blend/limit", "a prism reached past the blend into the body"), nullptr;
+        }
         // A cut splits what a blend leaves whole: the edge of a face the prism ends on in two along one line, a face in
         // two pieces in one plane. A blend gives one edge and one face there; so does the cut, merged in its plane and
         // along its line. Measured: unmerged, a rounding of the vacuum sample gave four edges an end of two edges, which
