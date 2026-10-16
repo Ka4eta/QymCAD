@@ -22,6 +22,23 @@ fn rectangle_with_two_drivers(app: &mut App) -> usize {
     si
 }
 
+/// A NUMBER AT THE END OF A FORMULA IS NO NAME, and Enter after it applies the formula. A name does not begin with a digit,
+/// so the list of names has nothing to offer for `2`.
+///
+/// Measured: `a_len*2` typed and Enter pressed applied nothing, and the field held `a_len*a_len` when it was left. The `2`
+/// opened the list - the list looks in the paths too, and the path of both names of this sketch holds a 2 - and Enter put
+/// the first name of the list in its place.
+#[test]
+fn a_number_ending_a_formula_is_not_taken_for_a_name() {
+    let mut app = App::default();
+    rectangle_with_two_drivers(&mut app);
+    let mut hand = Hand::new(&mut app);
+    assert!(hand.press_word(&crate::i18n::tr("wb-params"), egui::pos2(0.0, 0.0)), "the button of the parameters is not on screen");
+    assert!(hand.type_after_word("b_len", "a_len*2"), "the value of b_len is not on screen");
+    hand.key(egui::Key::Enter).settle();
+    assert_eq!(hand.app.project.param_map().get("b_len"), Some(&80.0), "Enter after a_len*2 did not make b_len 80");
+}
+
 /// THE LIST OF NAMES UNDER A FORMULA SAYS WHERE EACH NAME STANDS IN WORDS, as the table beside it does: the part by its
 /// name, not by the key of the catalogue the document stores it under.
 ///

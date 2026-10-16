@@ -277,7 +277,11 @@ pub fn field(ui: &mut egui::Ui, project: &Project, id: egui::Id, model: &str, w:
         st.open = false;
         // THE LIST OPENS ON TYPING AND NOT ON FOCUS. The former one climbed onto the screen at a single
         // click in the field and covered the geometry, though nothing had been asked yet.
-        st.open = with_list && !current_token(&buf, caret).2.is_empty();
+        //
+        // AND NOT ON A NUMBER: a name does not begin with a digit, so a word that does has no name to be finished into.
+        // Measured: `a_len*2` typed and Enter pressed - the `2` opened the list (it looks in the paths too, and a path
+        // holds a 2), Enter put the first name in its place and `a_len*a_len` went in.
+        st.open = with_list && begins_a_name(current_token(&buf, caret).2);
     }
     if open_list && with_list {
         st.open = true;
@@ -476,6 +480,12 @@ pub fn current_token(text: &str, caret: usize) -> (usize, usize, &str) {
     let start = text[..caret].rfind(|c: char| !is_word(c)).map(|i| i + c_len(text, i)).unwrap_or(0);
     let end = caret + text[caret..].find(|c: char| !is_word(c)).unwrap_or(text.len() - caret);
     (start, end, &text[start..end])
+}
+
+/// Whether the word under the caret can be the start of a name: begun with a letter or `_`, the start
+/// `drivers::check_ident` takes.
+fn begins_a_name(word: &str) -> bool {
+    word.chars().next().is_some_and(|c| c.is_alphabetic() || c == '_')
 }
 
 /// Put a driver's name in place of the word under the caret. Returns the new text and the byte offset
