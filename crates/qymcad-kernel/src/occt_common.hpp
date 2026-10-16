@@ -298,10 +298,9 @@ struct QymShape {
     TopoDS_Shape shape;
     TopTools_DataMapOfShapeInteger fids; // the persistent ids of FACES
     TopTools_DataMapOfShapeInteger eids; // the persistent ids of EDGES
-    // A FACE SPLIT: the operation cut one face into several pieces. The first keeps the source's name and
-    // the kernel gives the rest a positional number — but what should name them is their ORIGIN: "piece k
-    // of face N". The name is assembled on the Rust side (it is the one that knows the naming scheme), so
-    // all that is recorded here is: face -> the source's name, and face -> the piece number.
+    // A FACE SPLIT: the operation cut one face into several pieces. What they are called is told on the Rust side by
+    // what cut each and what stands beside it (`naming::pieces`, `crates/qymcad-kernel/NAMING.md`, step 4); all that is
+    // recorded here is the face -> the source's name, and the face -> its place among the pieces as the history gave it.
     TopTools_DataMapOfShapeInteger fsplit_of;
     TopTools_DataMapOfShapeInteger fsplit_idx;
     // The ABSORPTION of names when coplanar faces merge: "the former name -> the shared face's name".
