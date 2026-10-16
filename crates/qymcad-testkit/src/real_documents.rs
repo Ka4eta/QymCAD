@@ -13,7 +13,9 @@
 use qymcad_core::errors::CoreError;
 use qymcad_core::model::{DimTarget, Id, Project};
 use std::collections::{BTreeMap, HashMap};
+use std::path::PathBuf;
 use std::sync::atomic::Ordering;
+use std::sync::{Mutex, OnceLock, PoisonError};
 
 /// A DOCUMENT OF THE MATRIX: its file name and where it lies.
 #[derive(Clone)]
@@ -217,6 +219,7 @@ pub struct Opened {
 
 /// Open `doc` as the window opens it.
 pub fn open(doc: &Doc) -> Opened {
+    step(format!("open {}", doc.path));
     let mut project = qymcad_io::load_project(&doc.path).unwrap_or_else(|e| panic!("{} opens: {e:?}", doc.name));
     let shapes = crate::restore_import_shapes(&project);
     let (_, shapes) = crate::regenerate_with_shapes(&mut project, shapes);
@@ -230,11 +233,61 @@ pub fn open(doc: &Doc) -> Opened {
 pub fn determinism(doc: &Doc) -> Vec<String> {
     let mut o = open(doc);
     let first = o.marks.clone();
+    step(format!("rebuild {} whole again", doc.name));
     let shapes = crate::restore_import_shapes(&o.project);
     let _ = crate::regenerate_with_shapes(&mut o.project, shapes);
     let second = Marks::of(&o.project);
     eprintln!("{}: {} bodies, {} faces, {} edges", doc.name, first.bodies.len(), first.faces(), first.edges());
-    renamed(Change { was: &first, now: &second }, &o.project).into_iter().map(|r| format!("{}: a second rebuild renamed: {r}", doc.name)).collect()
+    let faults: Vec<String> = renamed(Change { was: &first, now: &second }, &o.project).into_iter().map(|r| format!("{}: a second rebuild renamed: {r}", doc.name)).collect();
+    if !faults.is_empty() {
+        trap(&o, &faults);
+    }
+    faults
+}
+
+/// THE STEPS OF THIS PROCESS, in order, since it started: every document opened, rebuilt, edited and undone. A rename
+/// of the same document comes with the state of the process as well as with the document: measured on 16.10, the
+/// chamfer 11963 of the case of the examples was stepped back in 3 of 20 rebuilds with the filter rebuilt before it
+/// in the same process and in none of 20 without it, every node before 11963 giving the same body. The fault is
+/// repeated by the same steps, not by the document alone.
+static STEPS: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+/// Where the first fault of determinism was written: one fault is what is repeated, the later ones are told.
+static SPRUNG: OnceLock<PathBuf> = OnceLock::new();
+
+fn step(what: String) {
+    STEPS.lock().unwrap_or_else(PoisonError::into_inner).push(what);
+}
+
+/// THE TRAP OF DETERMINISM. At the first rename of names the same document was to give again (a second rebuild, an
+/// edit undone), written under `target/naming-trap/<process>`: the document as it was opened, the document as it
+/// stands at the fault, and `steps.txt` - every step of this process up to the fault, and the fault. The path is
+/// printed; a later fault prints the path of the first.
+pub fn trap(o: &Opened, faults: &[String]) -> PathBuf {
+    let mut first = false;
+    let dir = SPRUNG.get_or_init(|| {
+        first = true;
+        PathBuf::from(format!("{}/../../target/naming-trap/{}", env!("CARGO_MANIFEST_DIR"), std::process::id()))
+    });
+    if !first {
+        eprintln!("NAMING TRAP: a later fault of determinism on {}; the first is written at {}", o.doc.name, dir.display());
+        return dir.clone();
+    }
+    let file = o.doc.name.replace('/', "_");
+    let wrote = std::fs::create_dir_all(dir)
+        .and_then(|()| std::fs::copy(&o.doc.path, dir.join(&file)).map(|_| ()))
+        .map_err(|e| e.to_string())
+        .and_then(|()| qymcad_io::save_project(&o.project, &dir.join(format!("at-the-fault.{file}")).to_string_lossy()))
+        .and_then(|()| {
+            let steps = STEPS.lock().unwrap_or_else(PoisonError::into_inner).join("\n");
+            let text = format!("THE STEPS OF THE PROCESS\n{steps}\n\nTHE FAULT\n{}\n", faults.join("\n"));
+            std::fs::write(dir.join("steps.txt"), text).map_err(|e| e.to_string())
+        });
+    match wrote {
+        Ok(()) => eprintln!("NAMING TRAP: the first fault of determinism, on {}, is written at {}", o.doc.name, dir.display()),
+        Err(e) => eprintln!("NAMING TRAP: the first fault of determinism, on {}, could not be written at {}: {e}", o.doc.name, dir.display()),
+    }
+    dir.clone()
 }
 
 /// WHAT IS EDITED: one number a person types, or a line of a sketch broken in two.
@@ -566,14 +619,20 @@ pub fn edit_and_back(o: &mut Opened, e: &Edit, factor: f64) -> Vec<String> {
     let base = o.marks.clone();
     let mut out = Vec::new();
     let before = o.project.clone();
+    step(says.clone());
     apply(&mut o.project, e, value);
     let edited = rebuild(o, Some(&base));
     out.extend(edited.into_iter().map(|f| format!("{says}: {f}")));
     // undone, every name is to be the one the document opened with: what the edit renamed is renamed back, and that is
     // told once, by the edit
+    step(format!("{says}, undone"));
     undo(&mut o.project, before);
     let back = rebuild(o, None);
     let unlike = renamed(Change { was: &base, now: &Marks::of(&o.project) }, &o.project);
+    if !unlike.is_empty() {
+        let faults: Vec<String> = unlike.iter().map(|f| format!("{says}, undone, not as opened: {f}")).collect();
+        trap(o, &faults);
+    }
     if !back.is_empty() || !unlike.is_empty() {
         let doc = o.doc.clone();
         *o = open(&doc);
