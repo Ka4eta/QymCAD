@@ -26,9 +26,11 @@ fn a_rounding_of_two_edges_that_takes_one_says_so() {
 /// the rounding before it left (4e-8 of a wall it ate) were left out before cracks were taken out.
 #[test]
 fn the_rounding_of_the_vacuum_cleaner_takes_all_eight_edges() {
-    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../samples/vacuumCleaner.qcad");
+    // the sample with node 252 picked again under the names of this branch: the sample itself is shared by every
+    // working copy and stays as `main` reads it until the branch is merged, then takes this one's place
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../samples/vacuumCleaner.topo.qcad");
     if !std::path::Path::new(path).exists() {
-        eprintln!("PASSED OVER: the private sample vacuumCleaner.qcad is not in this tree");
+        eprintln!("PASSED OVER: the private sample vacuumCleaner.topo.qcad is not in this tree");
         return;
     }
     let mut p = qymcad_io::load_project(path).expect("the sample opens");
