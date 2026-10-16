@@ -85,7 +85,8 @@ pub fn corner_input_popup(cc: &mut qymcad_ui_state::CornerCtx, ctx: &egui::Conte
     let area = egui::Id::new(("cornerinput", si, pid));
     let size = ctx.memory(|m| m.area_rect(area)).map_or(CORNER_BOX_GUESS, |r| r.size());
     let at = corner_box_place(cc, rect, si, standing.first().copied(), chamfer, size).unwrap_or_else(|| qymcad_ui_state::clamp_popup(at, rect) + egui::vec2(10.0, -10.0));
-    egui::Area::new(area).fixed_pos(at).order(egui::Order::Foreground).show(ctx, |ui| {
+    egui::Area::new(area).fixed_pos(at).order(qymcad_ui_state::AT_GEOMETRY).show(ctx, |ui| {
+        qymcad_ui_state::at_geometry_ui(ui);
         egui::Frame::popup(ui.style()).show(ui, |ui| {
             ui.horizontal(|ui| {
                 // "R of every corner" is the field of FILLET ALL, and of nothing else: it is the one that rounds a
@@ -273,7 +274,8 @@ pub fn ellipse_input_popup(pl: &mut qymcad_ui_state::PlaceCtx, ctx: &egui::Conte
             let enter = ctx.input(|i| i.key_pressed(egui::Key::Enter));
             let (mut chg, mut close, mut got_focus) = (false, false, false);
             let mut buf = [std::mem::take(&mut pl.place.buf[0]), std::mem::take(&mut pl.place.buf[1])];
-            egui::Area::new(egui::Id::new(("ellinput", si))).fixed_pos(qymcad_ui_state::clamp_popup(at, rect) + egui::vec2(10.0, -10.0)).order(egui::Order::Foreground).show(ctx, |ui| {
+            egui::Area::new(egui::Id::new(("ellinput", si))).fixed_pos(qymcad_ui_state::clamp_popup(at, rect) + egui::vec2(10.0, -10.0)).order(qymcad_ui_state::AT_GEOMETRY).show(ctx, |ui| {
+                qymcad_ui_state::at_geometry_ui(ui);
                 egui::Frame::popup(ui.style()).show(ui, |ui| {
                     ui.horizontal(|ui| {
                         ui.label(qymcad_i18n::tr("sk-width-short"));
@@ -359,8 +361,9 @@ pub fn rect_input_popup(pl: &mut qymcad_ui_state::PlaceCtx, ctx: &egui::Context,
         let mut buf = [std::mem::take(&mut pl.place.buf[0]), std::mem::take(&mut pl.place.buf[1])];
         egui::Area::new(egui::Id::new(("rectinput", si)))
             .fixed_pos(qymcad_ui_state::clamp_popup((qymcad_ui_state::Sheet { view: *pl.view, rect }).at(at), rect) + egui::vec2(10.0, -10.0))
-            .order(egui::Order::Foreground)
+            .order(qymcad_ui_state::AT_GEOMETRY)
             .show(ctx, |ui| {
+                qymcad_ui_state::at_geometry_ui(ui);
                 egui::Frame::popup(ui.style()).show(ui, |ui| {
                     ui.horizontal(|ui| {
                         ui.label(qymcad_i18n::tr("sk-width-short"));
@@ -435,7 +438,8 @@ pub fn poly_input_popup(pl: &mut qymcad_ui_state::PlaceCtx, ctx: &egui::Context,
             let enter = ctx.input(|i| i.key_pressed(egui::Key::Enter));
             let (mut chg, mut close, mut got_focus) = (false, false, false);
             let mut buf = [std::mem::take(&mut pl.place.buf[0]), std::mem::take(&mut pl.place.buf[1])];
-            egui::Area::new(egui::Id::new(("polyinput", si))).fixed_pos(qymcad_ui_state::clamp_popup(at, rect) + egui::vec2(10.0, -10.0)).order(egui::Order::Foreground).show(ctx, |ui| {
+            egui::Area::new(egui::Id::new(("polyinput", si))).fixed_pos(qymcad_ui_state::clamp_popup(at, rect) + egui::vec2(10.0, -10.0)).order(qymcad_ui_state::AT_GEOMETRY).show(ctx, |ui| {
+                qymcad_ui_state::at_geometry_ui(ui);
                 egui::Frame::popup(ui.style()).show(ui, |ui| {
                     ui.horizontal(|ui| {
                         ui.label(qymcad_i18n::tr("sk-radius"));
@@ -539,8 +543,9 @@ pub fn rect_dims_popup(pl: &mut qymcad_ui_state::PlaceCtx, ctx: &egui::Context, 
     let mut buf = std::mem::take(&mut pl.place.buf);
     egui::Area::new(egui::Id::new(("rectdims", si)))
         .fixed_pos(qymcad_ui_state::clamp_popup((qymcad_ui_state::Sheet { view: *pl.view, rect }).at(corner), rect) + egui::vec2(10.0, -10.0))
-        .order(egui::Order::Foreground)
+        .order(qymcad_ui_state::AT_GEOMETRY)
         .show(ctx, |ui| {
+            qymcad_ui_state::at_geometry_ui(ui);
             egui::Frame::popup(ui.style()).show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(qymcad_i18n::tr("sk-width-short"));
@@ -641,7 +646,8 @@ pub fn sketch_rotate_popup(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Cont
     // AN ANGLE THAT CANNOT BE TAKEN is refused where it is typed: the reason on the mark beside the field, the tool
     // and what was typed staying. It used to be applied as 0 or taken away with the popup.
     let checked = angle_of(sk.project, &buf);
-    egui::Area::new(egui::Id::new(("rotinput", si))).fixed_pos(qymcad_ui_state::clamp_popup(at, rect) + egui::vec2(12.0, -12.0)).order(egui::Order::Foreground).show(ctx, |ui| {
+    egui::Area::new(egui::Id::new(("rotinput", si))).fixed_pos(qymcad_ui_state::clamp_popup(at, rect) + egui::vec2(12.0, -12.0)).order(qymcad_ui_state::AT_GEOMETRY).show(ctx, |ui| {
+        qymcad_ui_state::at_geometry_ui(ui);
         egui::Frame::popup(ui.style()).show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(format!("{} {}", ph::ARROWS_CLOCKWISE, qymcad_i18n::tr("sk-angle-deg")));
@@ -759,7 +765,8 @@ pub fn dim_editor(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Context, rect
                 sk.dim.typed = false;
             }
             let mut buf_changed = false;
-            egui::Area::new(egui::Id::new(("circedit", si, eid))).fixed_pos(qymcad_ui_state::clamp_popup(at, rect) + egui::vec2(8.0, -10.0)).order(egui::Order::Foreground).show(ctx, |ui| {
+            egui::Area::new(egui::Id::new(("circedit", si, eid))).fixed_pos(qymcad_ui_state::clamp_popup(at, rect) + egui::vec2(8.0, -10.0)).order(qymcad_ui_state::AT_GEOMETRY).show(ctx, |ui| {
+                qymcad_ui_state::at_geometry_ui(ui);
                 egui::Frame::popup(ui.style()).show(ui, |ui| {
                     ui.horizontal(|ui| {
                         ui.label(if is_arc { qymcad_i18n::tr("sk-radius") } else { qymcad_i18n::tr("sk-diameter") });
@@ -922,7 +929,8 @@ pub fn dim_editor(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Context, rect
     let mut name_refusal: Option<String> = None;
     // the hint over the refusal, with the same reason as the line
     let mut name_hint = String::new();
-    egui::Area::new(egui::Id::new(("dimedit", si, ci))).fixed_pos(qymcad_ui_state::clamp_popup(at, rect) + egui::vec2(8.0, -10.0)).order(egui::Order::Foreground).show(ctx, |ui| {
+    egui::Area::new(egui::Id::new(("dimedit", si, ci))).fixed_pos(qymcad_ui_state::clamp_popup(at, rect) + egui::vec2(8.0, -10.0)).order(qymcad_ui_state::AT_GEOMETRY).show(ctx, |ui| {
+        qymcad_ui_state::at_geometry_ui(ui);
         egui::Frame::popup(ui.style()).show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(label);

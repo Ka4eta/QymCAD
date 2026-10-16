@@ -1321,6 +1321,21 @@ impl<'a> Hand<'a> {
         egui::ColorImage::new([w, h], pixels)
     }
 
+    /// WHERE THE AREA `id` STANDS, as the last frame laid it out: a window or a box of fields at the geometry.
+    pub fn area_rect(&self, id: egui::Id) -> Option<egui::Rect> {
+        self.win.ctx.memory(|m| m.area_rect(id))
+    }
+
+    /// IS ANY TEXT OF A LABEL SELECTED after the last frame: what a drag across words leaves selected.
+    pub fn text_selected(&self) -> bool {
+        self.win.ctx.plugin_opt::<egui::text_selection::LabelSelectionState>().is_some_and(|h| h.lock().has_selection())
+    }
+
+    /// THE LAYER ON TOP AT `at` in the last frame: what a click there reaches first.
+    pub fn top_layer_at(&self, at: egui::Pos2) -> Option<egui::LayerId> {
+        self.win.ctx.layer_id_at(at)
+    }
+
     /// Where the window `id` stands, as the last frame laid it out.
     pub fn window_at(&self, id: &str) -> Option<egui::Rect> {
         self.win.ctx.memory(|m| m.area_rect(egui::Id::new(id)))

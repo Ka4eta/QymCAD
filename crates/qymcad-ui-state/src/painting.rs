@@ -12,6 +12,18 @@ pub fn end_of_bar<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) ->
     ui.scope_builder(egui::UiBuilder::new().id(id), |ui| ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), add).inner)
 }
 
+/// THE LAYER OF A BOX OF FIELDS AT THE GEOMETRY: the layer of the windows, not above it. A box laid over every window
+/// covered the settings and any other window dragged over the view; on the layer of the windows the one touched last
+/// stands on top, and a window opened over the box covers it. Reported behaviour: the box of a radius over the
+/// settings.
+pub const AT_GEOMETRY: egui::Order = egui::Order::Middle;
+
+/// WHAT A BOX OF FIELDS AT THE GEOMETRY HOLDS: the names of its fields are captions, not text to select - a drag
+/// across them to reach a field selected the name instead.
+pub fn at_geometry_ui(ui: &mut egui::Ui) {
+    ui.style_mut().interaction.selectable_labels = false;
+}
+
 /// Keep the ANCHOR of a dimension input popup inside the viewport `rect`, so that with large values
 /// (where the geometry runs off the edge) the little window does not fly out of the frame. The popup
 /// is about 200x60 px, so room is left for it.
