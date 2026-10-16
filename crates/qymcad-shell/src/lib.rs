@@ -164,6 +164,11 @@ pub struct Place {
     pub pin: Pin,
     /// The margin inside its frame on every side, when it is not the frame's own.
     pub margin: Option<f32>,
+    /// HOW OPAQUE ITS GROUND IS, 0 to 1; one seen through lies over the view. Said when the shell is built for a frame and
+    /// held for the whole frame: asked of the host as each container opened, a slider moved in the settings drawn
+    /// between them put the bar in its strip and over the view in one frame - one widget on two layers, and egui stopped
+    /// the program.
+    pub opacity: f32,
 }
 
 /// MAY A PLACE BE MOVED? One a person looks for in one place - the status line at the bottom, as in every program -
@@ -191,7 +196,12 @@ pub enum Hiding {
 
 impl Place {
     pub fn new(key: &'static str, slot: Slot) -> Self {
-        Self { key, slot, size: None, resizable: false, framed: false, separator: true, hiding: Hiding::Allowed, content: None, pin: Pin::Movable, margin: None }
+        Self { key, slot, size: None, resizable: false, framed: false, separator: true, hiding: Hiding::Allowed, content: None, pin: Pin::Movable, margin: None, opacity: 1.0 }
+    }
+    /// How opaque the ground is, 0 to 1.
+    pub fn opacity(mut self, o: f32) -> Self {
+        self.opacity = o;
+        self
     }
     /// The place stays at the edge it is registered at.
     pub fn pinned(mut self) -> Self {
@@ -253,8 +263,6 @@ pub trait Fills {
     fn fill(&mut self, key: &'static str, ui: &mut egui::Ui, edge: Option<Edge>);
     /// The frame a bar-like place is drawn in. It carries the colours, which belong to the host.
     fn bar_frame(&self) -> egui::Frame;
-    /// How opaque the ground of the place is, 0 to 1.
-    fn opacity(&self, key: &'static str) -> f32;
     /// The person dragged the place to a new size: the host keeps it.
     fn resized(&mut self, key: &'static str, size: Resize);
 }

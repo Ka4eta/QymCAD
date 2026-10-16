@@ -325,3 +325,39 @@ probe! {
         assert!(out.is_empty(), "egui marked widgets that took another id ({}):\n{}", out.len(), out.join("\n"));
     }
 }
+
+probe! {
+    /// THE OPACITY OF THE BAR DRAGGED DOWN FROM 100 % in the settings: the bar goes over the view in the frame the slider
+    /// moves, and the program goes on. Reported behaviour: the program fell on the first move of the slider - the bar had
+    /// been drawn in its strip earlier in that frame, and once more over the view after the slider moved.
+    fn the_opacity_of_the_bar_is_dragged_down() {
+        let mut s = Session::start();
+        s.key(Key::Escape);
+        settings_at(&mut s, "settings-sec-layout");
+        // the section scrolled by the wheel until the name comes into sight, as a person scrolls
+        let over = s.find(&s.word("settings-layout-menu"), pos2(640.0, 300.0)).expect("the diagram is drawn").center();
+        let name = s.word("settings-bar-opacity");
+        let mut label = None;
+        for _ in 0..20 {
+            label = s.find(&name, pos2(640.0, 400.0)).filter(|r| r.max.y < s.screen().y - 20.0);
+            if label.is_some() {
+                break;
+            }
+            s.wheel(over, vec2(0.0, -120.0), qymcad::Modifiers::NONE);
+        }
+        let label = label.expect("the opacity of the bar is in the section");
+        let slider = s
+            .widgets()
+            .into_iter()
+            .filter(|w| w.kind == qymcad::Kind::Slider && (w.rect.center().y - label.center().y).abs() < 12.0)
+            .map(|w| w.rect)
+            .next()
+            .expect("the slider of the opacity stands beside its name");
+        // the handle at 100 % is at the right end of the rail; led to the left end
+        s.drag(pos2(slider.max.x - 4.0, slider.center().y), pos2(slider.min.x + 2.0, slider.center().y), qymcad::PointerButton::Primary, qymcad::Modifiers::NONE);
+        let title = s.word("win-settings");
+        s.close_window(&title);
+        let bar = s.panel("wbtools").expect("the bar of tools is drawn");
+        assert!(bar.min.x <= s.canvas().min.x + 1.0, "the bar seen through does not lie over the view: {bar:?}, the view {:?}", s.canvas());
+    }
+}

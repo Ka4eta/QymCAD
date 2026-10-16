@@ -23,7 +23,9 @@ pub(crate) fn shell(set: &Settings) -> qymcad_shell::Shell {
     // margin of BAR_MARGIN round them
     let look = set.bar.look();
     let content = qymcad_shell::ContentSize { side: look.across(qymcad_shell::Edge::Left), flat: look.across(qymcad_shell::Edge::Top) };
-    s.put(Place::new("wbtools", Slot::Left).content(content).margin(crate::gui::panels_bars::BAR_MARGIN).bare());
+    // THE BAR OF TOOLS SHOWS THE MODEL THROUGH as much as the person set; every other place is solid
+    let opacity = f32::from(set.bar.opacity) / 100.0;
+    s.put(Place::new("wbtools", Slot::Left).content(content).margin(crate::gui::panels_bars::BAR_MARGIN).opacity(opacity).bare());
     s.put(Place::new("tree", Slot::Left).sized(260.0, true));
     s.put(Place::new("props", Slot::Right).sized(290.0, true));
     s.put(Place::new("viewport", Slot::Centre));
@@ -135,14 +137,6 @@ impl qymcad_shell::Fills for App {
 
     fn bar_frame(&self) -> egui::Frame {
         qymcad_ui_state::tool_bar_frame(&self.scheme)
-    }
-
-    /// THE BAR OF TOOLS SHOWS THE MODEL THROUGH as much as the person set; every other place is solid.
-    fn opacity(&self, key: &'static str) -> f32 {
-        match key {
-            "wbtools" => f32::from(self.set.bar.opacity) / 100.0,
-            _ => 1.0,
-        }
     }
 
     fn resized(&mut self, key: &'static str, size: qymcad_shell::Resize) {

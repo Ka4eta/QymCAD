@@ -134,13 +134,13 @@ pub(crate) fn run_slot(shell: &Shell, slot: Slot, ui: &mut egui::Ui, host: &mut 
 
 /// Is the panel drawn in a strip this frame: wanted, shown and not over the view?
 fn drawn_beside(shell: &Shell, key: &'static str, host: &dyn Fills) -> bool {
-    shell.place_of(key).is_some_and(|p| p.seen == Seen::Shown && !stands_over(p, key, host)) && host.live(key)
+    shell.place_of(key).is_some_and(|p| p.seen == Seen::Shown && !stands_over(p, key, shell)) && host.live(key)
 }
 
 /// DOES THE PANEL STAND OVER THE VIEW: asked to, or seen through. A translucent panel beside the view would show the
 /// empty window under it, not the model; laid over the view it shows the model, which is what the transparency is for.
-fn stands_over(p: PanelPlace, key: &'static str, host: &dyn Fills) -> bool {
-    p.over == Over::Over || host.opacity(key) < 1.0
+fn stands_over(p: PanelPlace, key: &'static str, shell: &Shell) -> bool {
+    p.over == Over::Over || shell.registered(key).is_some_and(|r| r.opacity < 1.0)
 }
 
 /// THE FRAME OF A PLACE: the host's bar frame or the plain one of a panel, with the place's own margin.
@@ -195,7 +195,7 @@ fn one_strip(strip: Strip, shell: &Shell, members: &[&'static str], ui: &mut egu
     if let Some(w) = size {
         panel = if resizable { panel.default_size(w).resizable(true) } else { panel.exact_size(w).resizable(false) };
     }
-    panel = panel.frame(ground(frame, host.opacity(first)));
+    panel = panel.frame(ground(frame, regs.iter().map(|p| p.opacity).fold(1.0, f32::min)));
     if regs.iter().all(|p| !p.separator) {
         panel = panel.show_separator_line(false);
     }
@@ -364,12 +364,12 @@ fn over_the_view(shell: &Shell, view: egui::Rect, ui: &mut egui::Ui, host: &mut 
     for edge in Edge::ALL {
         let mut room = view;
         for k in shell.strips(edge).into_iter().flatten() {
-            let wanted = shell.place_of(k).is_some_and(|p| p.seen == Seen::Shown && stands_over(p, k, host));
+            let wanted = shell.place_of(k).is_some_and(|p| p.seen == Seen::Shown && stands_over(p, k, shell));
             if !wanted || !host.live(k) {
                 continue;
             }
             let Some(reg) = shell.registered(k) else { continue };
-            let frame = ground(frame_of(&[reg], host, ui.style()), host.opacity(k));
+            let frame = ground(frame_of(&[reg], host, ui.style()), reg.opacity);
             let margin = frame.total_margin().sum();
             // across the edge: what the content says it takes, or what was registered, or the content's own
             let across = reg.content.map(|c| if edge.upright() { c.side + margin.x } else { c.flat + margin.y }).or(reg.size);
