@@ -323,7 +323,7 @@ pub fn field(ui: &mut egui::Ui, project: &Project, id: egui::Id, model: &str, w:
                                     // THE PATH ANSWERS "WHICH OF THE NAMESAKES". On an ambiguous one
                                     // it is highlighted too: a bare name in a formula will take who
                                     // knows which.
-                                    let mut t = egui::RichText::new(&d.path).small();
+                                    let mut t = egui::RichText::new(crate::path_in_words(&d.path)).small();
                                     t = if d.ambiguous { t.color(crate::tone_colour_in(ui, crate::Tone::Warning)) } else { t.weak() };
                                     ui.label(t);
                                 }

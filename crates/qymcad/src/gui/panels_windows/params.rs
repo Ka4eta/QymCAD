@@ -370,3 +370,6 @@ pub(crate) fn apply_param_edit(wc: &mut qymcad_ui_state::WinCtx) {
     qymcad_ui_state::fold_into_last_step(wc.edits, wc.project);
     qymcad_ui_state::rebuild_if_dirty(&mut wc.rebuild()); // the bodies rebuild associatively from the new parameters
 }
+
+#[cfg(test)]
+mod tests;
