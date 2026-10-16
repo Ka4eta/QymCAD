@@ -238,7 +238,7 @@ probe! {
     }
 }
 
-/// The words egui paints over the interface when two widgets of one frame take one id.
+/// The complaints the window paints over itself when two widgets of one frame take one id, in words.
 fn clashes(s: &mut Session, step: &str, out: &mut Vec<String>) {
     for w in s.id_clashes() {
         out.push(format!("{step}: {w}"));
@@ -248,18 +248,18 @@ fn clashes(s: &mut Session, step: &str, out: &mut Vec<String>) {
 probe! {
     /// NO TWO WIDGETS TAKE ONE ID while the layout changes: the bar at the top, a part entered, a sketch opened and
     /// finished, the assembly again, and in the settings a panel carried on the diagram and dropped. Reported behaviour:
-    /// red frames of egui's complaint at every change of workbench and on letting a panel go on the diagram.
+    /// red frames of the window's complaint at every change of workbench and on letting a panel go on the diagram.
     fn no_two_widgets_take_one_id_while_the_layout_changes() {
         let mut out = Vec::new();
         // the layout as it comes, and the bar of tools at the top seen through
         for machine in [Machine::default(), machine_with(Record { bar: "size:34.0,lines:Two,align:Centre,opacity:60", place: "\"wbtools\":(edge:Top,strip:100)" })] {
             chain_of_changes(Session::start_on(machine), &mut out);
         }
-        assert!(out.is_empty(), "egui complains of one id taken twice:\n{}", out.join("\n"));
+        assert!(out.is_empty(), "the window complains of one id taken twice:\n{}", out.join("\n"));
     }
 }
 
-/// THE CHANGES OF A LAYOUT a person goes through, the complaints of egui gathered after each.
+/// THE CHANGES OF A LAYOUT a person goes through, the complaints of the window gathered after each.
 fn chain_of_changes(mut s: Session, out: &mut Vec<String>) {
     {
         s.key(Key::Escape);
@@ -288,7 +288,7 @@ probe! {
     /// NO TWO WIDGETS TAKE ONE ID WHILE A PANEL IS CARRIED on the diagram: pressed on the tree, led slowly over the
     /// properties, the bar of the path, the seams and the view, frame by frame, and let go on the properties; then the
     /// settings put away and the window laid out anew, the bar of tools carried to the top the same way. Reported
-    /// behaviour: red frames of egui's complaint while the diagram is dragged and while the panels of the window are laid
+    /// behaviour: red frames of the window's complaint while the diagram is dragged and while the panels of the window are laid
     /// out again.
     fn no_two_widgets_take_one_id_while_a_panel_is_carried() {
         let mut out = Vec::new();
@@ -322,7 +322,7 @@ probe! {
         let xy = s.word("plane-xy-table");
         s.press_word(&xy);
         clashes(&mut s, "a sketch in the new layout", &mut out);
-        assert!(out.is_empty(), "egui marked widgets that took another id ({}):\n{}", out.len(), out.join("\n"));
+        assert!(out.is_empty(), "the window marked widgets that took another id ({}):\n{}", out.len(), out.join("\n"));
     }
 }
 
