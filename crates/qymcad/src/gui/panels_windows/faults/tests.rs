@@ -408,3 +408,62 @@ fn a_dimension_named_like_a_constant_is_counted_said_and_led_to() {
     }
     assert!(failures.is_empty(), "a dimension named like a constant:\n{}", failures.join("\n"));
 }
+
+/// THE WORDS OF A FAULT IN ANOTHER PART OUTLIVE THE STEP INTO IT: the root current, a click leads into the part of the
+/// fault and selects its node, and the status line says in yellow what is wrong there - not which part is now the
+/// context. One fault is led to by its badge; of two, the window of faults opens and the row of one leads there.
+///
+/// Reported behaviour: the line said "Context: Part 1" after the click, the words of the fault written by the click
+/// and gone a frame later.
+#[test]
+fn the_words_of_a_fault_in_another_part_stay_after_stepping_into_it() {
+    let mut failures = Vec::new();
+    for case in ["the badge of one fault", "a row of the window of faults"] {
+        let mut saved = crate::gui::screen_keys::tests::plate();
+        let node = saved.project.timeline.iter().find(|n| n.kind.body().is_some()).expect("the extrusion of the plate").id;
+        // written straight into the document, as a file from disk holds it: naming refuses the name
+        saved.project.named_dims.push(qymcad_core::model::NamedDim { name: "pi".into(), target: qymcad_core::model::DimTarget::Feature { node, key: "height".into() } });
+        if case == "a row of the window of faults" {
+            saved.project.parameters.push(qymcad_core::model::Param { name: "tau".into(), expr: "7".into(), value: 7.0 });
+        }
+        let mut app = saved_and_opened(saved, &format!("fault-in-a-part-{}.qcad", case.len()));
+        let root = qymcad_ui_state::current_ctx_id(&app.active_path, &app.project);
+        let part = app.project.timeline.iter().find(|n| n.id == node).and_then(|n| n.parent);
+        if part.is_none() || part == Some(root) {
+            failures.push(format!("{case}: setup: the extrusion is not in a part other than the current one"));
+            continue;
+        }
+        let pal = app.scheme.pal.clone();
+        let mut hand = Hand::new(&mut app);
+        hand.settle();
+        let Some(badge) = hand.status_badge(qymcad_ui_state::Tone::Warning) else {
+            failures.push(format!("{case}: no yellow badge"));
+            continue;
+        };
+        hand.click_screen(badge.rect.center()).settle();
+        if case == "a row of the window of faults" {
+            let Some(window) = hand.window_titled(&crate::i18n::tr("win-faults")) else {
+                failures.push(format!("{case}: the badge of two faults opened no window of faults"));
+                continue;
+            };
+            let path = qymcad_ui_state::path_in_words(&hand.app.project.feature_breadcrumbs(node));
+            let rows = hand.painted_words();
+            let Some(row) = rows.iter().find(|w| window.contains(w.rect.center()) && w.text.starts_with(&path)).map(|w| w.rect.center()) else {
+                failures.push(format!("{case}: no row of the extrusion {path:?}"));
+                continue;
+            };
+            hand.click_screen(row).settle();
+        }
+        let ti = hand.app.project.timeline.iter().position(|n| n.id == node);
+        if ti.map(Sel::Feature) != Some(hand.app.chosen.sel) || qymcad_ui_state::current_ctx_id(&hand.app.active_path, &hand.app.project) != part.unwrap_or(root) {
+            failures.push(format!("{case}: the click did not step into the part and select the extrusion"));
+        }
+        let words = hand.status_painted();
+        let what = crate::i18n::tr("par-name-is-constant");
+        match message(&words) {
+            Some(line) if line.text.contains("pi") && line.text.contains(&what) && line.colour == pal.warning() => {}
+            line => failures.push(format!("{case}: the line after the step into the part does not say in yellow what is wrong: {:?}", line.map(|w| &w.text))),
+        }
+    }
+    assert!(failures.is_empty(), "the words of a fault in another part:\n{}", failures.join("\n"));
+}

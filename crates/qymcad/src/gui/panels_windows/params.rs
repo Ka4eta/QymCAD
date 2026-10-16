@@ -270,7 +270,7 @@ pub(crate) fn params_rows_ui(wc: &mut qymcad_ui_state::WinCtx, ui: &mut egui::Ui
                 // undo each other: the jump landed nowhere. The road is the one a fault in the window of
                 // faults takes, so the two windows cannot come to lead to different places.
                 if let Some(g) = qymcad_ui_state::fault_goes_to(wc.project, &qymcad_ui_state::FaultPlace::Driver(k)) {
-                    wc.ask.push(qymcad_ui_state::WinAsk::GoTo { owner: g.owner, sel: g.sel });
+                    wc.ask.push(qymcad_ui_state::WinAsk::GoTo { owner: g.owner, sel: g.sel, said: None });
                 }
             }
             Act::DropDriver(k) => {

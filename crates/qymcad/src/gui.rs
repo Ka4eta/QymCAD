@@ -221,11 +221,14 @@ impl App {
                 WinAsk::Nav(n) => self.do_nav(n, ctx),
                 WinAsk::NavGuarded(n) => self.request_nav(n, ctx),
                 WinAsk::Save => self.save_project(),
-                WinAsk::GoTo { owner, sel } => {
+                WinAsk::GoTo { owner, sel, said } => {
                     if let Some(o) = owner {
                         self.enter_component(o);
                     }
                     self.chosen.sel = sel;
+                    if let Some(n) = said {
+                        self.status = n;
+                    }
                 }
                 WinAsk::InsertPart(src) => self.insert_part_from(src),
                 WinAsk::ExportSettings => self.ask_save_file(rfd::AsyncFileDialog::new().set_file_name("qym-cad-settings.ron").add_filter("qym-cad settings", &["ron"]), |app, p| {
@@ -239,7 +242,7 @@ impl App {
                     let ctx = ctx.clone();
                     self.ask_open_file(rfd::AsyncFileDialog::new().add_filter("qym-cad settings", &["ron"]), move |app, p| {
                         let path = p.to_string_lossy().into_owned();
-                        app.scheme.note = match app.import_settings_from(&path, &ctx) {
+                        app.scheme.note = match crate::gui::import_settings_from(&mut app.regen, &mut app.scheme, &mut app.set, &mut app.status, &path, &ctx) {
                             Ok(()) => Notice::info(crate::i18n::tr("settings-profile-loaded")),
                             // A BROKEN FILE DOES NOT TOUCH THE CURRENT SETTINGS: it is said that it did not
                             // work, and what was there stays.
@@ -976,19 +979,6 @@ impl App {
         while self.active_path.len() > i + 1 {
             self.exit_context();
         }
-    }
-
-    /// READ THE SETTINGS FROM A FILE and adopt them.
-    ///
-    /// Missing fields fall back to the factory ones (`serde(default)` on the record): a profile taken
-    /// from a different version of the program must still read, not be rejected wholesale — otherwise it
-    /// cannot be shared. A broken file does NOT touch the current settings: the change arrives whole or
-    /// not at all.
-    pub(crate) fn import_settings_from(&mut self, path: &str, ctx: &egui::Context) -> Result<(), String> {
-        let text = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
-        let s: Settings = ron::from_str(&text).map_err(|e| e.to_string())?;
-        adopt_settings(&mut self.regen, &mut self.scheme, &mut self.set, &mut self.status, s, ctx);
-        Ok(())
     }
 
     /// After a DATUM is edited (its coordinates or its definition): datums are resolved unconditionally

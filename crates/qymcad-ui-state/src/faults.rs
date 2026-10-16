@@ -136,23 +136,26 @@ pub struct GoTo {
 /// behaviour: the warning badge led into a sketch of the part, and nothing on screen said what was wrong.
 ///
 /// Returns what to say on the status line: what is wrong and where, in the tone of the fault - arriving somewhere
-/// without the words is arriving without knowing why.
+/// without the words is arriving without knowing why. The step into a part writes its context on the line a frame
+/// later, so the words go along with the request too and are said once the step is made. Reported behaviour: a click
+/// on the one fault of another part left "Context: Part 1" on the line.
 pub fn lead_to(fault: &Fault, project: &Project, win: &mut Windows, par_search: &mut String, ask: &mut Vec<WinAsk>) -> Notice {
     let to_table = match &fault.place {
         FaultPlace::Parameter(name) => Some(name.clone()),
         FaultPlace::Driver(k) => Some(project.named_dims.get(*k).map(|d| d.name.clone()).unwrap_or_default()),
         _ => None,
     };
+    let words = if fault.path.is_empty() { fault.words.clone() } else { qymcad_i18n::tr2("fault-said", "where", &fault.path, "what", &fault.words) };
+    let said = Notice { tone: fault.tone, words };
     match (to_table, fault_goes_to(project, &fault.place)) {
         (Some(name), _) => {
             *par_search = name;
             win.open(WinKind::Params);
         }
-        (None, Some(g)) => ask.push(WinAsk::GoTo { owner: g.owner, sel: g.sel }),
+        (None, Some(g)) => ask.push(WinAsk::GoTo { owner: g.owner, sel: g.sel, said: Some(said.clone()) }),
         (None, None) => {}
     }
-    let words = if fault.path.is_empty() { fault.words.clone() } else { qymcad_i18n::tr2("fault-said", "where", &fault.path, "what", &fault.words) };
-    Notice { tone: fault.tone, words }
+    said
 }
 
 /// A CLICK ON THE COUNTER OR ON THE WORDS OF A FAULT: with one fault it goes straight there, with more the window of
