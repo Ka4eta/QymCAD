@@ -27,7 +27,7 @@ mod bar;
 mod draw;
 
 pub use bar::{note_button, noted_buttons, noted_more, plan_bar, BarAlign, BarCaption, BarItem, BarLines, BarLook, BarPlace, BarPlan, Button, Captions, MoreSlot};
-pub use draw::{keyed, laid_out};
+pub use draw::{clear_of_overs, keyed, laid_out};
 
 /// The kinds of place an interface has. Not a list of panels: a KIND, of which there may be many.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, serde::Serialize, serde::Deserialize)]

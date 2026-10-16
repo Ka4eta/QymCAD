@@ -49,6 +49,31 @@ fn note(ctx: &egui::Context, key: &'static str, rect: egui::Rect) {
     });
 }
 
+/// A panel laid over the view at one of its edges, as the last frame laid it.
+#[derive(Clone, Copy)]
+struct LaidOver {
+    edge: Edge,
+    rect: egui::Rect,
+}
+
+/// Where the panels laid over the view are kept from one frame to the next.
+fn over_id() -> egui::Id {
+    egui::Id::new("the panels laid over the view")
+}
+
+/// THE VIEW CLEAR OF WHAT LIES OVER IT: `view` less the panels the last frame laid over it at its edges - a bar at the
+/// top takes the top off, one at the right the right side. What is drawn in a corner of the view, as the cube of the
+/// view is, stands there and not under a bar seen through.
+pub fn clear_of_overs(ctx: &egui::Context, view: egui::Rect) -> egui::Rect {
+    let laid: Vec<LaidOver> = ctx.data(|d| d.get_temp(over_id())).unwrap_or_default();
+    laid.iter().filter(|o| o.rect.intersects(view)).fold(view, |v, o| match o.edge {
+        Edge::Top => egui::Rect::from_min_max(egui::pos2(v.min.x, v.min.y.max(o.rect.max.y)), v.max),
+        Edge::Bottom => egui::Rect::from_min_max(v.min, egui::pos2(v.max.x, v.max.y.min(o.rect.min.y))),
+        Edge::Left => egui::Rect::from_min_max(egui::pos2(v.min.x.max(o.rect.max.x), v.min.y), v.max),
+        Edge::Right => egui::Rect::from_min_max(v.min, egui::pos2(v.max.x.min(o.rect.min.x), v.max.y)),
+    })
+}
+
 /// WHAT A PLACE DRAWS, UNDER THE ID OF ITS OWN KEY: the ids of all it draws come from `id` alone.
 ///
 /// A scope seeded the usual way (`push_id`, `UiBuilder::id_salt`) mixes the salt with the parent's id for what it
@@ -335,6 +360,7 @@ fn border(edge: Edge, members: &[&'static str], lengths: &[f32], i: usize, befor
 /// THE PANELS STANDING OVER THE VIEW: at its top edge going down, at its bottom edge going up, at its sides going inward;
 /// the view under them is not narrowed, and their ground lets it show through as much as the host says.
 fn over_the_view(shell: &Shell, view: egui::Rect, ui: &mut egui::Ui, host: &mut dyn Fills) {
+    let mut laid_over = Vec::new();
     for edge in Edge::ALL {
         let mut room = view;
         for k in shell.strips(edge).into_iter().flatten() {
@@ -371,6 +397,7 @@ fn over_the_view(shell: &Shell, view: egui::Rect, ui: &mut egui::Ui, host: &mut 
             });
             let rect = r.response.rect;
             note(ui.ctx(), k, rect);
+            laid_over.push(LaidOver { edge, rect });
             room = match edge {
                 Edge::Top => egui::Rect::from_min_max(egui::pos2(room.min.x, rect.max.y), room.max),
                 Edge::Bottom => egui::Rect::from_min_max(room.min, egui::pos2(room.max.x, rect.min.y)),
@@ -379,4 +406,5 @@ fn over_the_view(shell: &Shell, view: egui::Rect, ui: &mut egui::Ui, host: &mut 
             };
         }
     }
+    ui.ctx().data_mut(|d| d.insert_temp(over_id(), laid_over));
 }
