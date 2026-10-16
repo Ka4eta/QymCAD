@@ -352,6 +352,32 @@ static QymShape* off_seams_first(const QymShape* s, const uint32_t* idx, size_t 
 static QymShape* off_seams(const QymShape* s, const uint32_t* idx, size_t n, const std::function<QymShape*(const QymShape*)>& op);
 static std::vector<uint32_t> every_edge(const QymShape* s);
 
+// A BODY OF ITS OWN FOR A BLEND: a copy of `s` with every record of its names carried to the copy's elements. The chamfer
+// and the fillet of OCCT raise the tolerances of the edges and vertices of the body they are given (measured on the
+// case of the examples: a chamfer of 3, the sum of the tolerances of its body 0.0720624 -> 0.0744600), and those edges
+// and vertices are shared with the bodies before it and beside it in the cache. Written on one thread of the rebuild
+// while a neighbouring branch blended on another, the chamfer 11963 of the case came out invalid in 3 of 40 rebuilds,
+// and in none of 20 on one thread. The names are asked of what the body holds: the copy answers only of its own.
+static QymShape own_copy(const QymShape& s) {
+    BRepBuilderAPI_Copy copier(s.shape);
+    QymShape out{copier.Shape(), {}, {}, {}, {}, s.absorbed, {}};
+    auto carry = [&](TopAbs_ShapeEnum ty, const TopTools_DataMapOfShapeInteger& from, TopTools_DataMapOfShapeInteger& to) {
+        TopTools_IndexedMapOfShape own;
+        TopExp::MapShapes(s.shape, ty, own);
+        for (int i = 1; i <= own.Extent(); ++i) {
+            if (!from.IsBound(own(i))) continue;
+            for (TopTools_ListIteratorOfListOfShape c(copier.Modified(own(i))); c.More(); c.Next()) to.Bind(c.Value(), from.Find(own(i)));
+        }
+    };
+    carry(TopAbs_FACE, s.fids, out.fids);
+    carry(TopAbs_EDGE, s.eids, out.eids);
+    carry(TopAbs_FACE, s.fsplit_of, out.fsplit_of);
+    carry(TopAbs_FACE, s.fsplit_idx, out.fsplit_idx);
+    carry(TopAbs_EDGE, s.ebeside, out.ebeside);
+    return out;
+}
+
+
 extern "C" QymShape* qym_shape_fillet_all(const QymShape* s, double r) {
     if (!s) return why("fillet/asked", "there is no body to round"), nullptr;
     if (r <= 0.0) return why("fillet/asked", "the radius is zero"), nullptr;
@@ -359,6 +385,8 @@ extern "C" QymShape* qym_shape_fillet_all(const QymShape* s, double r) {
         QYM_SIGNALS;
         const std::vector<uint32_t> every = every_edge(s);
         if (along_a_seam(s, every.data(), every.size())) return off_seams_first(s, every.data(), every.size(), [&](const QymShape* m) { return qym_shape_fillet_all(m, r); });
+        const QymShape own = own_copy(*s); // the body handed stays as it was (`own_copy`)
+        s = &own;
         BRepFilletAPI_MakeFillet mk(s->shape);
         TopTools_IndexedMapOfShape edges;
         TopExp::MapShapes(s->shape, TopAbs_EDGE, edges);
@@ -388,6 +416,8 @@ extern "C" QymShape* qym_shape_chamfer_all(const QymShape* s, double d) {
         QYM_SIGNALS;
         const std::vector<uint32_t> every = every_edge(s);
         if (along_a_seam(s, every.data(), every.size())) return off_seams_first(s, every.data(), every.size(), [&](const QymShape* m) { return qym_shape_chamfer_all(m, d); });
+        const QymShape own = own_copy(*s); // the body handed stays as it was (`own_copy`)
+        s = &own;
         BRepFilletAPI_MakeChamfer mk(s->shape);
         TopTools_IndexedMapOfShape edges;
         TopExp::MapShapes(s->shape, TopAbs_EDGE, edges);
@@ -1525,6 +1555,8 @@ extern "C" QymShape* qym_shape_fillet_edges(const QymShape* s, double r, const u
     try {
         QYM_SIGNALS;
         if (along_a_seam(s, idx, n)) return off_seams_first(s, idx, n, [&](const QymShape* m) { return qym_shape_fillet_edges(m, r, idx, n, names, corners, all_names, n_all); });
+        const QymShape own = own_copy(*s); // the body handed stays as it was (`own_copy`)
+        s = &own;
         BRepFilletAPI_MakeFillet mk(s->shape);
         if (add_fillet_edges_by_id(mk, s, r, idx, n) == 0) return why_no_named_edges("fillet/edges", s, n), nullptr;
         mk.Build();
@@ -1579,6 +1611,8 @@ extern "C" QymShape* qym_shape_fillet_at_vertices(const QymShape* s, double r_de
             }
             return out > 0.0 ? out : r_default;
         };
+        const QymShape own = own_copy(*s); // the body handed stays as it was (`own_copy`)
+        s = &own;
         BRepFilletAPI_MakeFillet mk(s->shape);
         int added = 0;
         for (TopExp_Explorer ex(s->shape, TopAbs_EDGE); ex.More(); ex.Next()) {
@@ -1621,6 +1655,8 @@ extern "C" QymShape* qym_shape_fillet_var(const QymShape* s, double r1, double r
     try {
         QYM_SIGNALS;
         if (along_a_seam(s, idx, n)) return off_seams_first(s, idx, n, [&](const QymShape* m) { return qym_shape_fillet_var(m, r1, r2, idx, n); });
+        const QymShape own = own_copy(*s); // the body handed stays as it was (`own_copy`)
+        s = &own;
         BRepFilletAPI_MakeFillet mk(s->shape);
         int added = 0;
         for (TopExp_Explorer ex(s->shape, TopAbs_EDGE); ex.More(); ex.Next()) {
@@ -1649,6 +1685,8 @@ extern "C" QymShape* qym_shape_chamfer_edges(const QymShape* s, double d, const 
     try {
         QYM_SIGNALS;
         if (along_a_seam(s, idx, n)) return off_seams_first(s, idx, n, [&](const QymShape* m) { return qym_shape_chamfer_edges(m, d, idx, n, names, corners, all_names, n_all); });
+        const QymShape own = own_copy(*s); // the body handed stays as it was (`own_copy`)
+        s = &own;
         BRepFilletAPI_MakeChamfer mk(s->shape);
         if (add_chamfer_edges_by_id(mk, s, d, idx, n) == 0) return why_no_named_edges("chamfer/edges", s, n), nullptr;
         mk.Build();
@@ -1684,6 +1722,8 @@ extern "C" QymShape* qym_shape_chamfer_edges_asym(const QymShape* s, double a, d
     try {
         QYM_SIGNALS;
         if (along_a_seam(s, idx, n)) return off_seams_first(s, idx, n, [&](const QymShape* m) { return qym_shape_chamfer_edges_asym(m, a, b, mode, flip, ref_face, idx, n, names, corners, all_names, n_all); });
+        const QymShape own = own_copy(*s); // the body handed stays as it was (`own_copy`)
+        s = &own;
         BRepFilletAPI_MakeChamfer mk(s->shape);
         TopTools_IndexedDataMapOfShapeListOfShape efMap;
         TopExp::MapShapesAndAncestors(s->shape, TopAbs_EDGE, TopAbs_FACE, efMap);
