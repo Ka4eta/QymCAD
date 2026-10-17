@@ -219,7 +219,7 @@ mod tests {
     #[test]
     fn the_row_table_and_the_window_agree() {
         let src = crate::gui::panels_source::PANELS;
-        let code = src.split("#[cfg(test)]").next().expect("the working part");
+        let code = &qymcad_i18n::ratchet::working_part(src);
         let body = {
             let a = code.find("fn settings_section_body").expect("the body of the section is in place");
             &code[a..]
@@ -250,7 +250,7 @@ mod tests {
     #[test]
     fn the_fake_units_label_is_gone() {
         let src = crate::gui::panels_source::PANELS;
-        let code = src.split("#[cfg(test)]").next().expect("the working part");
+        let code = &qymcad_i18n::ratchet::working_part(src);
         assert!(!code.contains("settings-units-mm"), "the label about millimetre units is back in the settings window while there is still no choice of units");
     }
 }

@@ -88,17 +88,17 @@ mod tests {
     fn startup_and_import_use_the_same_door() {
         let gui = concat!(
             include_str!("file_doors.rs"),
-            "\n",
+            crate::gui::panels_source::file_break!(),
             include_str!("gizmo_math.rs"),
-            "\n",
+            crate::gui::panels_source::file_break!(),
             include_str!("look.rs"),
-            "\n",
+            crate::gui::panels_source::file_break!(),
             include_str!("panel_bits.rs"),
-            "\n",
+            crate::gui::panels_source::file_break!(),
             include_str!("startup.rs"),
-            "\n",
+            crate::gui::panels_source::file_break!(),
             include_str!("view_anim.rs"),
-            "\n",
+            crate::gui::panels_source::file_break!(),
             include_str!("../gui.rs")
         );
         assert!(

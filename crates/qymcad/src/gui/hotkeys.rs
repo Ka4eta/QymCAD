@@ -509,7 +509,7 @@ mod tests {
     #[test]
     fn the_hotkey_reference_is_fully_translated() {
         let src = include_str!("hotkeys.rs");
-        let code = src.split("#[cfg(test)]").next().expect("the working part");
+        let code = &qymcad_i18n::ratchet::working_part(src);
         assert_eq!(qymcad_i18n::ratchet::russian_literals(code), 0, "the hotkey reference must go through the catalogue in its entirety");
     }
 
@@ -659,7 +659,7 @@ mod tests {
         let src = include_str!("hotkeys.rs");
         // the WORKING part of the file only: the guard is about the reference table, not about what
         // the tests below happen to quote
-        let code = src.split("#[cfg(test)]").next().expect("the working part");
+        let code = &qymcad_i18n::ratchet::working_part(src);
         let cyr: Vec<&str> =
             code.lines().filter(|l| !l.trim_start().starts_with("//")).filter(|l| l.contains('"') && l.chars().any(|c| ('а'..='я').contains(&c) || ('А'..='Я').contains(&c))).collect();
         assert!(cyr.is_empty(), "a phrase has appeared in the reference instead of a key again:\n{}", cyr.join("\n"));
