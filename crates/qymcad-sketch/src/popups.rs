@@ -990,7 +990,9 @@ pub fn dim_editor(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Context, rect
             if dim_refs.is_some() {
                 // WHETHER THE NAME WILL DO. An empty one is legitimate: the dimension simply stops being a
                 // driver.
-                let ok = |nm: &str| nm.is_empty() || (qymcad_core::drivers::check_ident(nm).is_ok() && !sk.project.driver_name_taken(nm, sid, &key_refs));
+                // a name that would close a circle of formulas will not do either, and the line says the chain
+                let circle = |nm: &str| own.as_ref().and_then(|t| sk.project.naming_closes_circle(t, nm));
+                let ok = |nm: &str| nm.is_empty() || (qymcad_core::drivers::check_ident(nm).is_ok() && !sk.project.driver_name_taken(nm, sid, &key_refs) && circle(nm).is_none());
                 ui.horizontal(|ui| {
                     // THE CAPTION IS TRANSLATABLE. A raw "driver:" used to stand here - the only string of
                     // the popup that went around the language catalogue.
@@ -1011,12 +1013,16 @@ pub fn dim_editor(sk: &mut qymcad_ui_state::SketchCtx, ctx: &egui::Context, rect
                         // the line and its hint say why - the hint said "taken" over `tau`, which nobody holds.
                         // the owner is somebody else: a dimension keeps its own name in the field
                         let owner = sk.project.name_owner(&nm).filter(|_| sk.project.driver_name_taken(&nm, sid, &key_refs));
-                        name_hint = if owner.is_some() { qymcad_i18n::tr("sk-driver-name-taken-hint") } else { qymcad_i18n::error_words::ident_refusal_text(&nm) };
+                        let unfit = match circle(&nm) {
+                            Some(chain) => qymcad_i18n::error_words::expr_error_text(&qymcad_core::errors::ExprError::LeansOnItself(chain)),
+                            None => qymcad_i18n::error_words::ident_refusal_text(&nm),
+                        };
+                        name_hint = if owner.is_some() { qymcad_i18n::tr("sk-driver-name-taken-hint") } else { unfit.clone() };
                         name_refusal = Some(match owner {
                             Some(o) => {
                                 qymcad_i18n::tr2("par-name-taken", "name", "", "where", &if o.path.is_empty() { qymcad_i18n::tr("par-owner-project") } else { qymcad_ui_state::path_in_words(&o.path) })
                             }
-                            None => qymcad_i18n::error_words::ident_refusal_text(&nm),
+                            None => unfit,
                         });
                     }
                 });

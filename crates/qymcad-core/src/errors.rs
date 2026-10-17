@@ -208,10 +208,13 @@ pub enum ExprError {
     /// another. The parser goes down one call per level, and a stored formula nested a few thousand deep ran the
     /// stack out and ended the program (`expr::MAX_FORMULA_DEPTH`).
     TooDeep { limit: usize },
-    /// The formula of a named number comes back to that name through the names it reads: `b = a/2` typed while `a`
-    /// is written as `b*2`, or `b = b + 1`. Every evaluation would take the last value and give a new one, so the
-    /// number drifts on each rebuild instead of standing.
+    /// The formula of a name comes back to that name through the names it reads: `b = a/2` typed while `a` is written
+    /// as `b*2`, or `b = b + 1`. Every evaluation would take the last value and give a new one, so the number drifts on
+    /// each rebuild instead of standing. Holds the chain, the name first and last: `b -> a -> b`.
     LeansOnItself(String),
+    /// The formula reads a name that has no value to give: one whose own formula comes back to itself, or reads such a
+    /// name in turn. Holds that name.
+    NameWithoutValue(String),
 }
 
 /// A kernel error: a fact rather than a phrase, with the words supplied by the application.
@@ -555,6 +558,7 @@ impl ExprError {
             NotANumber => "error-expr-not-a-number",
             TooDeep { .. } => "error-expr-too-deep",
             LeansOnItself(_) => "error-expr-leans-on-itself",
+            NameWithoutValue(_) => "error-expr-name-without-value",
         }
     }
 }
@@ -635,7 +639,8 @@ impl std::fmt::Display for ExprError {
             ExpectedParenAfterArgs => write!(f, "expected ')' after arguments"),
             NotANumber => write!(f, "result is not a number"),
             TooDeep { limit } => write!(f, "the formula nests deeper than {limit} levels"),
-            LeansOnItself(n) => write!(f, "the formula comes back to {n} itself"),
+            LeansOnItself(chain) => write!(f, "the formula comes back to its own name: {chain}"),
+            NameWithoutValue(n) => write!(f, "{n} has no value"),
         }
     }
 }

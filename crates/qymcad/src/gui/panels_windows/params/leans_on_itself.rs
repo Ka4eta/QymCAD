@@ -17,9 +17,9 @@ mod tests {
         })
     }
 
-    /// The words of the refusal of a formula leaning on `name`, as the program says them.
+    /// The words of the refusal of a formula reading `name` itself, as the program says them: the chain `name -> name`.
     fn leans_on(name: &str) -> String {
-        crate::gui::error_words::expr_error_text(&ExprError::LeansOnItself(name.into()))
+        crate::gui::error_words::expr_error_text(&ExprError::LeansOnItself(format!("{name} -> {name}")))
     }
 
     /// Where the extrusion of the plate stands: its index in the timeline and its node.

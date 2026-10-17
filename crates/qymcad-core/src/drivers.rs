@@ -100,7 +100,7 @@ pub fn check_ident(name: &str) -> Result<(), IdentError> {
 }
 
 /// Why a rename did not go through.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub enum RenameError {
     /// The old name does not exist in the project.
     NotFound,
@@ -108,6 +108,9 @@ pub enum RenameError {
     Taken,
     /// The new name is unfit for a formula.
     Bad(IdentError),
+    /// The new name would close a circle: a formula reads it while nobody holds it, and the renamed name's own formula
+    /// reads that one back. Holds the chain, `b -> a -> b`.
+    LeansOnItself(String),
 }
 
 impl Project {
@@ -142,6 +145,9 @@ impl Project {
         // Taken by somebody else. `len` to `Len` is a rename to another name, free unless `Len` is held.
         if self.name_owner(&new).is_some() {
             return Err(RenameError::Taken);
+        }
+        if let Some(chain) = self.rename_closes_circle(&crate::model::Renamed { old: &old, new: &new }) {
+            return Err(RenameError::LeansOnItself(chain));
         }
 
         let mut found = false;

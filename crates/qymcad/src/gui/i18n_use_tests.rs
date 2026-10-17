@@ -450,7 +450,8 @@ fn every_core_error_has_words_in_every_language() {
         X::TrailingInput("xx".into()),
         X::NotANumber,
         X::TooDeep { limit: 256 },
-        X::LeansOnItself("b_len".into()),
+        X::LeansOnItself("b_len -> a_len -> b_len".into()),
+        X::NameWithoutValue("a_len".into()),
     ] {
         samples.push(E::Expr(x));
     }

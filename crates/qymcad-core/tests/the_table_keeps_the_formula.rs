@@ -67,9 +67,9 @@ fn a_number_typed_over_a_formula_makes_a_constant() {
 fn a_formula_that_comes_back_to_its_own_name_is_refused() {
     let mut r = rectangle();
     let value_before = r.p.dim_target_value(&r.height);
-    assert_eq!(r.p.set_dim_target_text(&r.height.clone(), "b_len + 1"), Err(ExprError::LeansOnItself("b_len".into())));
+    assert_eq!(r.p.set_dim_target_text(&r.height.clone(), "b_len + 1"), Err(ExprError::LeansOnItself("b_len -> b_len".into())));
     assert_eq!(r.p.set_dim_target_text(&r.width.clone(), "b_len*2"), Ok(true));
-    assert_eq!(r.p.set_dim_target_text(&r.height.clone(), "a_len/2"), Err(ExprError::LeansOnItself("b_len".into())), "b_len = a_len/2 with a_len = b_len*2 was taken");
+    assert_eq!(r.p.set_dim_target_text(&r.height.clone(), "a_len/2"), Err(ExprError::LeansOnItself("b_len -> a_len -> b_len".into())), "b_len = a_len/2 with a_len = b_len*2 was taken");
     assert_eq!(r.p.dim_target_value(&r.height), value_before, "a refused formula changed the value of b_len");
     assert_eq!(r.p.dim_target_expr(&r.height), None, "a refused formula was written into b_len");
     assert!(matches!(r.p.set_dim_target_text(&r.height.clone(), "no_such/2"), Err(ExprError::UnknownName(_))), "a formula with no value was taken");
@@ -96,4 +96,21 @@ fn a_formula_typed_for_a_feature_number_stays() {
     assert_eq!(r.p.set_dim_target_text(&depth, "a_len/4"), Ok(true));
     assert_eq!(r.p.feat_dim(r.extrude, "height"), Some("a_len/4"), "the formula typed for depth became a number");
     assert_eq!(r.p.dim_target_value(&depth), Some(10.0));
+}
+
+/// A NAME THAT WOULD CLOSE A CIRCLE IS REFUSED to a dimension, renamed or named for the first time: its formula reads `q`,
+/// and `q = x*2` reads the name it would take.
+#[test]
+fn naming_a_dimension_into_a_circle_is_refused() {
+    let mut r = rectangle();
+    r.p.parameters.push(qymcad_core::model::Param { name: "q".into(), expr: "x*2".into(), value: 0.0 });
+    // the height written as q/2 while q reads a name nobody holds
+    if let Some(e) = r.p.sketches[r.si].constraints.last_mut().and_then(Constraint::expr_mut) {
+        *e = "q/2".into();
+    }
+    let renamed = r.p.rename_driver("b_len", "x");
+    assert!(matches!(&renamed, Err(qymcad_core::drivers::RenameError::LeansOnItself(chain)) if chain == "x -> q -> x"), "renaming b_len to x closed the circle: {renamed:?}");
+    r.p.remove_named_dim("b_len");
+    assert_eq!(r.p.naming_closes_circle(&r.height, "x").as_deref(), Some("x -> q -> x"));
+    assert!(!r.p.name_dim("x".into(), r.height.clone()), "naming the height x closed the circle");
 }

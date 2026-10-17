@@ -293,8 +293,9 @@ fn mate_faults(project: &Project) -> Vec<Fault> {
 /// dimension is gone.
 fn parameter_faults(project: &Project) -> Vec<Fault> {
     let mut out = Vec::new();
-    for p in project.parameters.iter().filter(|p| !p.expr.trim().is_empty()) {
-        if let Err(e) = project.eval_expr(&p.expr) {
+    for (i, p) in project.parameters.iter().enumerate().filter(|(_, p)| !p.expr.trim().is_empty()) {
+        // asked as the table asks it, so a parameter in a circle is a fault with its chain, not a stale number
+        if let Err(e) = project.check_param_text(i, &p.expr) {
             out.push(Fault { tone: Tone::Error, words: qymcad_i18n::error_words::expr_error_text(&e), path: p.name.clone(), place: FaultPlace::Parameter(p.name.clone()), owner: None });
         }
     }

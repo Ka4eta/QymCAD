@@ -81,7 +81,10 @@ pub(crate) fn params_rows_ui(wc: &mut qymcad_ui_state::WinCtx, ui: &mut egui::Ui
                 // into the model on every letter, and every formula referring to it broke on the very first one.
                 let own = names[i].clone();
                 let taken = |nm: &str| nm != own && wc.project.name_owner(nm).is_some();
-                let ok = |nm: &str| qymcad_core::drivers::check_ident(nm).is_ok() && !taken(nm);
+                // A NAME THAT WOULD CLOSE A CIRCLE is refused as a taken one is: a formula reads it while nobody holds it,
+                // and this row's own formula reads that one back
+                let circle = |nm: &str| if nm == own { None } else { wc.project.rename_closes_circle(&qymcad_core::model::Renamed { old: &own, new: nm }) };
+                let ok = |nm: &str| qymcad_core::drivers::check_ident(nm).is_ok() && !taken(nm) && circle(nm).is_none();
                 let id = egui::Id::new(("par_name", i));
                 let r = super::expr_field::name_field(ui, &*wc.project, id, &names[i], w_name, "w", &ok);
                 name_w = name_w.max(r.resp.rect.width());
@@ -100,7 +103,10 @@ pub(crate) fn params_rows_ui(wc: &mut qymcad_ui_state::WinCtx, ui: &mut egui::Ui
                             let where_ = if o.path.is_empty() { crate::i18n::tr("par-owner-project") } else { qymcad_ui_state::path_in_words(&o.path) };
                             crate::i18n::tr2("par-name-taken", "name", &nm, "where", &where_)
                         }
-                        _ => crate::gui::error_words::ident_refusal_text(&nm),
+                        _ => match circle(&nm) {
+                            Some(chain) => crate::gui::error_words::expr_error_text(&qymcad_core::errors::ExprError::LeansOnItself(chain)),
+                            None => crate::gui::error_words::ident_refusal_text(&nm),
+                        },
                     });
                 }
 
@@ -112,7 +118,7 @@ pub(crate) fn params_rows_ui(wc: &mut qymcad_ui_state::WinCtx, ui: &mut egui::Ui
 
                 // THE VALUE IS COMPUTED FROM WHAT IS IN THE FIELD RIGHT NOW rather than from what was recorded: the
                 // answer is visible while typing, and it costs the document nothing.
-                match wc.project.eval_expr(&r.text) {
+                match wc.project.check_param_text(i, &r.text) {
                     Ok(v) => {
                         ui.label(format!("{v:.3}"));
                     }
@@ -226,11 +232,21 @@ pub(crate) fn params_rows_ui(wc: &mut qymcad_ui_state::WinCtx, ui: &mut egui::Ui
                     drop(ed);
                     done
                 };
-                if done.is_err() {
-                    *wc.status = Notice::refusal(crate::gui::error_words::ident_refusal_text(&nm));
+                match done {
+                    Err(qymcad_core::drivers::RenameError::LeansOnItself(chain)) => {
+                        *wc.status = Notice::refusal(crate::gui::error_words::expr_error_text(&qymcad_core::errors::ExprError::LeansOnItself(chain)))
+                    }
+                    Err(_) => *wc.status = Notice::refusal(crate::gui::error_words::ident_refusal_text(&nm)),
+                    Ok(_) => {}
                 }
             }
             Act::SetExpr(i, e) => {
+                // A FORMULA THAT CLOSES A CIRCLE IS REFUSED before it reaches the document, with its chain: taken, `a = b+1`
+                // with `b = a+1` left both without a value. Any other formula with no value is kept and said beside its row.
+                if let Err(why @ qymcad_core::errors::ExprError::LeansOnItself(_)) = wc.project.check_param_text(i, &e) {
+                    *wc.status = Notice::refusal(crate::gui::error_words::expr_error_text(&why));
+                    continue;
+                }
                 if fresh_row(wc, i) {
                     wc.project.parameters[i].expr = e; // the first value of a row just added is part of adding it
                     qymcad_ui_state::fold_into_last_step(wc.edits, wc.project);

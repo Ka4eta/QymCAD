@@ -214,7 +214,8 @@ error-expr-unexpected-end = the expression ends too early: a number or a name wa
 error-expr-trailing-input = Trailing input at «{ $what }»
 error-expr-not-a-number = The result is not a number (division by zero?)
 error-expr-too-deep = The formula nests deeper than { $limit } levels — parentheses, functions, signs or powers inside one another
-error-expr-leans-on-itself = The formula comes back to { $what } itself — write it through other names
+error-expr-leans-on-itself = The formula comes back to its own name: { $what } — write it through other names
+error-expr-name-without-value = { $what } has no value — its own line says why
 
 ## A message from the kernel itself — passed through untranslated: it is diagnostics, not prose.
 

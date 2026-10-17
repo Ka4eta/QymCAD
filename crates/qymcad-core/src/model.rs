@@ -360,6 +360,11 @@ pub struct Project {
     /// take some of its edges and did the rest. Shown yellow with the words, not red. Derived, not saved.
     #[serde(skip)]
     pub regen_warnings: std::collections::HashMap<Id, crate::errors::CoreError>,
+    /// THE NAMES THAT HAVE NO VALUE TO HAND TO A FORMULA: a name whose formula comes back to itself, and a name reading
+    /// one. Worked out by `eval_parameters` and left out of `param_map`, so a number such a name held before reaches no
+    /// formula. Derived, not saved.
+    #[serde(skip)]
+    pub names_without_value: std::collections::BTreeSet<String>,
     /// Rollback bar: build only the first N timeline nodes; nodes at index N and beyond are suppressed and
     /// their bodies are neither built nor shown. `None` builds everything. Saved with the project.
     #[serde(default)]
@@ -1434,6 +1439,8 @@ mod curves;
 pub use curves::*;
 mod sketch_ops;
 mod params;
+mod formulas;
+pub use formulas::{NamedFormula, Renamed};
 mod bodies;
 mod refs;
 mod features;

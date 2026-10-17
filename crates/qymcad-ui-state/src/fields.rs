@@ -100,12 +100,16 @@ pub fn dim_expr_field_in(rc: &mut RebuildCtx, ui: &mut egui::Ui, id: Id, key: &s
         // the ready answer is what gets used further on.
         ui.label(qymcad_i18n::tr("sk-driver-label")).on_hover_text(qymcad_i18n::tr("sk-driver-name-hint"));
         let nid = if place.is_empty() { egui::Id::new(("featdrv", id, key)) } else { egui::Id::new(("featdrv", id, key, place)) };
+        // a name that would close a circle of formulas will not do either, and the line says the chain
+        let fits = |project: &qymcad_core::model::Project, nm: &str| {
+            nm.is_empty() || (qymcad_core::drivers::check_ident(nm).is_ok() && !project.driver_name_taken_by(nm, &target) && project.naming_closes_circle(&target, nm).is_none())
+        };
         let rn = {
-            let ok = |nm: &str| nm.is_empty() || (qymcad_core::drivers::check_ident(nm).is_ok() && !rc.project.driver_name_taken_by(nm, &target));
+            let ok = |nm: &str| fits(rc.project, nm);
             name_field(ui, rc.project, nid, &cur_name, 100.0, &qymcad_i18n::tr("sk-name-placeholder"), &ok)
         };
         let nm = rn.text.trim().to_string();
-        let name_ok = nm.is_empty() || (qymcad_core::drivers::check_ident(&nm).is_ok() && !rc.project.driver_name_taken_by(&nm, &target));
+        let name_ok = fits(rc.project, &nm);
         if rn.committed && nm != cur_name.trim() {
             begin_edit(rc.edits, rc.project, qymcad_i18n::tr("sk-driver-step"));
             let old = cur_name.trim().to_string();
@@ -127,10 +131,14 @@ pub fn dim_expr_field_in(rc: &mut RebuildCtx, ui: &mut egui::Ui, id: Id, key: &s
             let who = rc.project.name_owner(&nm).filter(|_| other).map(|o| if o.path.is_empty() { qymcad_i18n::tr("par-owner-project") } else { crate::path_in_words(&o.path) });
             // THE HINT GIVES THE SAME REASON AS THE LINE: "taken" only when somebody holds the name. Reported
             // behaviour: over `pi`, which nobody holds, the hint said another dimension already used the name.
-            let hint = if who.is_some() { qymcad_i18n::tr("sk-driver-name-taken-hint") } else { qymcad_i18n::error_words::ident_refusal_text(&nm) };
+            let unfit = match rc.project.naming_closes_circle(&target, &nm) {
+                Some(chain) => qymcad_i18n::error_words::expr_error_text(&qymcad_core::errors::ExprError::LeansOnItself(chain)),
+                None => qymcad_i18n::error_words::ident_refusal_text(&nm),
+            };
+            let hint = if who.is_some() { qymcad_i18n::tr("sk-driver-name-taken-hint") } else { unfit.clone() };
             let msg = match who {
                 Some(w) => qymcad_i18n::tr2("par-name-taken", "name", &nm, "where", &w),
-                None => qymcad_i18n::error_words::ident_refusal_text(&nm),
+                None => unfit,
             };
             crate::say(ui, &rc.scheme.pal, &crate::Notice::warning(msg), crate::NoticeSize::Small).on_hover_text(hint);
         }
