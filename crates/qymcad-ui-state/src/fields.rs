@@ -60,24 +60,27 @@ pub fn dim_expr_field_in(rc: &mut RebuildCtx, ui: &mut egui::Ui, id: Id, key: &s
         // The name of the parent is appended to the key, and the two places stop arguing.
         let fid = if place.is_empty() { egui::Id::new(("featdim", id, key)) } else { egui::Id::new(("featdim", id, key, place)) };
         let o = expr_field(ui, rc.project, fid, &model, 120.0, &qymcad_i18n::tr("sk-expr-placeholder"));
-        // A FORMULA THAT COMES BACK TO THE NAME OF THIS VERY NUMBER is refused before the step opens, as the table of
-        // parameters and the command refuse it (`check_dim_target_text`); an empty field clears the formula and is no
-        // formula.
-        let leans = if o.committed && !o.text.trim().is_empty() {
-            let target = qymcad_core::model::DimTarget::Feature { node: id, key: key.to_string() };
-            rc.project.check_dim_target_text(&target, &o.text).err().filter(|e| matches!(e, qymcad_core::errors::ExprError::LeansOnItself(_)))
-        } else {
-            None
-        };
-        if let Some(e) = &leans {
+        // WRITTEN THROUGH THE ONE DOOR OF A FEATURE'S NUMBER, a plain number standing as the number itself. What the door
+        // refuses - a formula coming back to the name of this very number - is asked before the step opens, so a
+        // refusal leaves no step of undo, and said on the status line.
+        let at = qymcad_core::model::FeatNumber { node: id, key };
+        let refused = if o.committed && o.text != model { rc.project.check_feat_text(&at, &o.text).err() } else { None };
+        if let Some(e) = &refused {
             *rc.status = Notice::refusal(qymcad_i18n::error_words::expr_error_text(e));
         } else if o.committed && o.text != model {
             // ONE EDIT, ONE UNDO STEP. The edit used to go into the model on losing focus, past
             // `App::edit`, and Ctrl+Z never saw it.
             begin_edit(rc.edits, rc.project, qymcad_i18n::tr("par-edit-step"));
-            rc.project.set_feat_dim(id, key, o.text.clone());
-            commit_edit(rc);
-            mark_dirty_for_rebuild(rc); // the document is marked; the planner does the counting
+            match rc.project.write_feat_formula(&at, &o.text, qymcad_core::model::PlainNumber::Stands) {
+                Ok(()) => {
+                    commit_edit(rc);
+                    mark_dirty_for_rebuild(rc); // the document is marked; the planner does the counting
+                }
+                Err(e) => {
+                    abort_edit(rc);
+                    *rc.status = Notice::refusal(qymcad_i18n::error_words::expr_error_text(&e));
+                }
+            }
         }
         // WHAT CAME OUT OF WHAT WAS TYPED, IN WORDS, RIGHT HERE.
         //

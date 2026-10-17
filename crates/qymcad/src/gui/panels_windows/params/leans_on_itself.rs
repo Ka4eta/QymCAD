@@ -111,4 +111,62 @@ mod tests {
         let said = hand.status_painted().into_iter().find(|w| w.text.contains(&leans_on("depth")));
         assert!(said.as_ref().is_some_and(|w| w.colour == pal.error_mild()), "the properties do not refuse depth*2 in the tone of a refusal: {:?}", said.map(|w| (w.text, w.colour)));
     }
+
+    /// A LINEAR ARRAY OF THE PLATE made with its tool, the body selected first. Answers the array's index in the
+    /// timeline and its node.
+    fn array_of_the_plate(hand: &mut Hand) -> Plate {
+        let body = hand.app.project.timeline.iter().rev().find_map(|n| n.kind.body()).expect("setup: the plate");
+        let app = &mut *hand.app;
+        qymcad_ui_state::select_body(&mut app.project, &mut app.chosen.sel, &mut app.viewing.view, body);
+        hand.look_at([30.0, 20.0, 6.0], 8.0).tool(17).enter();
+        let (ti, node) = hand.app.project.timeline.iter().enumerate().find(|(_, n)| matches!(n.kind, FeatureKind::LinearArray { .. })).map(|(i, n)| (i, n.id)).expect("setup: the array");
+        Plate { ti, node }
+    }
+
+    /// Open node `at` again by a double click on its row in the tree.
+    fn reopen(hand: &mut Hand, at: &Plate) {
+        let label = crate::gui::panels_tree::feature_row_label(&hand.app.project, at.ti);
+        assert!(hand.double_click_word(&label), "the tree shows the node as {label:?}");
+        assert!(hand.app.tools.cmd.edit == Some(at.node), "the node did not open to be edited; the program says {:?}", hand.app.status);
+    }
+
+    /// THE COUNT OF AN ARRAY TYPED IN THE BAR READS A NAME WITH NO VALUE: `a` of the circle `a = b+1`, `b = a+1` that a
+    /// document saved before such a circle was refused holds. A count is no named number of its node, so it cannot come
+    /// back to a name of its own; what it can do is read a circle, and the door refuses that as it refuses a circle.
+    #[test]
+    fn an_array_reopened_refuses_a_count_reading_a_circle() {
+        let mut app = App::default();
+        let pal = app.scheme.pal.clone();
+        let mut hand = Hand::new(&mut app);
+        plate_named_depth(&mut hand);
+        let array = array_of_the_plate(&mut hand);
+        hand.app.project.parameters.push(qymcad_core::model::Param { name: "a".into(), expr: "b+1".into(), value: 0.0 });
+        hand.app.project.parameters.push(qymcad_core::model::Param { name: "b".into(), expr: "a+1".into(), value: 0.0 });
+        hand.app.project.eval_parameters();
+        reopen(&mut hand, &array);
+        assert!(hand.type_after_word(&crate::i18n::tr("cmd-copies"), "a"), "the count of the array is not in the bar: {:?}", hand.words_drawn());
+        hand.enter();
+        assert_eq!(hand.app.project.feat_dim(array.node, "count"), None, "a count reading the circle a -> b -> a was written");
+        let why = crate::gui::error_words::expr_error_text(&ExprError::NameWithoutValue("a".into()));
+        let said = hand.status_painted().into_iter().find(|w| w.text.contains(&why));
+        assert!(said.as_ref().is_some_and(|w| w.colour == pal.error_mild()), "the count reading a circle is not refused in words: {:?}", said.map(|w| (w.text, w.colour)));
+    }
+
+    /// THE STEP OF AN ARRAY TYPED AT THE GEOMETRY COMES BACK TO ITS OWN NAME: the step along X of the array named `s`, and
+    /// `s*2` typed for the step. The field of the step is no number of the node by that key - the step is written into
+    /// `dx` - so it is the write through the door that refuses it.
+    #[test]
+    fn an_array_reopened_refuses_a_step_of_its_own_name() {
+        let mut app = App::default();
+        let pal = app.scheme.pal.clone();
+        let mut hand = Hand::new(&mut app);
+        plate_named_depth(&mut hand);
+        let array = array_of_the_plate(&mut hand);
+        assert!(hand.app.project.add_named_feat_dim("s".into(), array.node, "dx"), "setup: the step along X is named");
+        reopen(&mut hand, &array);
+        hand.formula(Typed { field: "step", text: "s*2" }).enter();
+        assert_eq!(hand.app.project.feat_dim(array.node, "dx"), None, "s*2 was written for the step named s");
+        let said = hand.status_painted().into_iter().find(|w| w.text.contains(&leans_on("s")));
+        assert!(said.as_ref().is_some_and(|w| w.colour == pal.error_mild()), "the step s*2 is not refused in words: {:?}", said.map(|w| (w.text, w.colour)));
+    }
 }

@@ -442,7 +442,9 @@ pub(crate) fn joints_panel(pr: &mut qymcad_ui_state::PropsCtx, ui: &mut egui::Ui
                     }
                 });
             }
-            super::joints::keep_slot_exprs(pr.project, j.id, exprs);
+            if let Err(e) = super::joints::keep_slot_exprs(pr.project, j.id, exprs) {
+                *pr.status = qymcad_ui_state::Notice::refusal(crate::gui::error_words::expr_error_text(&e));
+            }
         }
         // the parametric angle and offset fields are expressions over the global variables (like sketch
         // dimensions): they are stored in feat_dims under the joint's id and evaluated in regenerate.

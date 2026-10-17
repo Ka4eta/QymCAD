@@ -43,8 +43,8 @@ fn two_parameters_reading_each_other_have_no_value_and_do_not_grow() {
     assert_eq!((value_of(&p, "a"), value_of(&p, "b")), (a, b), "the circle a = b+1, b = a+1 grows on every evaluation");
     assert_eq!(fault_of!(first, "a"), Some(ExprError::LeansOnItself("a -> b -> a".into())), "a in the circle is not said with its chain");
     assert_eq!(fault_of!(first, "b"), Some(ExprError::LeansOnItself("b -> a -> b".into())), "b in the circle is not said with its chain");
-    assert!(!p.param_map().contains_key("a") && !p.param_map().contains_key("b"), "a name in a circle hands out a number: {:?}", p.param_map());
-    assert!(p.eval_expr("a*2").is_err(), "a formula reading a name in a circle has a value");
+    let reading = qymcad_core::model::NamedFormula { name: "x", text: "a*2" };
+    assert_eq!(p.check_formula(&reading), Err(ExprError::NameWithoutValue("a".into())), "a formula reading a name in a circle has a value");
 }
 
 #[test]
@@ -62,7 +62,8 @@ fn a_parameter_reading_a_circle_has_no_value() {
     let mut p = document(vec![param("a = b+1", 10.0), param("b = a+1", 11.0), param("c = a*2", 20.0)]);
     let errs = p.eval_parameters();
     assert_eq!(fault_of!(errs, "c"), Some(ExprError::NameWithoutValue("a".into())), "c reading a in a circle is not said");
-    assert!(!p.param_map().contains_key("c"), "c reading a circle hands out a number");
+    let reading = qymcad_core::model::NamedFormula { name: "x", text: "c+1" };
+    assert_eq!(p.check_formula(&reading), Err(ExprError::NameWithoutValue("c".into())), "a formula reading c, which reads a circle, has a value");
 }
 
 /// THE ORDER IS THE ORDER THE FORMULAS READ EACH OTHER IN, whatever order the rows stand in, and a chain longer than

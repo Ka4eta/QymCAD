@@ -182,7 +182,6 @@ impl Project {
             regen_edges: _,
             regen_errors: _,
             regen_warnings: _,
-            names_without_value: _,
             mates_conflict: _,
             drag_pull: _,
             snap_rebinds: _,

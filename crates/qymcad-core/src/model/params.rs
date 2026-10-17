@@ -8,12 +8,10 @@ impl Project {
     /// through [`crate::expr::eval`], the same way sketch dimensions are evaluated. A name is a key as written: `H`
     /// and `h` are two parameters.
     pub fn param_map(&self) -> std::collections::HashMap<String, f64> {
-        // A NAME WITH NO VALUE HANDS OUT NO NUMBER: what it held before its formula came back to itself is no value of it.
-        let valued = |n: &String| !n.is_empty() && !self.names_without_value.contains(n);
-        let mut m: std::collections::HashMap<String, f64> = self.parameters.iter().filter(|p| valued(&p.name)).map(|p| (p.name.clone(), p.value)).collect();
+        let mut m: std::collections::HashMap<String, f64> = self.parameters.iter().filter(|p| !p.name.is_empty()).map(|p| (p.name.clone(), p.value)).collect();
         // Named driving dimensions (the skeleton sketch of an assembly): a name resolves to a dimension
         // value, which parts then consume through expressions.
-        for nd in self.named_dims.iter().filter(|nd| valued(&nd.name) && matches!(nd.target, DimTarget::Sketch { .. })) {
+        for nd in self.named_dims.iter().filter(|nd| !nd.name.is_empty() && matches!(nd.target, DimTarget::Sketch { .. })) {
             if let Some(v) = self.named_dim_value(nd) {
                 m.insert(nd.name.clone(), v);
             }
@@ -22,7 +20,7 @@ impl Project {
         // dimension or another feature's number, not only a global parameter. Evaluated against the global parameters
         // alone, `depth = a_len/4` gave no value, and the table said the dimension was gone while the body stood 10 deep.
         // Up to eight passes, so a number written through another feature's number settles whichever order they stand in.
-        let features: Vec<&NamedDim> = self.named_dims.iter().filter(|nd| valued(&nd.name) && matches!(nd.target, DimTarget::Feature { .. })).collect();
+        let features: Vec<&NamedDim> = self.named_dims.iter().filter(|nd| !nd.name.is_empty() && matches!(nd.target, DimTarget::Feature { .. })).collect();
         for _ in 0..8 {
             let mut changed = false;
             for nd in &features {
@@ -351,7 +349,6 @@ impl Project {
                 }
             }
         }
-        self.names_without_value = worked.without_value;
         let vars = worked.values;
         // Apply the expressions to dimensional constraints.
         for s in &mut self.sketches {

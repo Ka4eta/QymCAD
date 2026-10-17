@@ -12,6 +12,32 @@ pub struct NamedFormula<'a> {
     pub text: &'a str,
 }
 
+/// A NUMBER OF A FEATURE OR OF A MATE: number `key` of node `node`, as `feat_dims` keys it.
+pub struct FeatNumber<'a> {
+    pub node: Id,
+    pub key: &'a str,
+}
+
+/// WHAT TEXT TYPED FOR A FEATURE'S NUMBER IS ([`Project::check_feat_text`]).
+pub enum FeatText {
+    /// An empty field: no formula.
+    Nothing,
+    /// A plain number, as typed.
+    Number(String),
+    /// A formula the document takes, as typed.
+    Formula(String),
+}
+
+/// WHAT A PLAIN NUMBER TYPED FOR A FEATURE'S NUMBER DOES, by where it is typed.
+#[derive(Clone, Copy)]
+pub enum PlainNumber {
+    /// It takes the formula off, and the node's own number applies: a command writes its numbers into the node itself.
+    ClearsFormula,
+    /// It stands as the number, kept as typed: the formula field of the properties and the fields of a mate hold the
+    /// number there and nowhere else.
+    Stands,
+}
+
 /// A NAME GIVEN ANEW, `old` to `new`: the graph as it would stand after the rename, `old` read as `new` in every formula.
 pub struct Renamed<'a> {
     pub old: &'a str,
@@ -40,6 +66,32 @@ impl Names {
         let r = self.formulas.get(name).and_then(|f| f.as_deref()).map(|f| self.read_by(f)).unwrap_or_default();
         self.reads.borrow_mut().insert(name.to_string(), r.clone());
         r
+    }
+
+    /// THE FIRST NAME `text` READS THAT HAS NO VALUE: one in a circle, or one reading such a name further down. Worked out
+    /// from the graph at the asking, over what `text` reaches only.
+    fn first_without_value(&self, text: &str) -> Option<String> {
+        let reads = self.read_by(text);
+        let circular = Circles::from(self, &reads);
+        if circular.is_empty() {
+            return None;
+        }
+        reads.into_iter().find(|r| self.reaches_any(r, &circular))
+    }
+
+    /// Whether `from`, or a name read further down from it, is one of `set`.
+    fn reaches_any(&self, from: &str, set: &std::collections::BTreeSet<String>) -> bool {
+        let mut seen = std::collections::BTreeSet::new();
+        let mut todo = vec![from.to_string()];
+        while let Some(n) = todo.pop() {
+            if set.contains(&n) {
+                return true;
+            }
+            if seen.insert(n.clone()) {
+                todo.extend(self.reads_of(&n));
+            }
+        }
+        false
     }
 
     /// THE CHAIN BY WHICH `f.text` COMES BACK TO `f.name`, the name first and last (`a -> b -> a`, `s -> s`); `None` when
@@ -101,9 +153,10 @@ struct Circles {
 }
 
 impl Circles {
-    fn of(names: &Names) -> std::collections::BTreeSet<String> {
+    /// The names in a circle among those `starts` reach, the starts included.
+    fn from<'a>(names: &Names, starts: impl IntoIterator<Item = &'a String>) -> std::collections::BTreeSet<String> {
         let mut c = Circles::default();
-        for n in names.formulas.keys() {
+        for n in starts {
             if !c.index.contains_key(n) {
                 c.visit(names, n);
             }
@@ -191,10 +244,46 @@ impl Project {
         if let Some(chain) = names.chain_back(f) {
             return Err(crate::errors::ExprError::LeansOnItself(chain));
         }
-        if let Some(n) = names.read_by(f.text).into_iter().find(|n| self.names_without_value.contains(n)) {
+        if let Some(n) = names.first_without_value(f.text) {
             return Err(crate::errors::ExprError::NameWithoutValue(n));
         }
         self.eval_expr(f.text)
+    }
+
+    /// WHAT TEXT TYPED FOR A FEATURE'S NUMBER IS - the rule every field of such a number keeps, in one place: nothing, a
+    /// plain number, or a formula, the formula taken only once [`Project::check_formula`] takes it under the name given to
+    /// that number. The fields ask it before Enter, so a refusal is said beside them and closes their Apply;
+    /// [`Project::write_feat_formula`] asks it again as it writes.
+    pub fn check_feat_text(&self, at: &FeatNumber, text: &str) -> Result<FeatText, crate::errors::ExprError> {
+        let t = text.trim();
+        if t.is_empty() {
+            return Ok(FeatText::Nothing);
+        }
+        if t.parse::<f64>().is_ok() {
+            return Ok(FeatText::Number(t.to_string()));
+        }
+        let name = self.name_of_target(&DimTarget::Feature { node: at.node, key: at.key.to_string() });
+        self.check_formula(&NamedFormula { name: &name, text: t })?;
+        Ok(FeatText::Formula(t.to_string()))
+    }
+
+    /// WRITE TEXT TYPED FOR A FEATURE'S NUMBER - the one door a formula of a feature or of a mate goes into the document
+    /// by: the numbers of a command, the counts and steps of an array, the values of a mate, the formula field of the
+    /// properties. A refusal ([`Project::check_feat_text`]) leaves the document as it was. Reported behaviour: a count of
+    /// an array typed as `n+1` for the count named `n` was written, and `n` was left with no value.
+    pub fn write_feat_formula(&mut self, at: &FeatNumber, text: &str, plain: PlainNumber) -> Result<(), crate::errors::ExprError> {
+        let written = match self.check_feat_text(at, text)? {
+            FeatText::Formula(f) => f,
+            FeatText::Number(n) if matches!(plain, PlainNumber::Stands) => n,
+            FeatText::Number(_) | FeatText::Nothing => String::new(),
+        };
+        self.set_feat_dim(at.node, at.key, written);
+        Ok(())
+    }
+
+    /// Take the formula off a feature's number: its node's own number applies again.
+    pub fn clear_feat_formula(&mut self, at: &FeatNumber) {
+        self.set_feat_dim(at.node, at.key, String::new());
     }
 
     /// The same for the formula `text` typed for global parameter `i`.
@@ -236,7 +325,7 @@ impl Project {
         let names = self.names_graph(None);
         let mut w = WorkedOut::default();
         // a name in a circle has no value from the start: its chain is said, and the names reading it learn it has none
-        for n in Circles::of(&names) {
+        for n in Circles::from(&names, names.formulas.keys()) {
             let chain = names.formulas.get(&n).cloned().flatten().and_then(|f| names.chain_back(&NamedFormula { name: &n, text: &f }));
             w.faults.insert(n.clone(), crate::errors::ExprError::LeansOnItself(chain.unwrap_or_else(|| format!("{n} -> {n}"))));
             w.without_value.insert(n);

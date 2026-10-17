@@ -196,7 +196,9 @@ pub fn joint_popup(jc: &mut qymcad_ui_state::JointCtx, ctx: &egui::Context, rect
             }
         });
     });
-    keep_slot_exprs(jc.project, jid, exprs);
+    if let Err(e) = keep_slot_exprs(jc.project, jid, exprs) {
+        *jc.status = qymcad_ui_state::Notice::refusal(qymcad_i18n::error_words::expr_error_text(&e));
+    }
     joint_values_step(ctx, jc.edits, jc.project, before, changed);
     if changed {
         qymcad_ui_state::mark_dirty_for_rebuild(&mut jc.rebuild()); // the document is marked; the planner does the counting

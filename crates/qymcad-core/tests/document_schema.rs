@@ -67,7 +67,6 @@ fn every_document_field_is_either_in_the_file_or_named_here() {
         ("regen_edges", "derived: the edges come from the B-rep during a rebuild"),
         ("regen_errors", "derived: the errors of the last rebuild"),
         ("regen_warnings", "derived: what the last rebuild built only in part"),
-        ("names_without_value", "derived: the names whose formula comes back to itself, worked out by the evaluation"),
         ("mates_conflict", "derived: diagnostics of the assembly solver"),
         ("mates_violated", "derived: which joints conflict; filled in by the solve so the panel can tell the truth about each"),
         ("source_data", "the bytes of an import live as separate files in the bundle rather than in document.ron"),
