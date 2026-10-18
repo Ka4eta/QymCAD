@@ -139,5 +139,8 @@ contract!(recognise, qymcad_acceptance::tools::part::RECOGNISE);
 contract!(menu_export_project, qymcad_acceptance::tools::menus::EXPORT_PROJECT);
 contract!(menu_recent, qymcad_acceptance::tools::menus::RECENT);
 contract!(menu_recent_clear, qymcad_acceptance::tools::menus::RECENT_CLEAR);
+contract!(menu_send_to, qymcad_acceptance::tools::menus::SEND_TO);
+contract!(menu_send_rescan, qymcad_acceptance::tools::menus::SEND_RESCAN);
+contract!(menu_send_own_list, qymcad_acceptance::tools::menus::SEND_OWN_LIST);
 contract!(menu_fit_view, qymcad_acceptance::tools::menus::FIT_VIEW);
 contract!(menu_panels, qymcad_acceptance::tools::menus::PANELS);

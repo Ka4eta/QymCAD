@@ -135,6 +135,9 @@ pub(crate) const PANELS: &str = concat!(
     // the export submenu the File menu and the tree's component menu both open
     include_str!("export_menu.rs"),
     file_break!(),
+    // the "send to" submenu beside it, in the same two menus and the menu of a sketch
+    include_str!("export_menu/send_to.rs"),
+    file_break!(),
     concat!(
         include_str!("panels_windows/dialogs.rs"),
         file_break!(),

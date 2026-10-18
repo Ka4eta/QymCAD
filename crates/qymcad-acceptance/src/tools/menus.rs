@@ -456,13 +456,13 @@ opens!(RECENT, "menu.recent", "menu-file", "file-recent", "file-recent-clear", "
 // View -> Panels: the panels a person may hide, the tree first; what a tick does is `bar_settings`' matter
 opens!(PANELS, "menu.panels", "menu-view", "menu-panels", "panel-tree", "general/15-layout");
 
-/// RECENT_CLEAR: File -> Recent -> Clear the list, on a start with no recent projects: the item stands disabled beside
-/// the words that the list is empty, and pressing it changes nothing - the block stays as it was.
-pub static RECENT_CLEAR: Tool = Tool {
-    id: "menu.recent-clear",
+/// AN ITEM OF A MENU THAT LEAVES THE BLOCK AS IT WAS: no field, no pick, no step of undo, the block whole after it. The
+/// items below are this with their own name, place and article.
+const LEAVES_THE_BLOCK: Tool = Tool {
+    id: "",
     flow: Flow::Action,
-    title: "file-recent-clear",
-    entries: &[Entry::Menu(&["menu-file", "file-recent", "file-recent-clear"])],
+    title: "",
+    entries: &[],
     other: (Entry::Button("tb-mirror-body-hint"), "cmd-mirror"),
     fixture: Fixture::Block,
     picks: &[],
@@ -473,7 +473,7 @@ pub static RECENT_CLEAR: Tool = Tool {
     modes: &[],
     result: Outcome::Body { volume: 12000.0, faces: 6, edges: 12, min: [0.0, 0.0, 0.0], max: [40.0, 30.0, 10.0] },
     node: "",
-    undo: "file-recent-clear",
+    undo: "",
     undo_steps: 0,
     stays: false,
     upstream: None,
@@ -481,8 +481,39 @@ pub static RECENT_CLEAR: Tool = Tool {
     contexts: &[],
     refusal: None,
     budget: (10, 2000),
-    help: "general/08-documents",
+    help: "",
     not_applicable: SUBMENU,
+};
+
+/// RECENT_CLEAR: File -> Recent -> Clear the list, on a start with no recent projects: the item stands disabled beside
+/// the words that the list is empty, and pressing it changes nothing - the block stays as it was.
+pub static RECENT_CLEAR: Tool = Tool {
+    id: "menu.recent-clear",
+    title: "file-recent-clear",
+    entries: &[Entry::Menu(&["menu-file", "file-recent", "file-recent-clear"])],
+    undo: "file-recent-clear",
+    help: "general/08-documents",
+    ..LEAVES_THE_BLOCK
+};
+
+// File -> Send to: the programs found on this computer, then the commands of the list; a machine of the checks has no
+// such program installed, so the first item is the command to look for them again
+opens!(SEND_TO, "menu.send-to", "menu-file", "send-to", "send-rescan", "general/06-import-export");
+
+/// SEND_RESCAN: File -> Send to -> Look for the programs again, on the block: the list is looked for anew when the menu
+/// opens next, and the block stays as it was.
+pub static SEND_RESCAN: Tool =
+    Tool { id: "menu.send-rescan", title: "send-rescan", entries: &[Entry::Menu(&["menu-file", "send-to", "send-rescan"])], undo: "send-rescan", help: "general/06-import-export", ..LEAVES_THE_BLOCK };
+
+/// SEND_OWN_LIST: File -> Send to -> Your list of programs, on the block: the person's own list is written with one
+/// example when there is none and handed to the system to open; the block stays as it was.
+pub static SEND_OWN_LIST: Tool = Tool {
+    id: "menu.send-own-list",
+    title: "send-own-list",
+    entries: &[Entry::Menu(&["menu-file", "send-to", "send-own-list"])],
+    undo: "send-own-list",
+    help: "general/06-import-export",
+    ..LEAVES_THE_BLOCK
 };
 
 /// FIT_VIEW: View -> Fit the view on the block looked at from too near - the whole block comes back into the canvas.
