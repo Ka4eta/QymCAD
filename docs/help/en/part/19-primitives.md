@@ -1,7 +1,7 @@
 # Primitives
 
 A body without a sketch, from its sizes alone: a box, a cylinder, a sphere, a cone, a torus, a prism. The buttons are
-in the "Primitives" group.
+in the **CREATE** group of the part bar.
 
 ![A box and a cylinder — ready bodies, no sketch needed for them.](img/part-primitives.png)
 

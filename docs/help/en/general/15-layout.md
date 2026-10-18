@@ -5,6 +5,14 @@ of the window, one beside another or one under another, and any of them but the 
 menu always stays at the top, the view in the middle and the status line at the bottom; neither the menu nor the status
 line moves or hides.
 
+## As in Fusion 360
+
+**View -> As in Fusion 360** sets the familiar layout of Fusion in one press: the bar of tools along the top in one
+row, the names of the groups above the buttons (**CREATE**, **MODIFY**, **CONSTRUCT**, **INSPECT**); a light canvas;
+the **Fusion 360** mouse layout (Shift and the middle button turn, the middle button moves); the panel of properties
+put away (back through **View -> Panels**). From then on it is an ordinary layout: it is changed here, and the button
+that resets the layout brings the factory one back.
+
 ## Moving a panel
 
 Open **Windows -> Settings -> Layout**. The section shows a diagram of the window: the menu above, the view in the

@@ -516,6 +516,11 @@ pub static SEND_OWN_LIST: Tool = Tool {
     ..LEAVES_THE_BLOCK
 };
 
+/// THE LOOK OF THE COMMON RIBBON: View -> its item, on the block: the bar of tools goes to the top, the canvas turns light, and
+/// the block stays as it was.
+pub static FUSION_LOOK: Tool =
+    Tool { id: "menu.fusion-look", title: "menu-fusion-look", entries: &[Entry::Menu(&["menu-view", "menu-fusion-look"])], undo: "menu-fusion-look", help: "general/15-layout", ..LEAVES_THE_BLOCK };
+
 /// FIT_VIEW: View -> Fit the view on the block looked at from too near - the whole block comes back into the canvas.
 pub static FIT_VIEW: Tool = Tool {
     id: "menu.fit-view",

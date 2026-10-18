@@ -147,6 +147,7 @@ pub static ALL: &[&Tool] = &[
     &menus::SEND_RESCAN,
     &menus::SEND_OWN_LIST,
     &menus::FIT_VIEW,
+    &menus::FUSION_LOOK,
     &menus::PANELS,
     &menus::THEME_LIGHT,
     &menus::THEME_ALUCARD,

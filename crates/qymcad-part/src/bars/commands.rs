@@ -16,9 +16,10 @@ const KIND: &str = "tb-type";
 const EDIT: &str = "tb-group-edit";
 const DIMS: &str = "tb-group-dim";
 const CONSTRAINTS: &str = "tb-group-constraints";
-const FROM_SKETCH: &str = "tb-group-sketch3d";
-const PRIMITIVES: &str = "tb-group-prim";
-const BODY: &str = "tb-body";
+const SURFACE: &str = "tb-group-surface";
+const MESH: &str = "tb-group-mesh";
+const CONSTRUCT: &str = "tb-group-construct";
+const INSPECT: &str = "tb-group-inspect";
 
 /// THE COMMANDS OF A SKETCH, in the order of its bar: from drawing to constraining.
 pub const SKETCH_COMMANDS: &[Command] = &[
@@ -258,8 +259,9 @@ pub const SKETCH_COMMANDS: &[Command] = &[
     Command { code: "sketch.con-fix", benches: SKETCH, launch: Launch::Constraint(6), name_key: "con-fix", icon: IconId::ConstraintLock, hint_key: "con-fix", group: CONSTRAINTS, shelf: Shelf::Bar },
 ];
 
-/// THE COMMANDS OF A PART, in the order of its bar: a sketch and the datums, what is made from a sketch, the
-/// primitives, the operations on a body.
+/// THE COMMANDS OF A PART, in the order of its bar and grouped as a person coming from the common ribbon of mechanical
+/// CAD looks for them: what creates a body (a sketch, what is made from it, the primitives, the patterns), what
+/// changes one, the surfaces, the mesh, the construction geometry, what inspects.
 ///
 /// SKETCHES ARE NOT IN ASSEMBLIES. The button once stood there marked "skeleton", but nothing could refer to that
 /// skeleton - a joint anchor understands an origin, a base plane, a face, an edge and a vertex, never a sketch - and
@@ -276,6 +278,81 @@ pub const PART_COMMANDS: &[Command] = &[
         group: CREATE,
         shelf: Shelf::Bar,
     },
+    Command { code: "part.extrude", benches: PART, launch: Launch::Feat(1), name_key: "", icon: IconId::PartExtrude, hint_key: "tb-extrude-hint", group: CREATE, shelf: Shelf::Bar },
+    Command { code: "part.revolve", benches: PART, launch: Launch::Feat(3), name_key: "", icon: IconId::PartRevolve, hint_key: "tb-revolve-hint", group: CREATE, shelf: Shelf::Bar },
+    Command { code: "part.sweep", benches: PART, launch: Launch::Feat(8), name_key: "", icon: IconId::PartSweep, hint_key: "tb-sweep-hint", group: CREATE, shelf: Shelf::Bar },
+    Command { code: "part.loft", benches: PART, launch: Launch::Feat(9), name_key: "", icon: IconId::PartLoft, hint_key: "tb-loft-hint", group: CREATE, shelf: Shelf::Bar },
+    Command { code: "part.hole", benches: PART, launch: Launch::Feat(7), name_key: "", icon: IconId::PartHole, hint_key: "tb-hole-hint", group: CREATE, shelf: Shelf::Bar },
+    Command { code: "part.thread", benches: PART, launch: Launch::Feat(24), name_key: "", icon: IconId::PartThread, hint_key: "tb-thread-hint", group: CREATE, shelf: Shelf::Bar },
+    // THE SIX PRIMITIVES, a name of its own each: they share one article, and the search would show six rows
+    // reading "Primitives"
+    Command { code: "part.box", benches: PART, launch: Launch::Prim(10), name_key: "cmdname-box", icon: IconId::PartBox, hint_key: "tb-box-hint", group: CREATE, shelf: Shelf::Bar },
+    Command {
+        code: "part.cylinder",
+        benches: PART,
+        launch: Launch::Prim(11),
+        name_key: "cmdname-cylinder",
+        icon: IconId::PartCylinder,
+        hint_key: "tb-cylinder-hint",
+        group: CREATE,
+        shelf: Shelf::Bar,
+    },
+    Command { code: "part.sphere", benches: PART, launch: Launch::Prim(12), name_key: "cmdname-sphere", icon: IconId::PartSphere, hint_key: "tb-sphere-hint", group: CREATE, shelf: Shelf::Bar },
+    Command { code: "part.cone", benches: PART, launch: Launch::Prim(13), name_key: "cmdname-cone", icon: IconId::PartCone, hint_key: "tb-cone-hint", group: CREATE, shelf: Shelf::Bar },
+    Command { code: "part.torus", benches: PART, launch: Launch::Prim(14), name_key: "cmdname-torus", icon: IconId::PartTorus, hint_key: "tb-torus-hint", group: CREATE, shelf: Shelf::Bar },
+    Command { code: "part.prism", benches: PART, launch: Launch::Prim(15), name_key: "cmdname-prism", icon: IconId::PartPrism, hint_key: "tb-prism-hint", group: CREATE, shelf: Shelf::Bar },
+    Command { code: "part.array-linear", benches: PART, launch: Launch::Feat(17), name_key: "", icon: IconId::PartArrayLinear, hint_key: "tb-lin-array-body-hint", group: CREATE, shelf: Shelf::Bar },
+    Command {
+        code: "part.array-circular",
+        benches: PART,
+        launch: Launch::Feat(18),
+        name_key: "",
+        icon: IconId::PartArrayCircular,
+        hint_key: "tb-circ-array-body-hint",
+        group: CREATE,
+        shelf: Shelf::Bar,
+    },
+    // THE MIRROR AND THE PATTERNS OF A BODY stand under "Create". The patterns of components are a tool of the
+    // assembly: two buttons that look alike and do different things are worse than duplicates
+    Command { code: "part.mirror", benches: PART, launch: Launch::Feat(16), name_key: "", icon: IconId::PartMirror, hint_key: "tb-mirror-body-hint", group: CREATE, shelf: Shelf::Bar },
+    Command { code: "part.thicken", benches: PART, launch: Launch::Feat(28), name_key: "", icon: IconId::PartThicken, hint_key: "tb-thicken-hint", group: CREATE, shelf: Shelf::Bar },
+    Command { code: "part.push-face", benches: PART, launch: Launch::Feat(25), name_key: "", icon: IconId::PartPushFace, hint_key: "tb-push-face-hint", group: EDIT, shelf: Shelf::Bar },
+    Command { code: "part.fillet", benches: PART, launch: Launch::Feat(4), name_key: "", icon: IconId::PartFillet, hint_key: "tb-fillet-body-hint", group: EDIT, shelf: Shelf::Bar },
+    Command { code: "part.chamfer", benches: PART, launch: Launch::Feat(5), name_key: "", icon: IconId::PartChamfer, hint_key: "tb-chamfer-body-hint", group: EDIT, shelf: Shelf::Bar },
+    Command { code: "part.shell", benches: PART, launch: Launch::Feat(6), name_key: "", icon: IconId::PartShell, hint_key: "tb-shell-hint", group: EDIT, shelf: Shelf::Bar },
+    Command { code: "part.draft", benches: PART, launch: Launch::Feat(23), name_key: "", icon: IconId::PartDraft, hint_key: "tb-draft-hint", group: EDIT, shelf: Shelf::Bar },
+    Command { code: "part.boolean", benches: PART, launch: Launch::Boolean, name_key: "", icon: IconId::PartBooleanBodies, hint_key: "tb-bool-bodies-hint", group: EDIT, shelf: Shelf::Bar },
+    Command { code: "part.split-face", benches: PART, launch: Launch::Feat(29), name_key: "", icon: IconId::PartSplitFace, hint_key: "tb-split-face-hint", group: EDIT, shelf: Shelf::Bar },
+    Command { code: "part.split-body", benches: PART, launch: Launch::Feat(27), name_key: "", icon: IconId::PartSplitBody, hint_key: "tb-split-body-hint", group: EDIT, shelf: Shelf::Bar },
+    Command { code: "part.remove-face", benches: PART, launch: Launch::Feat(26), name_key: "", icon: IconId::PartRemoveFace, hint_key: "tb-remove-face-hint", group: EDIT, shelf: Shelf::Bar },
+    // one of the several bodies a part shows made a part of its own; the right button on the body does the same
+    Command {
+        code: "part.piece-to-part",
+        benches: PART,
+        launch: Launch::PieceToPart,
+        name_key: "act-piece-to-part",
+        icon: IconId::PartSplitBody,
+        hint_key: "act-piece-to-part",
+        group: EDIT,
+        shelf: Shelf::SearchOnly,
+    },
+    // the bridge from the parametric side into the design layer: a face becomes a surface
+    Command { code: "part.face-copy", benches: PART, launch: Launch::Feat(30), name_key: "", icon: IconId::PartFaceCopy, hint_key: "tb-face-copy-hint", group: SURFACE, shelf: Shelf::Bar },
+    Command { code: "part.offset-surface", benches: PART, launch: Launch::Feat(36), name_key: "", icon: IconId::PartOffsetSurface, hint_key: "tb-offset-surface-hint", group: SURFACE, shelf: Shelf::Bar },
+    Command {
+        code: "part.surface-replace",
+        benches: PART,
+        launch: Launch::Feat(31),
+        name_key: "",
+        icon: IconId::PartSurfaceReplace,
+        hint_key: "tb-surface-replace-hint",
+        group: SURFACE,
+        shelf: Shelf::Bar,
+    },
+    Command { code: "part.patch", benches: PART, launch: Launch::Feat(32), name_key: "", icon: IconId::PartPatch, hint_key: "tb-patch-hint", group: SURFACE, shelf: Shelf::Bar },
+    Command { code: "part.stitch", benches: PART, launch: Launch::Feat(33), name_key: "", icon: IconId::PartStitch, hint_key: "tb-stitch-hint", group: SURFACE, shelf: Shelf::Bar },
+    Command { code: "part.trim", benches: PART, launch: Launch::Feat(34), name_key: "", icon: IconId::PartTrimSurface, hint_key: "tb-trim-surface-hint", group: SURFACE, shelf: Shelf::Bar },
+    Command { code: "part.recognise", benches: PART, launch: Launch::Feat(35), name_key: "", icon: IconId::PartRecognise, hint_key: "tb-recognise-hint", group: MESH, shelf: Shelf::Bar },
     Command {
         code: "part.datum-plane",
         benches: PART_AND_ASSEMBLY,
@@ -283,17 +360,7 @@ pub const PART_COMMANDS: &[Command] = &[
         name_key: "cmdname-datum-plane",
         icon: IconId::DatumPlane,
         hint_key: "g-datum-plane-hint",
-        group: CREATE,
-        shelf: Shelf::Bar,
-    },
-    Command {
-        code: "part.datum-point",
-        benches: PART_AND_ASSEMBLY,
-        launch: Launch::Feat(21),
-        name_key: "cmdname-datum-point",
-        icon: IconId::DatumPoint,
-        hint_key: "g-datum-point-hint",
-        group: CREATE,
+        group: CONSTRUCT,
         shelf: Shelf::Bar,
     },
     Command {
@@ -303,86 +370,21 @@ pub const PART_COMMANDS: &[Command] = &[
         name_key: "cmdname-datum-axis",
         icon: IconId::DatumAxis,
         hint_key: "g-datum-axis-hint",
-        group: CREATE,
+        group: CONSTRUCT,
         shelf: Shelf::Bar,
     },
-    Command { code: "part.extrude", benches: PART, launch: Launch::Feat(1), name_key: "", icon: IconId::PartExtrude, hint_key: "tb-extrude-hint", group: FROM_SKETCH, shelf: Shelf::Bar },
-    Command { code: "part.revolve", benches: PART, launch: Launch::Feat(3), name_key: "", icon: IconId::PartRevolve, hint_key: "tb-revolve-hint", group: FROM_SKETCH, shelf: Shelf::Bar },
-    Command { code: "part.sweep", benches: PART, launch: Launch::Feat(8), name_key: "", icon: IconId::PartSweep, hint_key: "tb-sweep-hint", group: FROM_SKETCH, shelf: Shelf::Bar },
-    Command { code: "part.loft", benches: PART, launch: Launch::Feat(9), name_key: "", icon: IconId::PartLoft, hint_key: "tb-loft-hint", group: FROM_SKETCH, shelf: Shelf::Bar },
-    // THE SIX PRIMITIVES, a name of its own each: they share one article, and the search would show six rows
-    // reading "Primitives"
-    Command { code: "part.box", benches: PART, launch: Launch::Prim(10), name_key: "cmdname-box", icon: IconId::PartBox, hint_key: "tb-box-hint", group: PRIMITIVES, shelf: Shelf::Bar },
     Command {
-        code: "part.cylinder",
-        benches: PART,
-        launch: Launch::Prim(11),
-        name_key: "cmdname-cylinder",
-        icon: IconId::PartCylinder,
-        hint_key: "tb-cylinder-hint",
-        group: PRIMITIVES,
+        code: "part.datum-point",
+        benches: PART_AND_ASSEMBLY,
+        launch: Launch::Feat(21),
+        name_key: "cmdname-datum-point",
+        icon: IconId::DatumPoint,
+        hint_key: "g-datum-point-hint",
+        group: CONSTRUCT,
         shelf: Shelf::Bar,
     },
-    Command { code: "part.sphere", benches: PART, launch: Launch::Prim(12), name_key: "cmdname-sphere", icon: IconId::PartSphere, hint_key: "tb-sphere-hint", group: PRIMITIVES, shelf: Shelf::Bar },
-    Command { code: "part.cone", benches: PART, launch: Launch::Prim(13), name_key: "cmdname-cone", icon: IconId::PartCone, hint_key: "tb-cone-hint", group: PRIMITIVES, shelf: Shelf::Bar },
-    Command { code: "part.torus", benches: PART, launch: Launch::Prim(14), name_key: "cmdname-torus", icon: IconId::PartTorus, hint_key: "tb-torus-hint", group: PRIMITIVES, shelf: Shelf::Bar },
-    Command { code: "part.prism", benches: PART, launch: Launch::Prim(15), name_key: "cmdname-prism", icon: IconId::PartPrism, hint_key: "tb-prism-hint", group: PRIMITIVES, shelf: Shelf::Bar },
-    Command { code: "part.fillet", benches: PART, launch: Launch::Feat(4), name_key: "", icon: IconId::PartFillet, hint_key: "tb-fillet-body-hint", group: BODY, shelf: Shelf::Bar },
-    Command { code: "part.chamfer", benches: PART, launch: Launch::Feat(5), name_key: "", icon: IconId::PartChamfer, hint_key: "tb-chamfer-body-hint", group: BODY, shelf: Shelf::Bar },
-    Command { code: "part.shell", benches: PART, launch: Launch::Feat(6), name_key: "", icon: IconId::PartShell, hint_key: "tb-shell-hint", group: BODY, shelf: Shelf::Bar },
-    Command { code: "part.section", benches: PART, launch: Launch::Section, name_key: "cmdname-section", icon: IconId::PartSection, hint_key: "tb-section-hint-bar", group: BODY, shelf: Shelf::Bar },
-    Command { code: "part.hole", benches: PART, launch: Launch::Feat(7), name_key: "", icon: IconId::PartHole, hint_key: "tb-hole-hint", group: BODY, shelf: Shelf::Bar },
-    Command { code: "part.draft", benches: PART, launch: Launch::Feat(23), name_key: "", icon: IconId::PartDraft, hint_key: "tb-draft-hint", group: BODY, shelf: Shelf::Bar },
-    Command { code: "part.push-face", benches: PART, launch: Launch::Feat(25), name_key: "", icon: IconId::PartPushFace, hint_key: "tb-push-face-hint", group: BODY, shelf: Shelf::Bar },
-    Command { code: "part.remove-face", benches: PART, launch: Launch::Feat(26), name_key: "", icon: IconId::PartRemoveFace, hint_key: "tb-remove-face-hint", group: BODY, shelf: Shelf::Bar },
-    Command { code: "part.thicken", benches: PART, launch: Launch::Feat(28), name_key: "", icon: IconId::PartThicken, hint_key: "tb-thicken-hint", group: BODY, shelf: Shelf::Bar },
-    // the bridge from the parametric side into the design layer: a face becomes a surface
-    Command { code: "part.face-copy", benches: PART, launch: Launch::Feat(30), name_key: "", icon: IconId::PartFaceCopy, hint_key: "tb-face-copy-hint", group: BODY, shelf: Shelf::Bar },
-    Command { code: "part.offset-surface", benches: PART, launch: Launch::Feat(36), name_key: "", icon: IconId::PartOffsetSurface, hint_key: "tb-offset-surface-hint", group: BODY, shelf: Shelf::Bar },
-    Command {
-        code: "part.surface-replace",
-        benches: PART,
-        launch: Launch::Feat(31),
-        name_key: "",
-        icon: IconId::PartSurfaceReplace,
-        hint_key: "tb-surface-replace-hint",
-        group: BODY,
-        shelf: Shelf::Bar,
-    },
-    Command { code: "part.patch", benches: PART, launch: Launch::Feat(32), name_key: "", icon: IconId::PartPatch, hint_key: "tb-patch-hint", group: BODY, shelf: Shelf::Bar },
-    Command { code: "part.stitch", benches: PART, launch: Launch::Feat(33), name_key: "", icon: IconId::PartStitch, hint_key: "tb-stitch-hint", group: BODY, shelf: Shelf::Bar },
-    Command { code: "part.trim", benches: PART, launch: Launch::Feat(34), name_key: "", icon: IconId::PartTrimSurface, hint_key: "tb-trim-surface-hint", group: BODY, shelf: Shelf::Bar },
-    Command { code: "part.recognise", benches: PART, launch: Launch::Feat(35), name_key: "", icon: IconId::PartRecognise, hint_key: "tb-recognise-hint", group: BODY, shelf: Shelf::Bar },
-    Command { code: "part.split-body", benches: PART, launch: Launch::Feat(27), name_key: "", icon: IconId::PartSplitBody, hint_key: "tb-split-body-hint", group: BODY, shelf: Shelf::Bar },
-    Command { code: "part.measure", benches: PART, launch: Launch::Measure3d, name_key: "", icon: IconId::PartMeasure, hint_key: "tb-measure3d-hint", group: BODY, shelf: Shelf::Bar },
-    Command { code: "part.split-face", benches: PART, launch: Launch::Feat(29), name_key: "", icon: IconId::PartSplitFace, hint_key: "tb-split-face-hint", group: BODY, shelf: Shelf::Bar },
-    Command { code: "part.thread", benches: PART, launch: Launch::Feat(24), name_key: "", icon: IconId::PartThread, hint_key: "tb-thread-hint", group: BODY, shelf: Shelf::Bar },
-    Command { code: "part.boolean", benches: PART, launch: Launch::Boolean, name_key: "", icon: IconId::PartBooleanBodies, hint_key: "tb-bool-bodies-hint", group: BODY, shelf: Shelf::Bar },
-    // THE MIRROR AND THE PATTERNS OF A BODY stand under "Body". The patterns of components are a tool of the
-    // assembly: two buttons that look alike and do different things are worse than duplicates
-    Command { code: "part.mirror", benches: PART, launch: Launch::Feat(16), name_key: "", icon: IconId::PartMirror, hint_key: "tb-mirror-body-hint", group: BODY, shelf: Shelf::Bar },
-    Command { code: "part.array-linear", benches: PART, launch: Launch::Feat(17), name_key: "", icon: IconId::PartArrayLinear, hint_key: "tb-lin-array-body-hint", group: BODY, shelf: Shelf::Bar },
-    Command {
-        code: "part.array-circular",
-        benches: PART,
-        launch: Launch::Feat(18),
-        name_key: "",
-        icon: IconId::PartArrayCircular,
-        hint_key: "tb-circ-array-body-hint",
-        group: BODY,
-        shelf: Shelf::Bar,
-    },
-    // one of the several bodies a part shows made a part of its own; the right button on the body does the same
-    Command {
-        code: "part.piece-to-part",
-        benches: PART,
-        launch: Launch::PieceToPart,
-        name_key: "act-piece-to-part",
-        icon: IconId::PartSplitBody,
-        hint_key: "act-piece-to-part",
-        group: BODY,
-        shelf: Shelf::SearchOnly,
-    },
+    Command { code: "part.measure", benches: PART, launch: Launch::Measure3d, name_key: "", icon: IconId::PartMeasure, hint_key: "tb-measure3d-hint", group: INSPECT, shelf: Shelf::Bar },
+    Command { code: "part.section", benches: PART, launch: Launch::Section, name_key: "cmdname-section", icon: IconId::PartSection, hint_key: "tb-section-hint-bar", group: INSPECT, shelf: Shelf::Bar },
 ];
 
 /// PRESS A COMMAND OF THE SKETCH OR OF THE PART: what its button did, through the doors its button used. A tool in
