@@ -3763,6 +3763,7 @@ dependencies = [
  "dxf",
  "qymcad-core",
  "ron",
+ "serde",
  "serde_json",
  "usvg 0.48.1",
  "zip",
