@@ -7,6 +7,7 @@ pub(crate) use qymcad_part::*;
 use super::*;
 
 // the bar of the tools of a workbench, drawn from the catalogue
+mod fusion_look;
 mod tool_bar;
 pub(crate) use tool_bar::{wb_toolbar, BAR_MARGIN};
 
@@ -191,6 +192,12 @@ pub(crate) fn menu_bar(bc: &mut qymcad_ui_state::BarCtx, ui: &mut egui::Ui) {
             }
             // THE PANELS: a tick for each one a person may hide; hidden, it takes no room
             ui.menu_button(format!("{}  {}", ph::SIDEBAR, qymcad_i18n::tr("menu-panels")), |ui| crate::gui::panels_windows::panels_menu(&mut *bc.set, ui));
+            // THE LOOK OF THE COMMON RIBBON in one press: the bar on top under its group names, the light canvas, its mouse
+            if ui.button(format!("{}  {}", ph::MAGIC_WAND, qymcad_i18n::tr("menu-fusion-look"))).on_hover_text(qymcad_i18n::tr("menu-fusion-look-hint")).clicked() {
+                fusion_look::apply(&mut *bc.set);
+                qymcad_ui_state::apply_theme(&mut *bc.scheme, &*bc.set, ctx);
+                ui.close();
+            }
             ui.separator();
             ui.label(qymcad_i18n::tr("settings-scheme"));
             // THE SCHEMES COME FROM THE LIVE LIST (the built-in ones and the user's), and the label from

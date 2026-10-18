@@ -43,6 +43,11 @@ apply — it rebuilds, and so does everything that depends on it.
 
 ## The buttons of the bar
 
+The buttons of a part stand in groups: **CREATE** - a sketch, what is made from a sketch, the primitives, the patterns
+and the mirror; **MODIFY** - pushing a face, fillet, chamfer, shell, draft, booleans, splitting; **SURFACE** - work on
+faces as surfaces; **MESH** - recognising a mesh as a body; **CONSTRUCT** - a plane, an axis, a point; **INSPECT** -
+measuring and the section. The names of the groups stand on the bar when **Names of the groups on the bar** is ticked.
+
 Which buttons stand on the bar of this workbench and in what order is set in **Windows -> Settings -> Part**: press the
 heading **Buttons of the bar**, drag a row up or down to move its button, press **In "More"** to take it off the bar.
 **Restore the standard buttons** brings the usual set back. More in [The layout of the panels](general/15-layout).

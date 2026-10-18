@@ -193,14 +193,15 @@ pub const TOOLBAR: &[(&str, &str)] = &[
 pub const NOT_A_TOOL: &[&str] = &[
     // the headings of button groups and the captions of dropdowns are not tools
     "tb-group-create",
-    "tb-group-sketch3d",
-    "tb-group-prim",
     "tb-group-edit",
+    "tb-group-surface",
+    "tb-group-mesh",
+    "tb-group-construct",
+    "tb-group-inspect",
     "tb-group-dim",
     "tb-group-constraints",
     "tb-group-joint",
     "tb-type",
-    "tb-body",
     // status lines and refusals of a command already begun: the help belongs to the command itself
     // rather than to its step
     "tb-bool-pick-b",

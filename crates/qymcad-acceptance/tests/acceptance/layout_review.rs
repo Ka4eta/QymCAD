@@ -184,7 +184,7 @@ probe! {
         let mut s = Session::start();
         s.key(Key::Escape);
         build::into_the_first_part(&mut s);
-        let group = s.word("tb-group-sketch3d");
+        let group = s.word("tb-group-create");
         assert!(!s.shows(&group), "a caption of a group stands on the bar with the setting off");
         settings_at(&mut s, "settings-sec-layout");
         let tick = s.word("settings-bar-group-names");
