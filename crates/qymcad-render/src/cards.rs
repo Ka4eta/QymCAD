@@ -156,7 +156,7 @@ pub fn draw_splash(logo_tex: &Option<egui::TextureHandle>, scheme: &SchemeUi, ct
                     ui.add(egui::Image::new(egui::load::SizedTexture::new(tex.id(), egui::vec2(64.0, 64.0))));
                 }
                 ui.add_space(8.0);
-                ui.heading(egui::RichText::new("QymCAD").color(scheme.pal.text_strong()));
+                ui.heading(egui::RichText::new("FieldCAD").color(scheme.pal.text_strong()));
                 ui.add_space(10.0);
                 ui.add(egui::Spinner::new().size(22.0));
                 ui.add_space(8.0);
@@ -187,7 +187,7 @@ pub fn draw_import_card(logo_tex: &Option<egui::TextureHandle>, scheme: &SchemeU
                     ui.add(egui::Image::new(egui::load::SizedTexture::new(tex.id(), egui::vec2(64.0, 64.0))));
                 }
                 ui.add_space(8.0);
-                ui.heading(egui::RichText::new("QymCAD").color(scheme.pal.text_strong()));
+                ui.heading(egui::RichText::new("FieldCAD").color(scheme.pal.text_strong()));
                 ui.add_space(10.0);
                 ui.add(egui::Spinner::new().size(22.0));
                 ui.add_space(8.0);

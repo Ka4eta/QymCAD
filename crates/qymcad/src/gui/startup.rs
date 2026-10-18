@@ -10,7 +10,7 @@ pub(crate) const APP_ID: &str = "qymcad";
 
 /// THE NAME A PERSON READS, as against the identifier above that a machine stores things under. The
 /// window bar, the task bar and the About window all say this one.
-pub(crate) const APP_NAME: &str = "QymCAD";
+pub(crate) const APP_NAME: &str = "FieldCAD";
 
 /// The window icon, decoded from the 256x256 PNG built into the binary.
 ///

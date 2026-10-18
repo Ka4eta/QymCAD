@@ -33,8 +33,8 @@ package and tells you about new versions itself.
 
 ## How often to ask
 
-**Settings -> General -> Check for updates**: at every start, once a day (the default), once a week, once
-a month, or never. The menu item works whichever is chosen, including "never".
+**Settings -> General -> Check for updates**: at every start, once a day, once a week, once
+a month, or never (the default: this build works away from the network). The menu item works whichever is chosen, including "never".
 
 ## What goes over the network
 

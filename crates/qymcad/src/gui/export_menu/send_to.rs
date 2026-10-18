@@ -83,7 +83,7 @@ pub(crate) fn own_list() -> Option<PathBuf> {
 
 /// The folder a file is sent from: the system's folder of passing files, in a folder of the program's own.
 fn folder() -> PathBuf {
-    let f = std::env::temp_dir().join("QymCAD").join("send");
+    let f = std::env::temp_dir().join("FieldCAD").join("send");
     let _ = std::fs::create_dir_all(&f);
     f
 }

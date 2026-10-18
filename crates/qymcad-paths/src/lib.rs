@@ -27,7 +27,7 @@ pub const APP_ID: &str = "tech.qymis.cad";
 /// These are two decisions, not one. The id says who the program is to the desktop, to macOS and to
 /// Flathub; the folder says where a person's settings, schemes, templates and library of parts live.
 /// Deriving the second from the first is exactly what put a stranger's name on the folder.
-const FOLDER: &str = "qymcad";
+const FOLDER: &str = "fieldcad";
 
 /// The two parts above the name, taken from `APP_ID` so the id and the folder stay in one file.
 fn parts() -> Option<(&'static str, &'static str)> {

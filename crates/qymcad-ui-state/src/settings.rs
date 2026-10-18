@@ -591,7 +591,7 @@ pub(crate) fn default_zoom_at() -> ZoomAt {
 }
 
 pub(crate) fn default_update_check() -> UpdateCheck {
-    UpdateCheck::Daily
+    UpdateCheck::Never
 }
 
 pub(crate) fn default_zoom_editing() -> ZoomWhileEditing {

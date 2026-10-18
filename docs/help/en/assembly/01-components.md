@@ -25,7 +25,7 @@ it inside the part, not in the assembly.
 The selected part is moved with the gizmo: an arrow carries it along an axis, a ring turns it. While you drag, a
 number stands at the gizmo — the shift in millimetres or the angle; with **Snap** on they go by the grid step and
 the rotation step. Without the gizmo a part is taken with **Shift and the left button**, begun on it (under the
-QymCAD mouse layout). A part held by joints goes only where they let it.
+FieldCAD mouse layout). A part held by joints goes only where they let it.
 
 ## Visibility and isolation
 

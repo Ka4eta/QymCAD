@@ -13,7 +13,7 @@ in orthographic: equal sizes look equal there.
 
 ## Moving the view with the mouse
 
-The default layout is **QymCAD**:
+The default layout is **FieldCAD**:
 
 * **Dragging** with any button turns the model. The left button turns it only when begun on the model;
   from empty space it draws a frame.

@@ -84,12 +84,12 @@ writes it (the quality is asked), STEP is the exact geometry.
 On a component in the tree the same submenu sends that component alone. On a sketch in the tree it sends the flat
 drawing as SVG or DXF - for a laser, an engraver or a cutting table.
 
-The file is put into the system's folder of temporary files, under `QymCAD\send`, and the next send of the same
+The file is put into the system's folder of temporary files, under `FieldCAD\send`, and the next send of the same
 component replaces it.
 
 If the program you need is not listed:
 
-- press **Look for the programs again** - when it was installed while QymCAD was open;
+- press **Look for the programs again** - when it was installed while FieldCAD was open;
 - press **Your list of programs…** - a file opens where you add a program, or write the path to one installed
   elsewhere. An example line is already in the file; the list is read the next time the menu opens. A mistake in
   the file is reported on the status line.

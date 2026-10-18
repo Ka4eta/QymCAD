@@ -156,7 +156,7 @@ mod tests {
             }
             let mut texts = Vec::new();
             collect_text(&cs.shape, &mut texts);
-            if card_text_at.is_none() && texts.iter().any(|t| t.contains("QymCAD")) {
+            if card_text_at.is_none() && texts.iter().any(|t| t.contains("FieldCAD")) {
                 card_text_at = Some(i);
             }
         }

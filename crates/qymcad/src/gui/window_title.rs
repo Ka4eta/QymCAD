@@ -39,17 +39,17 @@ mod tests {
 
     #[test]
     fn it_names_the_program_and_the_document() {
-        assert_eq!(window_title(Some("/home/user/parts/Filter-v2.qcad"), false), "QymCAD — Filter-v2");
-        assert_eq!(window_title(Some("/home/user/parts/Filter-v2.qcad"), true), "QymCAD — Filter-v2 *");
+        assert_eq!(window_title(Some("/home/user/parts/Filter-v2.qcad"), false), "FieldCAD — Filter-v2");
+        assert_eq!(window_title(Some("/home/user/parts/Filter-v2.qcad"), true), "FieldCAD — Filter-v2 *");
         // A Windows path is the ordinary case for the packaged build.
-        assert_eq!(window_title(Some("C:\\parts\\Bracket.qcad"), false), "QymCAD — Bracket");
+        assert_eq!(window_title(Some("C:\\parts\\Bracket.qcad"), false), "FieldCAD — Bracket");
     }
 
     #[test]
     fn a_document_never_saved_shows_only_the_program() {
         // Nothing is invented: without a file there is no name a person could look for on disk.
-        assert_eq!(window_title(None, false), "QymCAD");
-        assert!(window_title(None, true).starts_with("QymCAD — "), "{}", window_title(None, true));
+        assert_eq!(window_title(None, false), "FieldCAD");
+        assert!(window_title(None, true).starts_with("FieldCAD — "), "{}", window_title(None, true));
         assert!(window_title(None, true).ends_with(" *"), "unsaved work has to be visible in the title");
     }
 
@@ -78,7 +78,7 @@ mod tests {
         // The fixture holds a document with work in it that has never been saved, so the mark belongs there.
         crate::gui::set_project_path(&mut app.disk.project_path, &mut app.set, "/tmp/Bracket.qcad".into());
         let first = ctx.run_ui(raw(), |c| app.keep_the_title_current(c.ctx()));
-        assert_eq!(titles(&first), vec!["QymCAD — Bracket *".to_string()], "the window was not told the new title");
+        assert_eq!(titles(&first), vec!["FieldCAD — Bracket *".to_string()], "the window was not told the new title");
 
         let again = ctx.run_ui(raw(), |c| app.keep_the_title_current(c.ctx()));
         assert!(titles(&again).is_empty(), "the title was sent a second time although nothing changed");
@@ -86,7 +86,7 @@ mod tests {
         // AND THE MARK GOES AWAY WHEN THE WORK IS SAVED. A mark that only ever appears is not a signal.
         app.disk.edits.saved_key = qymcad_ui_state::edit_key(&app.draw_ctx());
         let saved = ctx.run_ui(raw(), |c| app.keep_the_title_current(c.ctx()));
-        assert_eq!(titles(&saved), vec!["QymCAD — Bracket".to_string()], "the title still claims unsaved work");
+        assert_eq!(titles(&saved), vec!["FieldCAD — Bracket".to_string()], "the title still claims unsaved work");
     }
 
     /// THE EXTENSION IS NOT PART OF THE NAME. A title bar is narrow and often truncated from the right;

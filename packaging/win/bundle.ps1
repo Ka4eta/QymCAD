@@ -65,7 +65,25 @@ QymCAD - переносимая сборка для Windows (x64).
 Требуется Windows 10/11 x64.
 "@ | Set-Content -Encoding UTF8 "$out\ПРОЧТИ.txt"
 
-$zip = "dist\$name-win64.zip"
+# THE PORTABLE BUILD GOES OUT UNDER THE NAME OF THIS BUILD: its own folder, its executable named after it, its own
+# notes. `dist\qymcad` stays as it is: the installer packs that folder.
+$port = "dist\FieldCAD"
+if (Test-Path $port) { Remove-Item -Recurse -Force $port }
+Copy-Item -Recurse $out $port
+Rename-Item "$port\qymcad.exe" "FieldCAD.exe"
+Remove-Item "$port\README.txt", "$port\ПРОЧТИ.txt"
+@"
+FieldCAD - portable build for Windows (x64), based on QymCAD (AGPL-3.0, see LICENSE.txt).
+To run: FieldCAD.exe (every DLL it needs is right here - nothing to install).
+Requires Windows 10/11 x64.
+"@ | Set-Content -Encoding UTF8 "$port\README.txt"
+@"
+FieldCAD - переносимая сборка для Windows (x64) на основе QymCAD (AGPL-3.0, см. LICENSE.txt).
+Запуск: FieldCAD.exe (все нужные DLL лежат рядом - ничего ставить не надо).
+Требуется Windows 10/11 x64.
+"@ | Set-Content -Encoding UTF8 "$port\ПРОЧТИ.txt"
+
+$zip = "dist\" + ($name -replace '^qymcad', 'fieldcad') + "-win64.zip"
 if (Test-Path $zip) { Remove-Item $zip }
-Compress-Archive -Path "$out\*" -DestinationPath $zip
+Compress-Archive -Path "$port\*" -DestinationPath $zip
 Write-Host ">>> DONE: $zip  ($([math]::Round((Get-Item $zip).Length / 1MB, 1)) MB)"
