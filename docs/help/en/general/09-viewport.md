@@ -32,7 +32,7 @@ The default layout is **QymCAD**:
 ## Layouts of other programs
 
 In the settings, in the **Mouse navigation** row, you can pick the layout of the program you are used to:
-CAD, Blender, Gesture, Maya, OpenCascade, OpenInventor, OpenSCAD, Revit, TinkerCAD or Touchpad. Each
+CAD, Blender, Fusion 360, Gesture, Maya, OpenCascade, OpenInventor, OpenSCAD, Revit, TinkerCAD or Touchpad. Each
 works as it does in its own program — under the name it says what its buttons do. How they differ:
 
 * **A middle click** in CAD, Blender, Revit, OpenInventor, Maya and Gesture looks at the point under the
@@ -40,6 +40,8 @@ works as it does in its own program — under the name it says what its buttons 
 * **Den** is a layout for a pen: the left button turns the model, the middle one moves the view, the two together
   zoom in with a movement right or up and out with one left or down. In a sketch the left button stays the sketch's.
   Zoom and turn go about the point the view settings choose, as in the other layouts.
+* **Fusion 360**: Shift and the middle button turn the model, the middle button alone moves the view, the wheel
+  zooms, and a left drag draws the frame, begun on the model or on empty space.
 * **The selection frame** is drawn with Shift and the left button in Gesture, Maya and Den, there is none in
   OpenInventor and OpenSCAD, and the others draw it with the left button.
 * **Selecting** in OpenInventor is a click with Ctrl or Shift: a bare left click there turns the model.
