@@ -2835,3 +2835,4 @@ send-program-as = { $program } ({ $format })
 send-sent = Sent to { $program }: { $path }
 send-failed = { $program } could not be started: { $error }
 about-based-on = Built on QymCAD, an open CAD by Denis Kazachenkov, under the AGPL-3.0 licence
+about-modified-by = FieldCAD changes © 2026 Ka4eta

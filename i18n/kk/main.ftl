@@ -2830,3 +2830,4 @@ send-program-as = { $program } ({ $format })
 send-sent = { $program } бағдарламасына жіберілді: { $path }
 send-failed = { $program } іске қосылмады: { $error }
 about-based-on = Денис Казаченковтың ашық QymCAD жүйесіне негізделген жинақ, AGPL-3.0 лицензиясымен
+about-modified-by = FieldCAD өзгерістері © 2026 Ka4eta

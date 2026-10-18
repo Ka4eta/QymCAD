@@ -71,14 +71,15 @@ $port = "dist\FieldCAD"
 if (Test-Path $port) { Remove-Item -Recurse -Force $port }
 Copy-Item -Recurse $out $port
 Rename-Item "$port\qymcad.exe" "FieldCAD.exe"
+Copy-Item NOTICE.md $port
 Remove-Item "$port\README.txt", "$port\ПРОЧТИ.txt"
 @"
-FieldCAD - portable build for Windows (x64), based on QymCAD (AGPL-3.0, see LICENSE.txt).
+FieldCAD - portable build for Windows (x64), based on QymCAD (AGPL-3.0, see LICENSE.txt), changes (c) 2026 Ka4eta (see NOTICE.md).
 To run: FieldCAD.exe (every DLL it needs is right here - nothing to install).
 Requires Windows 10/11 x64.
 "@ | Set-Content -Encoding UTF8 "$port\README.txt"
 @"
-FieldCAD - переносимая сборка для Windows (x64) на основе QymCAD (AGPL-3.0, см. LICENSE.txt).
+FieldCAD - переносимая сборка для Windows (x64) на основе QymCAD (AGPL-3.0, см. LICENSE.txt), изменения (c) 2026 Ka4eta (см. NOTICE.md).
 Запуск: FieldCAD.exe (все нужные DLL лежат рядом - ничего ставить не надо).
 Требуется Windows 10/11 x64.
 "@ | Set-Content -Encoding UTF8 "$port\ПРОЧТИ.txt"

@@ -150,6 +150,7 @@ pub(crate) fn about_dialog(win: &mut super::Windows, scheme: &super::SchemeUi, c
             ui.label(egui::RichText::new(crate::gui::APP_NAME).size(22.0).strong());
             // THE PROGRAM THIS BUILD IS MADE FROM, named where the person asks what they are running
             ui.label(crate::i18n::tr("about-based-on"));
+            ui.label(egui::RichText::new(crate::i18n::tr("about-modified-by")).strong());
             ui.label(egui::RichText::new(crate::i18n::tr("about-tagline")).italics());
             // WHICH BUILD IS THIS - the first question asked of any complaint. With a build a day the
             // version number alone names a whole week of binaries, so the commit stands beside it, and

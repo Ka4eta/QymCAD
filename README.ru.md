@@ -1,3 +1,5 @@
+> **FieldCAD** — изменённая сборка QymCAD от **Ka4eta** (изменения © 2026 Ka4eta, AGPL-3.0). См. [NOTICE.md](NOTICE.md).
+
 <div align="center">
 
 <img src="assets/logo.png" width="112" alt="QymCAD">

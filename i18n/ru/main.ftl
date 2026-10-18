@@ -2835,3 +2835,4 @@ send-program-as = { $program } ({ $format })
 send-sent = Отправлено в { $program }: { $path }
 send-failed = Не удалось запустить { $program }: { $error }
 about-based-on = Сборка на основе QymCAD — открытой САПР Дениса Казаченкова, по лицензии AGPL-3.0
+about-modified-by = Изменения FieldCAD © 2026 Ka4eta
