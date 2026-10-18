@@ -148,7 +148,7 @@ pub(crate) fn send_submenu(ui: &mut egui::Ui, what: SendWhat) -> Option<SendAnsw
                 ui.label(egui::RichText::new(crate::i18n::tr(group_key(kind))).weak());
                 for f in here {
                     let Some(format) = f.program.format_for(what) else { continue };
-                    let label = crate::i18n::trn("send-program-as", &[("program", f.program.name.as_str()), ("format", format_name(format))]);
+                    let label = format!("{}  ({})", f.program.name, format_name(format)); // a name and a format: no words of the catalogue
                     if ui.button(label).on_hover_text(f.exe.display().to_string()).clicked() {
                         answer = Some(SendAnswer::Pick(SendPick { name: f.program.name.clone(), exe: f.exe.clone(), format }));
                         ui.close();
@@ -270,8 +270,8 @@ pub(crate) fn watch(status: &mut Notice, regen: &qymcad_ui_state::Rebuilding, ct
 fn launch(delivery: &Delivery) -> Notice {
     let path = delivery.path.to_string_lossy().into_owned();
     match crate::system::start(&delivery.exe.to_string_lossy(), std::slice::from_ref(&path)) {
-        Ok(()) => Notice::info(crate::i18n::trn("send-sent", &[("program", delivery.name.as_str()), ("path", path.as_str())])),
-        Err(e) => Notice::error(crate::i18n::trn("send-failed", &[("program", delivery.name.as_str()), ("error", e.to_string().as_str())])),
+        Ok(()) => Notice::info(crate::i18n::tr1("send-sent", "program", &delivery.name)),
+        Err(e) => Notice::error(format!("{} {e}", crate::i18n::tr1("send-failed", "program", &delivery.name))),
     }
 }
 
