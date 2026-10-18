@@ -74,6 +74,26 @@ visible bodies of that component.
   printer it will not arrive in inches.
 - **Export to AMF** — the same mesh for printing programs that expect AMF, in millimetres.
 
+## Sending to another program
+
+**File -> Send to** hands the model straight to another program and starts it with that file. The submenu lists
+the programs found on this computer, in groups: **slicers of a printer**, **lasers and engravers**, **toolpaths of
+a mill**. Beside the name of a program stands the format it gets the model in: 3MF or STL is a mesh, as an export
+writes it (the quality is asked), STEP is the exact geometry.
+
+On a component in the tree the same submenu sends that component alone. On a sketch in the tree it sends the flat
+drawing as SVG or DXF - for a laser, an engraver or a cutting table.
+
+The file is put into the system's folder of temporary files, under `QymCAD\send`, and the next send of the same
+component replaces it.
+
+If the program you need is not listed:
+
+- press **Look for the programs again** - when it was installed while QymCAD was open;
+- press **Your list of programs…** - a file opens where you add a program, or write the path to one installed
+  elsewhere. An example line is already in the file; the list is read the next time the menu opens. A mistake in
+  the file is reported on the status line.
+
 ## Things to remember
 
 - A mesh is turned into a solid by the Part tool [Recognise](part/26-recognise): exact surfaces (a hole becomes

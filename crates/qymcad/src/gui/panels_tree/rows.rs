@@ -394,6 +394,7 @@ pub(crate) fn tree_sketch_row(tc: &mut qymcad_ui_state::TreeCtx, ui: &mut egui::
                                         // A PLAIN selectable row (with no expansion into contours). Editing starts on a double click; the right
                                         // button offers rename (inline) and delete. Only the visibility checkbox and the name.
     let mut act: Option<u8> = None; // 1 rename-start, 2 delete
+    let mut send: Option<crate::gui::export_menu::send_to::SendAnswer> = None;
     ui.horizontal(|ui| {
         let mut vis = !tc.sketch_hidden.contains(&sid);
         if ui.add(egui::Checkbox::without_text(&mut vis)).on_hover_text(crate::i18n::tr("tree-sketch-visible-hint")).changed() {
@@ -464,6 +465,7 @@ pub(crate) fn tree_sketch_row(tc: &mut qymcad_ui_state::TreeCtx, ui: &mut egui::
                 act = Some(6);
                 ui.close();
             }
+            send = crate::gui::export_menu::send_to::send_submenu(ui, qymcad_io::SendWhat::Drawing);
         });
     });
     match act {
@@ -481,6 +483,12 @@ pub(crate) fn tree_sketch_row(tc: &mut qymcad_ui_state::TreeCtx, ui: &mut egui::
         Some(6) => tc.ask.push(qymcad_ui_state::TreeAsk::ExportSketch { si, flat: true }),
         Some(7) => tc.ask.push(qymcad_ui_state::TreeAsk::ReplaceSketchPlane(si)),
         _ => {}
+    }
+    // THE DRAWING OF THE SKETCH STRAIGHT INTO THE PROGRAM OF A LASER OR OF TOOLPATHS
+    match send {
+        Some(crate::gui::export_menu::send_to::SendAnswer::Pick(pick)) => *tc.status = crate::gui::export_menu::send_to::send_sketch(&*tc.project, si, &pick),
+        Some(crate::gui::export_menu::send_to::SendAnswer::Say(said)) => *tc.status = said,
+        None => {}
     }
 }
 

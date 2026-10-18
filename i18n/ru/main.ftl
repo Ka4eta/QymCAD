@@ -2817,3 +2817,20 @@ io-rebuild-left-errors = Не построено операций: { $n }. Пе�
 io-rebuild-left-warnings = Построено не полностью операций: { $n }. Первая, { $where }:
 io-placement-left-errors = Не выполняется связей: { $n }. Первая, { $where }:
 par-left-errors = Параметров без значения: { $n }. Первый, { $where }:
+
+## Sending a model or a drawing to another program
+send-to = Отправить в
+send-group-slicer = Слайсеры принтера
+send-group-laser = Лазеры и граверы
+send-group-cam = ЧПУ: траектории фрезы
+send-none = На этом компьютере программы не найдены
+send-rescan = Найти программы заново
+send-own-list = Свой список программ…
+send-own-list-hint = Открывает файл, в который можно добавить программу или вписать путь к программе, установленной в другом месте
+send-own-list-note = Ваши программы: скопируйте строку-пример, уберите две косые черты перед ней и заполните. Список прочитается при следующем открытии меню.
+send-own-list-broken = Не удалось прочитать ваш список программ: { $error }
+send-own-list-failed = Не удалось открыть список программ: { $error }
+send-own-list-nowhere = В этой системе нет папки для ваших файлов, поэтому списку программ негде лежать
+send-program-as = { $program } ({ $format })
+send-sent = Отправлено в { $program }: { $path }
+send-failed = Не удалось запустить { $program }: { $error }

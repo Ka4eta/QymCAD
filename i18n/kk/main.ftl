@@ -2812,3 +2812,20 @@ io-rebuild-left-errors = Құрылмаған операциялар: { $n }. Б
 io-rebuild-left-warnings = Толық құрылмаған операциялар: { $n }. Біріншісі, { $where }:
 io-placement-left-errors = Орындалмаған қосылыстар: { $n }. Біріншісі, { $where }:
 par-left-errors = Мәні жоқ параметрлер: { $n }. Біріншісі, { $where }:
+
+## Sending a model or a drawing to another program
+send-to = Жіберу
+send-group-slicer = Принтер слайсерлері
+send-group-laser = Лазерлер мен гравёрлер
+send-group-cam = СБЖ: фреза траекториялары
+send-none = Бұл компьютерде бағдарлама табылмады
+send-rescan = Бағдарламаларды қайта іздеу
+send-own-list = Өз бағдарламалар тізімі…
+send-own-list-hint = Бағдарлама қосуға немесе басқа жерге орнатылған бағдарламаның жолын жазуға болатын файлды ашады
+send-own-list-note = Сіздің бағдарламаларыңыз: мысал жолын көшіріп, алдындағы екі қиғаш сызықты алып тастап, толтырыңыз. Тізім мәзір келесі ашылғанда оқылады.
+send-own-list-broken = Бағдарламалар тізімін оқу мүмкін болмады: { $error }
+send-own-list-failed = Бағдарламалар тізімін ашу мүмкін болмады: { $error }
+send-own-list-nowhere = Бұл жүйеде сіздің файлдарыңызға арналған қалта жоқ, сондықтан бағдарламалар тізіміне орын жоқ
+send-program-as = { $program } ({ $format })
+send-sent = { $program } бағдарламасына жіберілді: { $path }
+send-failed = { $program } іске қосылмады: { $error }

@@ -108,6 +108,23 @@ pub(crate) fn menu_bar(bc: &mut qymcad_ui_state::BarCtx, ui: &mut egui::Ui) {
                 }
                 None => {}
             }
+            // THE WHOLE PROJECT STRAIGHT INTO A SLICER OR A PROGRAM OF TOOLPATHS, by the same export
+            {
+                use crate::gui::export_menu::send_to::{begin, send_submenu, Begin, SendAnswer};
+                match send_submenu(ui, qymcad_io::SendWhat::Model) {
+                    Some(SendAnswer::Pick(pick)) => {
+                        let root = qymcad_ui_state::ExportTarget::Component(bc.project.root);
+                        let base = crate::gui::io_jobs::export_base_name(&*bc.project, &None, root);
+                        match begin(pick, &base) {
+                            Some(Begin::Exact(f)) => bc.ask.push(qymcad_ui_state::BarAsk::ExportExact(f, qymcad_ui_state::ExportTarget::Project)),
+                            Some(Begin::Mesh(f)) => *bc.mesh_export = Some((f, qymcad_ui_state::ExportTarget::Project)),
+                            None => {}
+                        }
+                    }
+                    Some(SendAnswer::Say(said)) => *bc.status = said,
+                    None => {}
+                }
+            }
             ui.separator();
             if ui.button(format!("{}  {}", ph::SIGN_OUT, qymcad_i18n::tr("file-quit"))).clicked() {
                 bc.ask.push(qymcad_ui_state::BarAsk::Nav(qymcad_ui_state::Nav::Exit));

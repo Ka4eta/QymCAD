@@ -11,6 +11,8 @@ description = "Import (DXF/SVG/STL/STEP) and project files for QymCAD"
 [dependencies]
 qymcad-core.workspace = true
 ron.workspace = true
+# the list of programs a file is sent to is read from a resource of this shape
+serde.workspace = true
 dxf = "0.6"
 usvg = "0.48"
 zip = { version = "8", default-features = false, features = ["deflate"] }

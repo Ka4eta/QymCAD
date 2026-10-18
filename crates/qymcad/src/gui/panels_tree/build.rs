@@ -491,6 +491,7 @@ pub(crate) fn build_tree(tc: &mut qymcad_ui_state::TreeCtx, ui: &mut egui::Ui) {
                         rows_geom.push((cid, resp.rect));
                         let mut act: Option<u8> = None; // 1 copy, 2 cut, 3 paste, 6 rename, 7 save as a part, 8 delete
                         let mut export: Option<crate::gui::export_menu::ExportChoice> = None;
+                        let mut send: Option<crate::gui::export_menu::send_to::SendAnswer> = None;
                         let multi_n = if in_multi { tc.tree_sel.multi.len() } else { 0 };
                         resp.context_menu(|ui| {
                             // EDITING A COMPONENT PATTERN starts here, as editing a feature in the timeline does.
@@ -542,6 +543,7 @@ pub(crate) fn build_tree(tc: &mut qymcad_ui_state::TreeCtx, ui: &mut egui::Ui) {
                                 export = Some(choice);
                                 ui.close();
                             }
+                            send = crate::gui::export_menu::send_to::send_submenu(ui, qymcad_io::SendWhat::Model);
                             ui.separator();
                             if ui.button(format!("{} {}", ph::PACKAGE, crate::i18n::tr("act-save-as-part"))).on_hover_text(crate::i18n::tr("tree-save-as-part-hint")).clicked() {
                                 act = Some(7);
@@ -564,6 +566,19 @@ pub(crate) fn build_tree(tc: &mut qymcad_ui_state::TreeCtx, ui: &mut egui::Ui) {
                         match export {
                             Some(crate::gui::export_menu::ExportChoice::Exact(f)) => tc.ask.push(qymcad_ui_state::TreeAsk::ExportExact(f, cid)),
                             Some(crate::gui::export_menu::ExportChoice::Mesh(f)) => *tc.mesh_export = Some((f, ExportTarget::Component(cid))),
+                            None => {}
+                        }
+                        // THE PART OR SUBASSEMBLY STRAIGHT INTO A SLICER OR A PROGRAM OF TOOLPATHS, by the same export
+                        match send {
+                            Some(crate::gui::export_menu::send_to::SendAnswer::Pick(pick)) => {
+                                let base = crate::gui::io_jobs::export_base_name(&*tc.project, &None, ExportTarget::Component(cid));
+                                match crate::gui::export_menu::send_to::begin(pick, &base) {
+                                    Some(crate::gui::export_menu::send_to::Begin::Exact(f)) => tc.ask.push(qymcad_ui_state::TreeAsk::ExportExact(f, cid)),
+                                    Some(crate::gui::export_menu::send_to::Begin::Mesh(f)) => *tc.mesh_export = Some((f, ExportTarget::Component(cid))),
+                                    None => {}
+                                }
+                            }
+                            Some(crate::gui::export_menu::send_to::SendAnswer::Say(said)) => *tc.status = said,
                             None => {}
                         }
                         match act {

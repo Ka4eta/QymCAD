@@ -2817,3 +2817,20 @@ io-rebuild-left-errors = Operations that did not build: { $n }. The first, { $wh
 io-rebuild-left-warnings = Operations built only in part: { $n }. The first, { $where }:
 io-placement-left-errors = Mates that do not hold: { $n }. The first, { $where }:
 par-left-errors = Parameters without a value: { $n }. The first, { $where }:
+
+## Sending a model or a drawing to another program
+send-to = Send to
+send-group-slicer = Slicers of a printer
+send-group-laser = Lasers and engravers
+send-group-cam = Toolpaths of a mill
+send-none = No program was found on this computer
+send-rescan = Look for the programs again
+send-own-list = Your list of programs…
+send-own-list-hint = Opens the file where you add a program, or write the path to one installed elsewhere
+send-own-list-note = Your programs: copy the example line, remove the two slashes in front of it and fill it in. The list is read the next time the menu opens.
+send-own-list-broken = Your list of programs could not be read: { $error }
+send-own-list-failed = The list of programs could not be opened: { $error }
+send-own-list-nowhere = This system has no folder for your own files, so there is no place for a list of programs
+send-program-as = { $program } ({ $format })
+send-sent = Sent to { $program }: { $path }
+send-failed = { $program } could not be started: { $error }

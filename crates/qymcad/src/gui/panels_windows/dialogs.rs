@@ -429,6 +429,7 @@ pub(crate) fn nav_dialog(wc: &mut qymcad_ui_state::WinCtx, ctx: &egui::Context) 
 
 /// The modal dialogue for choosing the mesh quality (the deflection) before an export.
 pub(crate) fn mesh_quality_dialog(wc: &mut qymcad_ui_state::WinCtx, ctx: &egui::Context) {
+    crate::gui::export_menu::send_to::watch(wc.status, wc.regen, ctx); // a file sent to another program, once written, starts it
     let Some((format, target)) = *wc.mesh_export else { return };
     let mut choice: Option<Option<f64>> = None; // None = close; Some(Some(defl)) = export; Some(None) = cancel
     egui::Window::new(crate::i18n::tr1("mesh-title", "format", crate::gui::mesh_entry(format).name()))
@@ -455,9 +456,13 @@ pub(crate) fn mesh_quality_dialog(wc: &mut qymcad_ui_state::WinCtx, ctx: &egui::
     match choice {
         Some(Some(defl)) => {
             *wc.mesh_export = None;
+            crate::gui::export_menu::send_to::quality_chosen();
             wc.ask.push(qymcad_ui_state::WinAsk::ExportMesh(format, target, defl));
         }
-        Some(None) => *wc.mesh_export = None,
+        Some(None) => {
+            *wc.mesh_export = None;
+            crate::gui::export_menu::send_to::forget();
+        }
         None => {}
     }
 }

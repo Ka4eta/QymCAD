@@ -18,6 +18,8 @@ pub(crate) enum ExportFrom {
     Component,
 }
 
+pub(crate) mod send_to;
+
 use qymcad_kernel::ExactFormat;
 use qymcad_ui_state::MeshFormat;
 
@@ -70,6 +72,7 @@ pub(crate) fn export_submenu(ui: &mut egui::Ui, from: ExportFrom) -> Option<Expo
             }
             if ui.button(crate::i18n::tr1("file-export-as", "format", name_of(choice))).on_hover_text(crate::i18n::tr(hint_of(choice, from))).clicked() {
                 chosen = Some(choice);
+                send_to::forget(); // an export asked for by hand is not a send waiting for its quality
                 ui.close();
             }
         }

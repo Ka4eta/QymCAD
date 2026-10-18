@@ -1,0 +1,45 @@
+// THE PROGRAMS A FILE IS SENT TO, as the program comes with them.
+//
+// One entry: `id` is the stable name a person's own list replaces it by; `name` is shown in the menu; `formats` are the
+// ones the program opens, the one it is best handed first (a model goes in the first model format, a drawing in the
+// first flat one); `exe` are the names of its executable; `folders` are how the folder it is installed into begins,
+// without case; `paths` are full paths taken as they stand, `%NAME%` being a variable of the environment.
+//
+// A person's own list of the same shape lies beside the settings, as `send_programs.ron`.
+(
+    programs: [
+        // --- slicers ---
+        (id: "prusaslicer", name: "PrusaSlicer", kind: Slicer, formats: [ThreeMf, Stl, Obj, Step], exe: ["prusa-slicer.exe"], folders: ["Prusa3D", "PrusaSlicer"]),
+        (id: "orcaslicer", name: "OrcaSlicer", kind: Slicer, formats: [ThreeMf, Stl, Obj, Step], exe: ["orca-slicer.exe", "OrcaSlicer.exe"], folders: ["OrcaSlicer"]),
+        (id: "bambustudio", name: "Bambu Studio", kind: Slicer, formats: [ThreeMf, Stl, Obj, Step], exe: ["bambu-studio.exe"], folders: ["Bambu Studio", "BambuStudio"]),
+        (id: "cura", name: "UltiMaker Cura", kind: Slicer, formats: [ThreeMf, Stl, Obj], exe: ["UltiMaker-Cura.exe", "Cura.exe"], folders: ["UltiMaker Cura", "Ultimaker Cura", "Cura"]),
+        (id: "superslicer", name: "SuperSlicer", kind: Slicer, formats: [ThreeMf, Stl, Obj, Step], exe: ["superslicer.exe"], folders: ["SuperSlicer"]),
+        (id: "crealityprint", name: "Creality Print", kind: Slicer, formats: [ThreeMf, Stl, Obj, Step], exe: ["CrealityPrint.exe", "Creality Print.exe"], folders: ["Creality"]),
+        (id: "elegooslicer", name: "ElegooSlicer", kind: Slicer, formats: [ThreeMf, Stl, Obj, Step], exe: ["elegoo-slicer.exe", "ElegooSlicer.exe"], folders: ["ElegooSlicer", "Elegoo"]),
+        (id: "anycubicslicer", name: "Anycubic Slicer Next", kind: Slicer, formats: [ThreeMf, Stl, Obj, Step], exe: ["AnycubicSlicerNext.exe", "anycubic-slicer-next.exe"], folders: ["AnycubicSlicer", "Anycubic"]),
+        (id: "flashprint", name: "FlashPrint", kind: Slicer, formats: [ThreeMf, Stl, Obj], exe: ["FlashPrint.exe"], folders: ["FlashForge", "FlashPrint"]),
+        (id: "ideamaker", name: "ideaMaker", kind: Slicer, formats: [ThreeMf, Stl, Obj], exe: ["ideaMaker.exe"], folders: ["Raise3D", "ideaMaker"]),
+        (id: "simplify3d", name: "Simplify3D", kind: Slicer, formats: [ThreeMf, Stl, Obj], exe: ["Simplify3D.exe"], folders: ["Simplify3D"]),
+        (id: "chitubox", name: "CHITUBOX", kind: Slicer, formats: [Stl, ThreeMf, Obj], exe: ["CHITUBOX.exe", "CHITUBOX Basic.exe"], folders: ["CHITUBOX"]),
+        (id: "lychee", name: "Lychee Slicer", kind: Slicer, formats: [ThreeMf, Stl, Obj], exe: ["Lychee Slicer.exe", "LycheeSlicer.exe", "Lychee.exe"], folders: ["Lychee", "Mango3D"]),
+
+        // --- lasers and engravers ---
+        (id: "lightburn", name: "LightBurn", kind: Laser, formats: [Svg, Dxf], exe: ["LightBurn.exe"], folders: ["LightBurn"]),
+        (id: "lasergrbl", name: "LaserGRBL", kind: Laser, formats: [Svg], exe: ["LaserGRBL.exe"], folders: ["LaserGRBL"]),
+        (id: "xtool", name: "xTool Creative Space", kind: Laser, formats: [Svg, Dxf], exe: ["xTool Creative Space.exe", "XCS.exe"], folders: ["xTool"]),
+        (id: "inkscape", name: "Inkscape", kind: Laser, formats: [Svg, Dxf], exe: ["inkscape.exe"], folders: ["Inkscape"]),
+        (id: "rdworks", name: "RDWorks", kind: Laser, formats: [Dxf], exe: ["RDWorksV8.exe", "RDWorks.exe"], folders: ["RDWorks"]),
+        (id: "ezcad", name: "EzCad", kind: Laser, formats: [Dxf], exe: ["EzCad2.exe", "EzCad3.exe", "EzCad.exe"], folders: ["EzCad"]),
+        (id: "k40whisperer", name: "K40 Whisperer", kind: Laser, formats: [Svg, Dxf], exe: ["K40 Whisperer.exe", "k40_whisperer.exe"], folders: ["K40"]),
+
+        // --- toolpaths of a mill ---
+        (id: "freecad", name: "FreeCAD", kind: Cam, formats: [Step, Stl, Dxf, Svg], exe: ["freecad.exe"], folders: ["FreeCAD"]),
+        (id: "estlcam", name: "Estlcam", kind: Cam, formats: [Dxf, Svg, Stl], exe: ["Estlcam.exe"], folders: ["Estlcam"]),
+        (id: "carbidecreate", name: "Carbide Create", kind: Cam, formats: [Svg, Dxf, Stl], exe: ["carbidecreate.exe", "Carbide Create.exe"], folders: ["Carbide"]),
+        (id: "vectric", name: "Vectric (VCarve, Aspire, Cut2D, Cut3D)", kind: Cam, formats: [Dxf, Svg, Stl, Obj], exe: ["VCarve Pro.exe", "VCarvePro.exe", "VCarve Desktop.exe", "Aspire.exe", "Cut2D Pro.exe", "Cut2D Desktop.exe", "Cut3D.exe"], folders: ["Vectric", "VCarve", "Aspire", "Cut2D", "Cut3D"]),
+        (id: "cambam", name: "CamBam", kind: Cam, formats: [Dxf, Stl], exe: ["CamBam.exe"], folders: ["CamBam"]),
+        (id: "meshcam", name: "MeshCAM", kind: Cam, formats: [Stl, Dxf], exe: ["MeshCAM.exe"], folders: ["MeshCAM"]),
+        (id: "deskproto", name: "DeskProto", kind: Cam, formats: [Stl, Dxf], exe: ["DeskProto.exe"], folders: ["DeskProto"]),
+        (id: "sheetcam", name: "SheetCam", kind: Cam, formats: [Dxf, Svg], exe: ["SheetCam TNG.exe", "SheetCam.exe"], folders: ["SheetCam"]),
+    ],
+)

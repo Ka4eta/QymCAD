@@ -81,6 +81,13 @@ pub(crate) type PathFuture = std::pin::Pin<Box<dyn std::future::Future<Output = 
 /// the waiting itself may happen anywhere. A stand-in system never builds it.
 pub(crate) fn choose_file(kind: Chooser, folder: Option<PathBuf>, chooser: impl FnOnce() -> PathFuture) -> Receiver<Option<PathBuf>> {
     let (tx, rx) = std::sync::mpsc::channel();
+    // A SEND OF A MODEL names its file itself: the chooser of the export it started is answered with that file
+    if kind == Chooser::Save {
+        if let Some(path) = crate::gui::export_menu::send_to::answer_for_save() {
+            let _ = tx.send(Some(path));
+            return rx;
+        }
+    }
     let tx = match with_stand_in(|s| s.asked = Some(Asked { kind, folder, tx: tx.clone() })) {
         Some(()) => return rx,
         None => tx,
